@@ -1,6 +1,5 @@
 # About
 
-[![build](https://img.shields.io/github/actions/workflow/status/Tochemey/goakt/build.yml?branch=main)](https://github.com/Tochemey/goakt/actions/workflows/build.yml)
 [![GitHub go.mod Go version](https://badges.chse.dev/github/go-mod/go-version/Tochemey/goakt-examples)](https://go.dev/doc/install)
 
 This repo contains examples for [Go-Akt](https://github.com/Tochemey/goakt). All the examples here target Go-Akt main and release v2.1.0

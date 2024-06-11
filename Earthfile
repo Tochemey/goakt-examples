@@ -18,14 +18,6 @@ vendor:
     RUN go mod tidy && go mod vendor
     SAVE ARTIFACT /app /files
 
-lint:
-    FROM +vendor
-
-    COPY .golangci.yml ./
-
-    # Runs golangci-lint with settings:
-    RUN golangci-lint run --timeout 10m
-
 
 protogen:
     # copy the proto files to generate
