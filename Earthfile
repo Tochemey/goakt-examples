@@ -35,7 +35,7 @@ protogen:
 compile-k8s:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./examples/actor-cluster/k8s
+    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/k8s
     SAVE ARTIFACT bin/accounts /accounts
 
 k8s-image:
@@ -58,7 +58,7 @@ k8s-image:
 compile-dnssd:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./examples/actor-cluster/dnssd
+    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/dnssd
     SAVE ARTIFACT bin/accounts /accounts
 
 dnssd-image:
@@ -81,7 +81,7 @@ dnssd-image:
 compile-static:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./examples/actor-cluster/static
+    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/static
     SAVE ARTIFACT bin/accounts /accounts
 
 static-image:
