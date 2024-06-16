@@ -24,9 +24,7 @@
 
 package main
 
-import (
-	"github.com/tochemey/goakt/v2/examples/actor-cluster/static/cmd"
-)
+import "github.com/tochemey/goakt-examples/v2/actor-cluster/static/cmd"
 
 func main() {
 	cmd.Execute()
