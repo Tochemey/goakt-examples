@@ -130,7 +130,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 
 	if pid == nil {
 		s.logger.Info("actor is not found locally...")
-		reply, err := actors.RemoteAsk(ctx, addr, command)
+		reply, err := actors.RemoteAsk(ctx, addr, command, actors.DefaultAskTimeout)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
@@ -176,7 +176,7 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 
 	if pid == nil {
 		s.logger.Info("actor is not found locally...")
-		reply, err := actors.RemoteAsk(ctx, addr, command)
+		reply, err := actors.RemoteAsk(ctx, addr, command, actors.DefaultAskTimeout)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}

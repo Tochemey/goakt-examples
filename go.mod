@@ -7,12 +7,12 @@ toolchain go1.22.4
 require (
 	connectrpc.com/connect v1.16.2
 	connectrpc.com/otelconnect v0.7.0
-	github.com/caarlos0/env/v11 v11.0.1
+	github.com/caarlos0/env/v11 v11.1.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.1
 	github.com/spf13/cobra v1.8.1
-	github.com/tochemey/goakt/v2 v2.2.2
+	github.com/tochemey/goakt/v2 v2.3.0
 	go.opentelemetry.io/otel v1.27.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.49.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.27.0
