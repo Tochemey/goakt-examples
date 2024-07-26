@@ -42,7 +42,7 @@ import (
 
 const (
 	port = 50051
-	host = "localhost"
+	host = "127.0.0.1"
 )
 
 func main() {
