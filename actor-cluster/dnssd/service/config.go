@@ -31,6 +31,7 @@ type Config struct {
 	Port            int    `env:"PORT" envDefault:"50051"`
 	ServiceName     string `env:"SERVICE_NAME"`
 	ActorSystemName string `env:"SYSTEM_NAME"`
+	TraceURL        string `env:"TRACE_URL"`
 	GossipPort      int    `env:"GOSSIP_PORT"`
 	PeersPort       int    `env:"PEERS_PORT"`
 	RemotingPort    int    `env:"REMOTING_PORT"`
