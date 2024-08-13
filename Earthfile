@@ -27,10 +27,12 @@ protogen:
     # generate the pbs
     RUN buf generate \
             --template buf.gen.yaml \
+            --path protos/benchmark \
             --path protos/sample
 
     # save artifact to
     SAVE ARTIFACT gen/sample AS LOCAL samplepb
+    SAVE ARTIFACT gen/benchmark AS LOCAL bench/benchmarkpb
 
 compile-k8s:
     COPY +vendor/files ./

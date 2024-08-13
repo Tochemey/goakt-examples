@@ -27,6 +27,7 @@ package actors
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 
 	goakt "github.com/tochemey/goakt/v2/actors"
@@ -42,13 +43,23 @@ type AccountEntity struct {
 	balance   *atomic.Float64
 	logger    log.Logger
 	created   *atomic.Bool
+	tracer    trace.Tracer
 }
 
 // enforce compilation error
 var _ goakt.Actor = (*AccountEntity)(nil)
 
+// NewAccountEntity creates an instance of AccountEntity
+func NewAccountEntity(tracer trace.Tracer) *AccountEntity {
+	return &AccountEntity{
+		tracer: tracer,
+	}
+}
+
 // PreStart is used to pre-set initial values for the actor
 func (p *AccountEntity) PreStart(ctx context.Context) error {
+	ctx, span := p.tracer.Start(ctx, "PreStart")
+	defer span.End()
 	p.created = atomic.NewBool(false)
 	p.balance = atomic.NewFloat64(float64(0))
 	p.logger = log.DefaultLogger
@@ -57,6 +68,9 @@ func (p *AccountEntity) PreStart(ctx context.Context) error {
 
 // Receive handles the messages sent to the actor
 func (p *AccountEntity) Receive(ctx goakt.ReceiveContext) {
+	_, span := p.tracer.Start(ctx.Context(), "Receive")
+	defer span.End()
+
 	switch msg := ctx.Message().(type) {
 	case *goaktpb.PostStart:
 		// set the account ID
@@ -108,5 +122,7 @@ func (p *AccountEntity) Receive(ctx goakt.ReceiveContext) {
 
 // PostStop is used to free-up resources when the actor stops
 func (p *AccountEntity) PostStop(ctx context.Context) error {
+	ctx, span := p.tracer.Start(ctx, "PostStop")
+	defer span.End()
 	return nil
 }

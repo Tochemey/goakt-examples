@@ -33,6 +33,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/protobuf/proto"
@@ -50,16 +51,18 @@ type AccountService struct {
 	logger      log.Logger
 	port        int
 	server      *http.Server
+	tracer      trace.Tracer
 }
 
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system actors.ActorSystem, logger log.Logger, port int) *AccountService {
+func NewAccountService(system actors.ActorSystem, logger log.Logger, port int, tracer trace.Tracer) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
 		port:        port,
+		tracer:      tracer,
 	}
 }
 
@@ -70,7 +73,7 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	// grab the account id
 	accountID := req.GetCreateAccount().GetAccountId()
 	// create the pid and send the command create account
-	accountEntity := &kactors.AccountEntity{}
+	accountEntity := kactors.NewAccountEntity(s.tracer)
 	// create the given pid
 	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity)
 	if err != nil {

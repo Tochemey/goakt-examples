@@ -27,3 +27,10 @@ Click links below for more details on how to run each example.
 3. [Remoting](./actor-remoting)
 4. [Messaging](./actor-to-actor)
 5. [Simple Receive](./actor-receive)
+
+## Benchmark
+
+One can run the benchmark test from the [bench package](./bench):
+
+- `make bench` to run the benchmark
+- `make bench-stats` to see the benchmark stats
