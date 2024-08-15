@@ -28,16 +28,16 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
+	"github.com/tochemey/goakt/v2/goaktpb"
 	"go.uber.org/atomic"
 
 	goakt "github.com/tochemey/goakt/v2/actors"
 	"github.com/tochemey/goakt/v2/log"
 
-	samplepb "github.com/tochemey/goakt-examples/v2/samplepb"
+	"github.com/tochemey/goakt-examples/v2/samplepb"
 )
 
 func main() {
@@ -46,29 +46,43 @@ func main() {
 	// use the address default log. real-life implement the log interface`
 	logger := log.DefaultLogger
 
-	count := 1_000_000
 	// create the actor system. kindly in real-life application handle the error
 	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
 		goakt.WithPassivationDisabled(),
-		goakt.WithLogger(logger),
-		goakt.WithMailboxSize(uint64(count)),
-		goakt.WithActorInitMaxRetries(3))
+		goakt.WithLogger(logger))
 
 	// start the actor system
 	_ = actorSystem.Start(ctx)
 
+	// wait for system to start properly
+	time.Sleep(1 * time.Second)
+
 	// create an actor
-	pinger := NewPinger()
-	actor, _ := actorSystem.Spawn(ctx, "Ping", pinger)
+	ping := NewPing()
+	pingActor, _ := actorSystem.Spawn(ctx, "Ping", ping)
 
-	// send some messages to the actor
-	startTime := time.Now()
-	for i := 0; i < count; i++ {
-		_ = goakt.Tell(ctx, actor, new(samplepb.Ping))
-	}
+	// wait for actor to start properly
+	time.Sleep(1 * time.Second)
 
-	// log some stats
-	logger.Infof("Actor=%s has processed %d messages in %v", actor.ActorPath().String(), pinger.count.Load(), time.Since(startTime))
+	// Start the timer
+	duration := time.Minute
+	done := make(chan struct{})
+	go func() {
+		for await := time.After(duration); ; {
+			select {
+			case <-await:
+				done <- struct{}{}
+				return
+			default:
+				_ = goakt.Tell(ctx, pingActor, new(samplepb.Ping))
+			}
+		}
+	}()
+
+	<-done
+
+	pingCount := ping.count.Load()
+	logger.Infof("%s has processed %d messages in %v", pingActor.ID(), pingCount, duration)
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -80,41 +94,31 @@ func main() {
 	os.Exit(0)
 }
 
-type Pinger struct {
-	mu     sync.Mutex
-	count  *atomic.Int32
-	logger log.Logger
+type Ping struct {
+	count *atomic.Int32
 }
 
-var _ goakt.Actor = (*Pinger)(nil)
+var _ goakt.Actor = (*Ping)(nil)
 
-func NewPinger() *Pinger {
-	return &Pinger{
-		mu: sync.Mutex{},
-	}
+func NewPing() *Ping {
+	return &Ping{}
 }
 
-func (p *Pinger) PreStart(ctx context.Context) error {
-	// set the log
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.logger = log.DefaultLogger
+func (p *Ping) PreStart(context.Context) error {
 	p.count = atomic.NewInt32(0)
-	p.logger.Info("About to Start")
 	return nil
 }
 
-func (p *Pinger) Receive(ctx goakt.ReceiveContext) {
+func (p *Ping) Receive(ctx goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
+	case *goaktpb.PostStart:
 	case *samplepb.Ping:
-		p.count.Inc()
+		p.count.Add(1)
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (p *Pinger) PostStop(ctx context.Context) error {
-	p.logger.Info("About to stop")
-	p.logger.Infof("Processed=%d messages", p.count.Load())
+func (p *Ping) PostStop(context.Context) error {
 	return nil
 }

@@ -158,7 +158,6 @@ var runCmd = &cobra.Command{
 			config.ActorSystemName,
 			goakt.WithPassivationDisabled(), // disable passivation
 			goakt.WithLogger(logger),
-			goakt.WithTracing(),
 			goakt.WithMetric(),
 			goakt.WithActorInitMaxRetries(3),
 			goakt.WithRemoting(host, int32(config.RemotingPort)),

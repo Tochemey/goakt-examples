@@ -55,14 +55,14 @@ func main() {
 	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
 		goakt.WithPassivationDisabled(), // set big passivation time
 		goakt.WithLogger(logger),
-		goakt.WithActorInitMaxRetries(3),
 		goakt.WithRemoting(host, port))
 
 	// start the actor system
 	_ = actorSystem.Start(ctx)
 
 	// create an actor
-	pingActor, _ := actorSystem.Spawn(ctx, "Ping", NewPingActor())
+	ping := NewPing()
+	pingActor, _ := actorSystem.Spawn(ctx, "Ping", ping)
 
 	// start the conversation
 	timer := time.AfterFunc(time.Second, func() {
@@ -85,45 +85,38 @@ func main() {
 	os.Exit(0)
 }
 
-type PingActor struct {
-	count  *atomic.Int32
-	logger log.Logger
+type Ping struct {
+	count *atomic.Int32
 }
 
-var _ goakt.Actor = (*PingActor)(nil)
+var _ goakt.Actor = (*Ping)(nil)
 
-func NewPingActor() *PingActor {
-	return &PingActor{}
+func NewPing() *Ping {
+	return &Ping{}
 }
 
-func (p *PingActor) PreStart(ctx context.Context) error {
-	// set the log
-	p.logger = log.DefaultLogger
+func (p *Ping) PreStart(context.Context) error {
 	p.count = atomic.NewInt32(0)
-	p.logger.Info("About to Start")
 	return nil
 }
 
-func (p *PingActor) Receive(ctx goakt.ReceiveContext) {
+func (p *Ping) Receive(ctx goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Pong:
+		p.count.Add(1)
 		// reply the sender in case there is a sender
 		if ctx.RemoteSender() != goakt.RemoteNoSender {
-			p.logger.Infof("received remote from %s", ctx.RemoteSender().String())
 			_ = ctx.Self().RemoteTell(context.Background(), ctx.RemoteSender(), new(samplepb.Ping))
 		} else if ctx.Sender() != goakt.NoSender {
-			p.logger.Infof("received Pong from %s", ctx.Sender().ActorPath().String())
 			_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Ping))
 		}
-		p.count.Add(1)
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (p *PingActor) PostStop(ctx context.Context) error {
-	p.logger.Info("About to stop")
-	p.logger.Infof("Processed=%d messages", p.count.Load())
+func (p *Ping) PostStop(context.Context) error {
+	log.DefaultLogger.Infof("Ping has processed %d messages", p.count.Load())
 	return nil
 }

@@ -28,10 +28,10 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
+	"github.com/tochemey/goakt/v2/goaktpb"
 	"go.uber.org/atomic"
 
 	goakt "github.com/tochemey/goakt/v2/actors"
@@ -49,28 +49,51 @@ func main() {
 	// create the actor system. kindly in real-life application handle the error
 	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
 		goakt.WithLogger(logger),
+		goakt.WithPassivationDisabled(),
 		goakt.WithActorInitMaxRetries(3))
 
 	// start the actor system
 	_ = actorSystem.Start(ctx)
 
-	// create teh actors
-	pinger := NewPingActor()
-	ponger := NewPongActor()
-	pingActor, _ := actorSystem.Spawn(ctx, "Ping", pinger)
-	pongActor, _ := actorSystem.Spawn(ctx, "Pong", ponger)
+	// wait for system to start properly
+	time.Sleep(1 * time.Second)
 
-	// start the conversation
-	_ = pingActor.Tell(ctx, pongActor, new(samplepb.Ping))
+	// create the actors
+	ping := NewPing()
+	pong := NewPong()
+	pingActor, _ := actorSystem.Spawn(ctx, "Ping", ping)
+	pongActor, _ := actorSystem.Spawn(ctx, "Pong", pong)
 
-	// shutdown both actors after 3 seconds of conversation
-	timer := time.AfterFunc(3*time.Second, func() {
-		logger.Infof("PingActor=%s has processed %d address", pingActor.ActorPath().String(), pinger.count.Load())
-		logger.Infof("PongActor=%s has processed %d address", pongActor.ActorPath().String(), ponger.count.Load())
-		_ = pingActor.Shutdown(ctx)
-		_ = pongActor.Shutdown(ctx)
-	})
-	defer timer.Stop()
+	// wait for actors to start properly
+	time.Sleep(1 * time.Second)
+
+	duration := time.Minute
+	if err := pingActor.Tell(ctx, pongActor, new(samplepb.Ping)); err != nil {
+		panic(err)
+	}
+
+	// Start the timer
+	done := make(chan struct{})
+	go func() {
+		for await := time.After(duration); ; {
+			select {
+			case <-await:
+				done <- struct{}{}
+				return
+			}
+		}
+	}()
+
+	<-done
+
+	pingCount := ping.count.Load()
+	pongCount := pong.count.Load()
+
+	logger.Infof("Ping=%s has processed %d messages in %v", pingActor.ActorPath().String(), pingCount, duration)
+	logger.Infof("Pong=%s has processed %d messages in %v", pongActor.ActorPath().String(), pongCount, duration)
+
+	logger.Infof("Ping has processed per second: %d", int64(pingCount)/int64(duration.Seconds()))
+	logger.Infof("Pong has processed per second: %d", int64(pongCount)/int64(duration.Seconds()))
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -82,90 +105,64 @@ func main() {
 	os.Exit(0)
 }
 
-type PingActor struct {
-	mu     sync.Mutex
-	count  *atomic.Int32
-	logger log.Logger
+type Ping struct {
+	count *atomic.Int32
 }
 
-var _ goakt.Actor = (*PingActor)(nil)
+var _ goakt.Actor = (*Ping)(nil)
 
-func NewPingActor() *PingActor {
-	return &PingActor{
-		mu: sync.Mutex{},
-	}
+func NewPing() *Ping {
+	return &Ping{}
 }
 
-func (p *PingActor) PreStart(ctx context.Context) error {
-	// set the log
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.logger = log.DefaultLogger
+func (p *Ping) PreStart(context.Context) error {
 	p.count = atomic.NewInt32(0)
-	p.logger.Info("PingActor is about to Start")
 	return nil
 }
 
-func (p *PingActor) Receive(ctx goakt.ReceiveContext) {
+func (p *Ping) Receive(ctx goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
+	case *goaktpb.PostStart:
 	case *samplepb.Pong:
-		p.logger.Infof("%s received pong message from %s", ctx.Self().ActorPath().String(), ctx.Sender().ActorPath().String())
+		p.count.Add(1)
 		// let us reply to the sender
 		_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Ping))
-		p.count.Add(1)
-	default:
-		p.logger.Panic(goakt.ErrUnhandled)
-	}
-}
-
-func (p *PingActor) PostStop(ctx context.Context) error {
-	p.logger.Info("PingActor is about to stop")
-	p.logger.Infof("PingActor has processed=%d address", p.count.Load())
-	return nil
-}
-
-type PongActor struct {
-	mu     sync.Mutex
-	count  *atomic.Int32
-	logger log.Logger
-}
-
-var _ goakt.Actor = (*PongActor)(nil)
-
-func NewPongActor() *PongActor {
-	return &PongActor{
-		mu: sync.Mutex{},
-	}
-}
-
-func (p *PongActor) PreStart(ctx context.Context) error {
-	// set the log
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.logger = log.DefaultLogger
-	p.count = atomic.NewInt32(0)
-	p.logger.Info("PongActor is about to Start")
-	return nil
-}
-
-func (p *PongActor) Receive(ctx goakt.ReceiveContext) {
-	switch ctx.Message().(type) {
-	case *samplepb.Ping:
-		self := ctx.Self()
-		sender := ctx.Sender()
-
-		selfPath := self.ActorPath()
-		p.logger.Infof("%s received ping message from %s", selfPath.String(), sender.ActorPath().String())
-		// reply the sender in case there is a sender
-		_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Pong))
-		p.count.Add(1)
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (p *PongActor) PostStop(ctx context.Context) error {
-	p.logger.Info("PongActor is about to stop")
-	p.logger.Infof("PongActor has processed=%d address", p.count.Load())
+func (p *Ping) PostStop(context.Context) error {
+	return nil
+}
+
+type Pong struct {
+	count *atomic.Int32
+}
+
+var _ goakt.Actor = (*Pong)(nil)
+
+func NewPong() *Pong {
+	return &Pong{}
+}
+
+func (p *Pong) PreStart(context.Context) error {
+	p.count = atomic.NewInt32(0)
+	return nil
+}
+
+func (p *Pong) Receive(ctx goakt.ReceiveContext) {
+	switch ctx.Message().(type) {
+	case *goaktpb.PostStart:
+	case *samplepb.Ping:
+		p.count.Add(1)
+		// reply the sender in case there is a sender
+		_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Pong))
+	default:
+		ctx.Unhandled()
+	}
+}
+
+func (p *Pong) PostStop(context.Context) error {
 	return nil
 }

@@ -61,7 +61,7 @@ func main() {
 	_ = actorSystem.Start(ctx)
 
 	// create an actor
-	_, _ = actorSystem.Spawn(ctx, "Pong", NewPongActor(logger))
+	_, _ = actorSystem.Spawn(ctx, "Pong", NewPong())
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -73,45 +73,38 @@ func main() {
 	os.Exit(0)
 }
 
-type PongActor struct {
-	count  *atomic.Int32
-	logger log.Logger
+type Pong struct {
+	count *atomic.Int32
 }
 
-var _ goakt.Actor = (*PongActor)(nil)
+var _ goakt.Actor = (*Pong)(nil)
 
-func NewPongActor(logger log.Logger) *PongActor {
-	return &PongActor{
-		logger: logger,
-	}
+func NewPong() *Pong {
+	return &Pong{}
 }
 
-func (p *PongActor) PreStart(ctx context.Context) error {
+func (p *Pong) PreStart(ctx context.Context) error {
 	p.count = atomic.NewInt32(0)
-	p.logger.Info("About to Start")
 	return nil
 }
 
-func (p *PongActor) Receive(ctx goakt.ReceiveContext) {
+func (p *Pong) Receive(ctx goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Ping:
+		p.count.Add(1)
 		// reply the sender in case there is a sender
 		if ctx.RemoteSender() != goakt.RemoteNoSender {
-			p.logger.Infof("received remote from %s", ctx.RemoteSender().String())
 			_ = ctx.Self().RemoteTell(context.Background(), ctx.RemoteSender(), new(samplepb.Pong))
 		} else if ctx.Sender() != goakt.NoSender {
-			p.logger.Infof("received Ping from %s", ctx.Sender().ActorPath().String())
 			_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Pong))
 		}
-		p.count.Add(1)
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (p *PongActor) PostStop(ctx context.Context) error {
-	p.logger.Info("About to stop")
-	p.logger.Infof("Processed=%d messages", p.count.Load())
+func (p *Pong) PostStop(context.Context) error {
+	log.DefaultLogger.Infof("Processed=%d messages", p.count.Load())
 	return nil
 }
