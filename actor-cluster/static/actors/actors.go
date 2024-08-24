@@ -58,7 +58,7 @@ func (p *AccountEntity) PreStart(ctx context.Context) error {
 }
 
 // Receive handles the messages sent to the actor
-func (p *AccountEntity) Receive(ctx goakt.ReceiveContext) {
+func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *goaktpb.PostStart:
 		// set the account ID

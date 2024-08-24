@@ -67,7 +67,7 @@ func (p *AccountEntity) PreStart(ctx context.Context) error {
 }
 
 // Receive handles the messages sent to the actor
-func (p *AccountEntity) Receive(ctx goakt.ReceiveContext) {
+func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 	_, span := p.tracer.Start(ctx.Context(), "Receive")
 	defer span.End()
 

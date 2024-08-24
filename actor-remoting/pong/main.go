@@ -88,16 +88,19 @@ func (p *Pong) PreStart(ctx context.Context) error {
 	return nil
 }
 
-func (p *Pong) Receive(ctx goakt.ReceiveContext) {
+func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Ping:
 		p.count.Add(1)
 		// reply the sender in case there is a sender
 		if ctx.RemoteSender() != goakt.RemoteNoSender {
-			_ = ctx.Self().RemoteTell(context.Background(), ctx.RemoteSender(), new(samplepb.Pong))
-		} else if ctx.Sender() != goakt.NoSender {
-			_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Pong))
+			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Pong))
+			return
+		}
+
+		if !ctx.Sender().Equals(goakt.NoSender) {
+			ctx.Tell(ctx.Sender(), new(samplepb.Pong))
 		}
 	default:
 		ctx.Unhandled()

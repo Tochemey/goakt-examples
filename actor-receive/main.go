@@ -109,7 +109,7 @@ func (p *Ping) PreStart(context.Context) error {
 	return nil
 }
 
-func (p *Ping) Receive(ctx goakt.ReceiveContext) {
+func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Ping:

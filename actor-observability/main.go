@@ -155,7 +155,7 @@ func (p *Ping) PreStart(context.Context) error {
 	return nil
 }
 
-func (p *Ping) Receive(ctx goakt.ReceiveContext) {
+func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Pong:
@@ -186,12 +186,12 @@ func (p *Pong) PreStart(context.Context) error {
 	return nil
 }
 
-func (p *Pong) Receive(ctx goakt.ReceiveContext) {
+func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Ping:
 		p.count.Inc()
-		_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Pong))
+		ctx.Tell(ctx.Sender(), new(samplepb.Pong))
 	default:
 		ctx.Unhandled()
 	}
