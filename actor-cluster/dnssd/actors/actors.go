@@ -57,9 +57,7 @@ func NewAccountEntity(tracer trace.Tracer) *AccountEntity {
 }
 
 // PreStart is used to pre-set initial values for the actor
-func (p *AccountEntity) PreStart(ctx context.Context) error {
-	ctx, span := p.tracer.Start(ctx, "PreStart")
-	defer span.End()
+func (p *AccountEntity) PreStart(context.Context) error {
 	p.created = atomic.NewBool(false)
 	p.balance = atomic.NewFloat64(float64(0))
 	p.logger = log.DefaultLogger
@@ -68,9 +66,6 @@ func (p *AccountEntity) PreStart(ctx context.Context) error {
 
 // Receive handles the messages sent to the actor
 func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
-	_, span := p.tracer.Start(ctx.Context(), "Receive")
-	defer span.End()
-
 	switch msg := ctx.Message().(type) {
 	case *goaktpb.PostStart:
 		// set the account ID
@@ -121,8 +116,6 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 }
 
 // PostStop is used to free-up resources when the actor stops
-func (p *AccountEntity) PostStop(ctx context.Context) error {
-	ctx, span := p.tracer.Start(ctx, "PostStop")
-	defer span.End()
+func (p *AccountEntity) PostStop(context.Context) error {
 	return nil
 }
