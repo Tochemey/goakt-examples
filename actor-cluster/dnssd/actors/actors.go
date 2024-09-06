@@ -27,40 +27,33 @@ package actors
 import (
 	"context"
 
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 
 	goakt "github.com/tochemey/goakt/v2/actors"
 	"github.com/tochemey/goakt/v2/goaktpb"
-	"github.com/tochemey/goakt/v2/log"
 
-	samplepb "github.com/tochemey/goakt-examples/v2/samplepb"
+	"github.com/tochemey/goakt-examples/v2/samplepb"
 )
 
 // AccountEntity represents the immutable implementation of Actor
 type AccountEntity struct {
 	accountID string
-	balance   *atomic.Float64
-	logger    log.Logger
-	created   *atomic.Bool
-	tracer    trace.Tracer
+	balance   atomic.Float64
+	created   atomic.Bool
 }
 
 // enforce compilation error
 var _ goakt.Actor = (*AccountEntity)(nil)
 
 // NewAccountEntity creates an instance of AccountEntity
-func NewAccountEntity(tracer trace.Tracer) *AccountEntity {
-	return &AccountEntity{
-		tracer: tracer,
-	}
+func NewAccountEntity() *AccountEntity {
+	return &AccountEntity{}
 }
 
 // PreStart is used to pre-set initial values for the actor
 func (p *AccountEntity) PreStart(context.Context) error {
-	p.created = atomic.NewBool(false)
-	p.balance = atomic.NewFloat64(float64(0))
-	p.logger = log.DefaultLogger
+	p.created.Store(false)
+	p.balance.Store(0)
 	return nil
 }
 
@@ -70,12 +63,11 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 	case *goaktpb.PostStart:
 		// set the account ID
 		p.accountID = ctx.Self().Name()
-		p.logger.Infof("account entity=(%s) successfully started", p.accountID)
 	case *samplepb.CreateAccount:
-		p.logger.Info("creating account by setting the balance...")
+		ctx.Self().Logger().Info("creating account by setting the balance...")
 		// check whether the create operation has been done already
 		if p.created.Load() {
-			p.logger.Infof("account=%s has been created already", p.accountID)
+			ctx.Self().Logger().Infof("account=%s has been created already", p.accountID)
 			return
 		}
 		// get the data
@@ -84,6 +76,7 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		// first check whether the accountID is mine
 		if p.accountID == accountID {
 			p.balance.Store(balance)
+			p.created.Store(true)
 			// here we are handling just an ask
 			ctx.Response(&samplepb.Account{
 				AccountId:      accountID,
@@ -91,7 +84,7 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 			})
 		}
 	case *samplepb.CreditAccount:
-		p.logger.Info("crediting balance...")
+		ctx.Self().Logger().Info("crediting balance...")
 		// get the data
 		accountID := msg.GetAccountId()
 		balance := msg.GetBalance()
@@ -104,7 +97,7 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 			})
 		}
 	case *samplepb.GetAccount:
-		p.logger.Info("get account...")
+		ctx.Self().Logger().Info("get account...")
 		// get the data
 		ctx.Response(&samplepb.Account{
 			AccountId:      msg.GetAccountId(),
@@ -117,5 +110,7 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 
 // PostStop is used to free-up resources when the actor stops
 func (p *AccountEntity) PostStop(context.Context) error {
+	p.created.Store(false)
+	p.balance.Store(0)
 	return nil
 }

@@ -12,7 +12,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.1
 	github.com/spf13/cobra v1.8.1
-	github.com/tochemey/goakt/v2 v2.6.1-0.20240830093921-f09b1567a42a
+	github.com/tochemey/goakt/v2 v2.6.2-0.20240906161516-d168d34554ee
 	go.opentelemetry.io/otel v1.29.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.28.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.50.0
@@ -20,7 +20,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.29.0
 	go.opentelemetry.io/otel/trace v1.29.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/net v0.28.0
+	golang.org/x/net v0.29.0
 	google.golang.org/protobuf v1.34.2
 )
 
@@ -28,7 +28,7 @@ require (
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.14.1 // indirect
+	github.com/bits-and-blooms/bitset v1.14.2 // indirect
 	github.com/buraksezer/consistent v0.10.0 // indirect
 	github.com/buraksezer/olric v0.5.6-0.20240510193155-81e12546eb39 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -92,9 +92,9 @@ require (
 	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/oauth2 v0.22.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
-	golang.org/x/term v0.23.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
+	golang.org/x/term v0.24.0 // indirect
+	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094 // indirect
@@ -108,7 +108,7 @@ require (
 	k8s.io/client-go v0.31.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240822171749-76de80e0abd9 // indirect
-	k8s.io/utils v0.0.0-20240821151609-f90d01438635 // indirect
+	k8s.io/utils v0.0.0-20240902221715-702e33fdd3c3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
