@@ -120,5 +120,6 @@ func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 }
 
 func (p *Ping) PostStop(context.Context) error {
+	p.count.Store(0)
 	return nil
 }

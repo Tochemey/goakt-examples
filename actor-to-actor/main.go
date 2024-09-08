@@ -124,15 +124,15 @@ func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Pong:
-		p.count.Add(1)
-		// let us reply to the sender
-		_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Ping))
+		p.count.Inc()
+		ctx.Tell(ctx.Sender(), new(samplepb.Ping))
 	default:
 		ctx.Unhandled()
 	}
 }
 
 func (p *Ping) PostStop(context.Context) error {
+	p.count.Store(0)
 	return nil
 }
 
@@ -163,5 +163,6 @@ func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 }
 
 func (p *Pong) PostStop(context.Context) error {
+	p.count.Store(0)
 	return nil
 }

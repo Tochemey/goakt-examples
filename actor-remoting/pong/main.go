@@ -29,8 +29,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
-	"go.uber.org/atomic"
+	"time"
 
 	goakt "github.com/tochemey/goakt/v2/actors"
 	"github.com/tochemey/goakt/v2/goaktpb"
@@ -74,7 +73,9 @@ func main() {
 }
 
 type Pong struct {
-	count *atomic.Int32
+	count     int
+	startTime time.Time
+	logger    log.Logger
 }
 
 var _ goakt.Actor = (*Pong)(nil)
@@ -84,15 +85,17 @@ func NewPong() *Pong {
 }
 
 func (p *Pong) PreStart(ctx context.Context) error {
-	p.count = atomic.NewInt32(0)
+	p.count = 0
 	return nil
 }
 
 func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
+		p.logger = ctx.Self().Logger()
+		p.startTime = time.Now()
 	case *samplepb.Ping:
-		p.count.Add(1)
+		p.count++
 		// reply the sender in case there is a sender
 		if ctx.RemoteSender() != goakt.RemoteNoSender {
 			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Pong))
@@ -108,6 +111,7 @@ func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 }
 
 func (p *Pong) PostStop(context.Context) error {
-	log.DefaultLogger.Infof("Processed=%d messages", p.count.Load())
+	duration := time.Since(p.startTime)
+	p.logger.Infof("Ping has processed %d messages per second", int64(p.count)/int64(duration.Seconds()))
 	return nil
 }

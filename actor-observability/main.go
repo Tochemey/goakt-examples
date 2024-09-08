@@ -34,16 +34,14 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	goakt "github.com/tochemey/goakt/v2/actors"
+	"github.com/tochemey/goakt/v2/goaktpb"
+	"github.com/tochemey/goakt/v2/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
-	"go.uber.org/atomic"
-
-	goakt "github.com/tochemey/goakt/v2/actors"
-	"github.com/tochemey/goakt/v2/goaktpb"
-	"github.com/tochemey/goakt/v2/log"
 
 	samplepb "github.com/tochemey/goakt-examples/v2/samplepb"
 )
@@ -121,8 +119,8 @@ func main() {
 
 	<-done
 
-	pingCount := ping.count.Load()
-	pongCount := pong.count.Load()
+	pingCount := ping.count
+	pongCount := pong.count
 
 	logger.Infof("Ping=%s has processed %d messages in %v", pingActor.ActorPath().String(), pingCount, duration)
 	logger.Infof("Pong=%s has processed %d messages in %v", pongActor.ActorPath().String(), pongCount, duration)
@@ -141,7 +139,7 @@ func main() {
 }
 
 type Ping struct {
-	count *atomic.Int32
+	count int
 }
 
 var _ goakt.Actor = (*Ping)(nil)
@@ -151,7 +149,6 @@ func NewPing() *Ping {
 }
 
 func (p *Ping) PreStart(context.Context) error {
-	p.count = atomic.NewInt32(0)
 	return nil
 }
 
@@ -159,20 +156,20 @@ func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Pong:
-		p.count.Inc()
-		// let us reply to the sender
-		_ = ctx.Self().Tell(ctx.Context(), ctx.Sender(), new(samplepb.Ping))
+		p.count++
+		ctx.Tell(ctx.Sender(), new(samplepb.Ping))
 	default:
 		ctx.Unhandled()
 	}
 }
 
 func (p *Ping) PostStop(ctx context.Context) error {
+	p.count = 0
 	return nil
 }
 
 type Pong struct {
-	count *atomic.Int32
+	count int
 }
 
 var _ goakt.Actor = (*Pong)(nil)
@@ -182,7 +179,6 @@ func NewPong() *Pong {
 }
 
 func (p *Pong) PreStart(context.Context) error {
-	p.count = atomic.NewInt32(0)
 	return nil
 }
 
@@ -190,7 +186,7 @@ func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Ping:
-		p.count.Inc()
+		p.count++
 		ctx.Tell(ctx.Sender(), new(samplepb.Pong))
 	default:
 		ctx.Unhandled()
@@ -198,5 +194,6 @@ func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 }
 
 func (p *Pong) PostStop(context.Context) error {
+	p.count = 0
 	return nil
 }
