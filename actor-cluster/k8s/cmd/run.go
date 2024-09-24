@@ -81,12 +81,12 @@ var runCmd = &cobra.Command{
 
 		// instantiate the k8 discovery provider
 		discovery := kubernetes.NewDiscovery(&kubernetes.Config{
-			ApplicationName:  applicationName,
-			ActorSystemName:  actorSystemName,
-			Namespace:        namespace,
-			GossipPortName:   gossipPortName,
-			RemotingPortName: remotingPortName,
-			PeersPortName:    peersPortName,
+			ApplicationName:   applicationName,
+			ActorSystemName:   actorSystemName,
+			Namespace:         namespace,
+			DiscoveryPortName: gossipPortName,
+			RemotingPortName:  remotingPortName,
+			PeersPortName:     peersPortName,
 		})
 
 		// get the port config
@@ -101,7 +101,7 @@ var runCmd = &cobra.Command{
 			WithPartitionCount(20).
 			WithMinimumPeersQuorum(1).
 			WithReplicaCount(1).
-			WithGossipPort(config.GossipPort).
+			WithDiscoveryPort(config.GossipPort).
 			WithPeersPort(config.PeersPort).
 			WithKinds(new(actors.AccountEntity))
 

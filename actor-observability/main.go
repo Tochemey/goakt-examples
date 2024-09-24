@@ -122,8 +122,8 @@ func main() {
 	pingCount := ping.count
 	pongCount := pong.count
 
-	logger.Infof("Ping=%s has processed %d messages in %v", pingActor.ActorPath().String(), pingCount, duration)
-	logger.Infof("Pong=%s has processed %d messages in %v", pongActor.ActorPath().String(), pongCount, duration)
+	logger.Infof("Ping=%s has processed %d messages in %v", pingActor.Address().String(), pingCount, duration)
+	logger.Infof("Pong=%s has processed %d messages in %v", pongActor.Address().String(), pongCount, duration)
 
 	logger.Infof("Ping has processed per second: %d", int64(pingCount)/int64(duration.Seconds()))
 	logger.Infof("Pong has processed per second: %d", int64(pongCount)/int64(duration.Seconds()))

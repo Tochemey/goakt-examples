@@ -149,7 +149,7 @@ var runCmd = &cobra.Command{
 			WithPartitionCount(20).
 			WithMinimumPeersQuorum(2).
 			WithReplicaCount(2).
-			WithGossipPort(config.GossipPort).
+			WithDiscoveryPort(config.GossipPort).
 			WithPeersPort(config.PeersPort).
 			WithKinds(new(actors.AccountEntity))
 
@@ -175,7 +175,7 @@ var runCmd = &cobra.Command{
 		}
 
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, logger, config.Port, telemetry.Tracer)
+		accountService := service.NewAccountService(actorSystem, logger, config.Port, telemetry.Tracer())
 		// start the account service
 		accountService.Start()
 

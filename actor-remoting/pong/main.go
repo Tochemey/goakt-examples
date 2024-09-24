@@ -97,7 +97,7 @@ func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 	case *samplepb.Ping:
 		p.count++
 		// reply the sender in case there is a sender
-		if ctx.RemoteSender() != goakt.RemoteNoSender {
+		if ctx.RemoteSender() != nil {
 			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Pong))
 			return
 		}

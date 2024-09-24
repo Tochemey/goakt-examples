@@ -32,6 +32,7 @@ import (
 	"time"
 
 	goakt "github.com/tochemey/goakt/v2/actors"
+	"github.com/tochemey/goakt/v2/address"
 	"github.com/tochemey/goakt/v2/goaktpb"
 	"github.com/tochemey/goakt/v2/log"
 
@@ -64,11 +65,8 @@ func main() {
 
 	// start the conversation
 	timer := time.AfterFunc(time.Second, func() {
-		_ = pingActor.RemoteTell(ctx, &goaktpb.Address{
-			Host: host,
-			Port: 50052,
-			Name: "Pong",
-		}, new(samplepb.Ping))
+		address := address.New("Pong", actorSystem.Name(), host, 50052)
+		_ = pingActor.RemoteTell(ctx, address, new(samplepb.Ping))
 	})
 	defer timer.Stop()
 
@@ -107,7 +105,7 @@ func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	case *samplepb.Pong:
 		p.count++
 		// reply the sender in case there is a sender
-		if ctx.RemoteSender() != goakt.RemoteNoSender {
+		if ctx.RemoteSender() != nil {
 			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Ping))
 			return
 		}
