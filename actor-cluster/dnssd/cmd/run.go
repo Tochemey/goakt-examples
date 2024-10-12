@@ -47,7 +47,6 @@ import (
 	goakt "github.com/tochemey/goakt/v2/actors"
 	"github.com/tochemey/goakt/v2/discovery/dnssd"
 	"github.com/tochemey/goakt/v2/log"
-	goaktelemetry "github.com/tochemey/goakt/v2/telemetry"
 
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/actors"
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/service"
@@ -95,7 +94,6 @@ func initMeter(res *resource.Resource) *metric.MeterProvider {
 	return meterProvider
 }
 
-// runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "A brief description of your command",
@@ -126,13 +124,6 @@ var runCmd = &cobra.Command{
 
 		// initialize traces and metric providers
 		tracer := initTracer(ctx, res, config.TraceURL)
-		meter := initMeter(res)
-
-		telemetry := goaktelemetry.New(
-			goaktelemetry.WithMeterProvider(meter),
-			goaktelemetry.WithTracerProvider(tracer),
-		)
-
 		// define the discovery options
 		discoConfig := dnssd.Config{
 			DomainName: config.ServiceName,
@@ -158,10 +149,8 @@ var runCmd = &cobra.Command{
 			config.ActorSystemName,
 			goakt.WithPassivationDisabled(), // disable passivation
 			goakt.WithLogger(logger),
-			goakt.WithMetric(),
 			goakt.WithActorInitMaxRetries(3),
 			goakt.WithRemoting(host, int32(config.RemotingPort)),
-			goakt.WithTelemetry(telemetry),
 			goakt.WithCluster(clusterConfig))
 
 		// handle the error
@@ -175,7 +164,7 @@ var runCmd = &cobra.Command{
 		}
 
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, logger, config.Port, telemetry.Tracer())
+		accountService := service.NewAccountService(actorSystem, logger, config.Port, tracer.Tracer(""))
 		// start the account service
 		accountService.Start()
 
