@@ -23,10 +23,9 @@ Click links below for more details on how to run each example.
    - [Kubernetes Discovery](./actor-cluster/k8s)
    - [Static Discovery](./actor-cluster/static)
    - [DNS Discovery](./actor-cluster/dnssd)
-2. [Observability](./actor-observability)
-3. [Remoting](./actor-remoting)
-4. [Messaging](./actor-to-actor)
-5. [Simple Receive](./actor-receive)
+2. [Remoting](./actor-remoting)
+3. [Messaging](./actor-to-actor)
+4. [Simple Receive](./actor-receive)
 
 ## Benchmark
 
