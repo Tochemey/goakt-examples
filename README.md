@@ -16,6 +16,9 @@ To download the examples code:
 
 Before building and running the examples you need to install [Earthly](https://earthly.dev/get-earthly).
 
+Run the following command:
+`earthly +all`
+
 ## Examples
 Click links below for more details on how to run each example.
 
