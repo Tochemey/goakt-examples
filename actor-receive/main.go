@@ -56,8 +56,8 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	// create an actor
-	ping := NewPing()
-	pingActor, _ := actorSystem.Spawn(ctx, "Ping", ping)
+	actor := NewActor()
+	actorRef, _ := actorSystem.Spawn(ctx, "Actor", actor)
 
 	// wait for actor to start properly
 	time.Sleep(1 * time.Second)
@@ -72,15 +72,15 @@ func main() {
 				done <- struct{}{}
 				return
 			default:
-				_ = goakt.Tell(ctx, pingActor, new(samplepb.Ping))
+				_ = goakt.Tell(ctx, actorRef, new(samplepb.Ping))
 			}
 		}
 	}()
 
 	<-done
 
-	pingCount := pingActor.ProcessedCount()
-	logger.Infof("%s has processed %d messages in %v", pingActor.ID(), pingCount, duration)
+	count := actorRef.ProcessedCount()
+	logger.Infof("%s has processed %d messages in %v", actorRef.ID(), count, duration)
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -92,20 +92,21 @@ func main() {
 	os.Exit(0)
 }
 
-type Ping struct {
+// Actor implements goakt.Actor
+type Actor struct {
 }
 
-var _ goakt.Actor = (*Ping)(nil)
+var _ goakt.Actor = (*Actor)(nil)
 
-func NewPing() *Ping {
-	return &Ping{}
+func NewActor() *Actor {
+	return &Actor{}
 }
 
-func (p *Ping) PreStart(context.Context) error {
+func (p *Actor) PreStart(context.Context) error {
 	return nil
 }
 
-func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
+func (p *Actor) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Ping:
@@ -114,6 +115,6 @@ func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (p *Ping) PostStop(context.Context) error {
+func (p *Actor) PostStop(context.Context) error {
 	return nil
 }

@@ -37,6 +37,22 @@ message AccountCredited {
   double account_balance = 2;
 }
 
+message DebitAccount {
+  string account_id = 1;
+  double balance = 2;
+}
+
+message AccountDebited {
+  string account_id = 1;
+  double account_balance = 2;
+}
+
 message GetAccount {
   string account_id = 1;
 }
+
+message Authenticate {}
+
+message Authenticated {}
+
+message Logout {}

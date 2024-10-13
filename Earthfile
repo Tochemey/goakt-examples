@@ -1,6 +1,6 @@
 VERSION 0.8
 
-FROM tochemey/docker-go:1.22.2-3.1.0
+FROM tochemey/docker-go:1.23.2-5.0.0
 
 code:
     WORKDIR /app
@@ -22,17 +22,15 @@ vendor:
 protogen:
     # copy the proto files to generate
     COPY --dir protos/ ./
-    COPY buf.work.yaml buf.gen.yaml ./
+    COPY buf.yaml buf.gen.yaml ./
 
     # generate the pbs
     RUN buf generate \
             --template buf.gen.yaml \
-            --path protos/benchmark \
             --path protos/sample
 
     # save artifact to
     SAVE ARTIFACT gen/sample AS LOCAL samplepb
-    SAVE ARTIFACT gen/benchmark AS LOCAL bench/benchmarkpb
 
 compile-k8s:
     COPY +vendor/files ./
