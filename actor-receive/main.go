@@ -31,10 +31,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tochemey/goakt/v2/goaktpb"
-	"go.uber.org/atomic"
-
 	goakt "github.com/tochemey/goakt/v2/actors"
+	"github.com/tochemey/goakt/v2/goaktpb"
 	"github.com/tochemey/goakt/v2/log"
 
 	"github.com/tochemey/goakt-examples/v2/samplepb"
@@ -81,7 +79,7 @@ func main() {
 
 	<-done
 
-	pingCount := ping.count.Load()
+	pingCount := pingActor.ProcessedCount()
 	logger.Infof("%s has processed %d messages in %v", pingActor.ID(), pingCount, duration)
 
 	// capture ctrl+c
@@ -95,7 +93,6 @@ func main() {
 }
 
 type Ping struct {
-	count *atomic.Int32
 }
 
 var _ goakt.Actor = (*Ping)(nil)
@@ -105,7 +102,6 @@ func NewPing() *Ping {
 }
 
 func (p *Ping) PreStart(context.Context) error {
-	p.count = atomic.NewInt32(0)
 	return nil
 }
 
@@ -113,13 +109,11 @@ func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
 	case *samplepb.Ping:
-		p.count.Add(1)
 	default:
 		ctx.Unhandled()
 	}
 }
 
 func (p *Ping) PostStop(context.Context) error {
-	p.count.Store(0)
 	return nil
 }

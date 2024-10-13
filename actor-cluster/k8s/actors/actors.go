@@ -27,8 +27,6 @@ package actors
 import (
 	"context"
 
-	"go.uber.org/atomic"
-
 	goakt "github.com/tochemey/goakt/v2/actors"
 	"github.com/tochemey/goakt/v2/goaktpb"
 
@@ -38,8 +36,8 @@ import (
 // AccountEntity represents the immutable implementation of Actor
 type AccountEntity struct {
 	accountID string
-	balance   atomic.Float64
-	created   atomic.Bool
+	balance   float64
+	created   bool
 }
 
 // enforce compilation error
@@ -47,8 +45,6 @@ var _ goakt.Actor = (*AccountEntity)(nil)
 
 // PreStart is used to pre-set initial values for the actor
 func (p *AccountEntity) PreStart(context.Context) error {
-	p.created.Store(false)
-	p.balance.Store(0)
 	return nil
 }
 
@@ -62,7 +58,7 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 	case *samplepb.CreateAccount:
 		ctx.Self().Logger().Info("creating account by setting the balance...")
 		// check whether the create operation has been done already
-		if p.created.Load() {
+		if p.created {
 			ctx.Self().Logger().Infof("account=%s has been created already", p.accountID)
 			return
 		}
@@ -71,12 +67,12 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		balance := msg.GetAccountBalance()
 		// first check whether the accountID is mine
 		if p.accountID == accountID {
-			p.balance.Store(balance)
-			p.created.Store(true)
+			p.balance = balance
+			p.created = true
 			// here we are handling just an ask
 			ctx.Response(&samplepb.Account{
 				AccountId:      accountID,
-				AccountBalance: p.balance.Load(),
+				AccountBalance: p.balance,
 			})
 		}
 	case *samplepb.CreditAccount:
@@ -86,10 +82,10 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		balance := msg.GetBalance()
 		// first check whether the accountID is mine
 		if p.accountID == accountID {
-			p.balance.Add(balance)
+			p.balance += balance
 			ctx.Response(&samplepb.Account{
 				AccountId:      accountID,
-				AccountBalance: p.balance.Load(),
+				AccountBalance: p.balance,
 			})
 		}
 	case *samplepb.GetAccount:
@@ -98,7 +94,7 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		accountID := msg.GetAccountId()
 		ctx.Response(&samplepb.Account{
 			AccountId:      accountID,
-			AccountBalance: p.balance.Load(),
+			AccountBalance: p.balance,
 		})
 
 	default:
@@ -108,7 +104,7 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 
 // PostStop is used to free-up resources when the actor stops
 func (p *AccountEntity) PostStop(context.Context) error {
-	p.created.Store(false)
-	p.balance.Store(0)
+	p.created = false
+	p.balance = 0.0
 	return nil
 }
