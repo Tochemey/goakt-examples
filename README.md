@@ -30,3 +30,4 @@ Click links below for more details on how to run each example.
 3. [Messaging](./actor-to-actor)
 4. [Simple Receive](./actor-receive)
 5. [Behavior](./actor-behaviors)
+6. [Chat](./actor-chat)

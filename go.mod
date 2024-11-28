@@ -1,8 +1,6 @@
 module github.com/tochemey/goakt-examples/v2
 
-go 1.22.0
-
-toolchain go1.22.4
+go 1.23.0
 
 require (
 	connectrpc.com/connect v1.17.0
@@ -13,7 +11,8 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/cobra v1.8.1
-	github.com/tochemey/goakt/v2 v2.8.0
+	github.com/tochemey/goakt/v2 v2.9.0
+	github.com/travisjeffery/go-dynaport v1.0.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.32.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.54.0
@@ -104,9 +103,9 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.31.2 // indirect
-	k8s.io/apimachinery v0.31.2 // indirect
-	k8s.io/client-go v0.31.2 // indirect
+	k8s.io/api v0.31.3 // indirect
+	k8s.io/apimachinery v0.31.3 // indirect
+	k8s.io/client-go v0.31.3 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20241009091222-67ed5848f094 // indirect
 	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6 // indirect
