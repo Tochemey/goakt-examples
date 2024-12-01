@@ -7,7 +7,7 @@ services:
     command:
       - run
     ports:
-      - "50051"
+      - "8000-8020:50051"
       - "9092"
     environment:
       SERVICE_NAME: accounts

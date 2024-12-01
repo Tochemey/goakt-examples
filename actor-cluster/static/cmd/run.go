@@ -73,6 +73,16 @@ var runCmd = &cobra.Command{
 		// grab the host
 		host, _ := os.Hostname()
 
+		clusterConfig := goakt.
+			NewClusterConfig().
+			WithDiscovery(disco).
+			WithPartitionCount(20).
+			WithMinimumPeersQuorum(2).
+			WithReplicaCount(2).
+			WithDiscoveryPort(config.GossipPort).
+			WithPeersPort(config.PeersPort).
+			WithKinds(new(actors.AccountEntity))
+
 		// create the actor system
 		actorSystem, err := goakt.NewActorSystem(
 			config.ActorSystemName,
@@ -80,7 +90,8 @@ var runCmd = &cobra.Command{
 			goakt.WithLogger(logger),
 			goakt.WithActorInitMaxRetries(3),
 			goakt.WithRemoting(host, int32(config.RemotingPort)),
-			goakt.WithClustering(disco, 20, 1, config.GossipPort, config.PeersPort, new(actors.AccountEntity)))
+			goakt.WithCluster(clusterConfig))
+
 		// handle the error
 		if err != nil {
 			logger.Panic(err)
@@ -91,8 +102,10 @@ var runCmd = &cobra.Command{
 			logger.Panic(err)
 		}
 
+		remoting := goakt.NewRemoting()
+
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, logger, config.Port)
+		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port)
 		// start the account service
 		accountService.Start()
 
@@ -103,6 +116,8 @@ var runCmd = &cobra.Command{
 		// wait for a shutdown signal, and then shutdown
 		go func() {
 			<-sigs
+
+			remoting.Close()
 			// stop the actor system
 			if err := actorSystem.Stop(ctx); err != nil {
 				logger.Panic(err)

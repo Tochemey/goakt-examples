@@ -124,8 +124,10 @@ var runCmd = &cobra.Command{
 			logger.Panic(err)
 		}
 
+		remoting := goakt.NewRemoting()
+
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, logger, config.Port)
+		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port)
 		// start the account service
 		accountService.Start()
 
@@ -136,6 +138,8 @@ var runCmd = &cobra.Command{
 		// wait for a shutdown signal, and then shutdown
 		go func() {
 			<-sigs
+			remoting.Close()
+
 			// stop the actor system
 			if err := actorSystem.Stop(ctx); err != nil {
 				logger.Panic(err)
