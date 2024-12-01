@@ -32,6 +32,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/pkg/errors"
+	"github.com/tochemey/goakt/v2/address"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/protobuf/proto"
@@ -44,21 +45,25 @@ import (
 	"github.com/tochemey/goakt-examples/v2/samplepb/samplepbconnect"
 )
 
+const askTimeout = 5 * time.Second
+
 type AccountService struct {
 	actorSystem actors.ActorSystem
 	logger      log.Logger
 	port        int
 	server      *http.Server
+	remoting    *actors.Remoting
 }
 
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system actors.ActorSystem, logger log.Logger, port int) *AccountService {
+func NewAccountService(system actors.ActorSystem, remoting *actors.Remoting, logger log.Logger, port int) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
 		port:        port,
+		remoting:    remoting,
 	}
 }
 
@@ -130,7 +135,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 
 	if pid == nil {
 		s.logger.Info("actor is not found locally...")
-		reply, err := actors.RemoteAsk(ctx, addr, command, actors.DefaultAskTimeout)
+		reply, err := s.remoting.RemoteAsk(ctx, address.NoSender(), addr, command, askTimeout)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
@@ -176,7 +181,7 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 
 	if pid == nil {
 		s.logger.Info("actor is not found locally...")
-		reply, err := actors.RemoteAsk(ctx, addr, command, actors.DefaultAskTimeout)
+		reply, err := s.remoting.RemoteAsk(ctx, address.NoSender(), addr, command, askTimeout)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}

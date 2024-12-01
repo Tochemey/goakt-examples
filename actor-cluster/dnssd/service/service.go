@@ -33,21 +33,24 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
 	"github.com/pkg/errors"
+	"github.com/tochemey/goakt/v2/actors"
+	"github.com/tochemey/goakt/v2/address"
+	"github.com/tochemey/goakt/v2/log"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/tochemey/goakt/v2/actors"
-	"github.com/tochemey/goakt/v2/log"
 
 	kactors "github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/actors"
 	samplepb "github.com/tochemey/goakt-examples/v2/samplepb"
 	"github.com/tochemey/goakt-examples/v2/samplepb/samplepbconnect"
 )
 
+const askTimeout = 5 * time.Second
+
 type AccountService struct {
 	actorSystem actors.ActorSystem
+	remoting    *actors.Remoting
 	logger      log.Logger
 	port        int
 	server      *http.Server
@@ -57,12 +60,13 @@ type AccountService struct {
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system actors.ActorSystem, logger log.Logger, port int, tracer trace.Tracer) *AccountService {
+func NewAccountService(system actors.ActorSystem, remoting *actors.Remoting, logger log.Logger, port int, tracer trace.Tracer) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
 		port:        port,
 		tracer:      tracer,
+		remoting:    remoting,
 	}
 }
 
@@ -134,7 +138,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 
 	if pid == nil {
 		s.logger.Info("actor is not found locally...")
-		reply, err := actors.RemoteAsk(ctx, addr, command, actors.DefaultAskTimeout)
+		reply, err := s.remoting.RemoteAsk(ctx, address.NoSender(), addr, command, askTimeout)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
@@ -172,7 +176,7 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 
 	if pid != nil {
 		s.logger.Info("actor is found locally...")
-		message, err = actors.Ask(ctx, pid, command, actors.DefaultAskTimeout)
+		message, err = actors.Ask(ctx, pid, command, askTimeout)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
@@ -180,7 +184,7 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 
 	if pid == nil {
 		s.logger.Info("actor is not found locally...")
-		reply, err := actors.RemoteAsk(ctx, addr, command, actors.DefaultAskTimeout)
+		reply, err := s.remoting.RemoteAsk(ctx, address.NoSender(), addr, command, askTimeout)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
