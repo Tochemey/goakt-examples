@@ -83,7 +83,7 @@ func main() {
 		ctx,
 		"ChatClient",
 		NewClient(userName, serverAddress),
-		actors.WithSupervisor(actors.NewStopDirective())); err != nil {
+		actors.WithSupervisorStrategies(actors.DefaultSupervisorStrategies...)); err != nil {
 		logger.Fatal(err)
 		os.Exit(1)
 	}

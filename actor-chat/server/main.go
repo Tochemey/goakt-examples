@@ -73,7 +73,7 @@ func main() {
 		ctx,
 		"ChatServer",
 		NewServer(),
-		actors.WithSupervisor(actors.NewStopDirective())); err != nil {
+		actors.WithSupervisorStrategies(actors.DefaultSupervisorStrategies...)); err != nil {
 		logger.Fatal(err)
 		os.Exit(1)
 	}
