@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package benchpb;
+
+option go_package = "github.com/tochemey/goakt-examples/v2/benchpb;benchpb";
+
+message BenchTell {}
+message BenchRequest {}
+message BenchResponse {}

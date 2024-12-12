@@ -31,11 +31,13 @@ protogen:
     RUN buf generate \
             --template buf.gen.yaml \
             --path protos/sample \
+            --path protos/bench \
             --path protos/chat
 
     # save artifact to
     SAVE ARTIFACT gen/sample AS LOCAL samplepb
     SAVE ARTIFACT gen/chat AS LOCAL chatpb
+    SAVE ARTIFACT gen/bench AS LOCAL benchpb
 
 compile-k8s:
     COPY +vendor/files ./
