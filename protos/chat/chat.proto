@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package chatpb;
 
-option go_package = "github.com/tochemey/goakt-examples/v2/chatpb;chatpb";
+option go_package = "github.com/tochemey/goakt-examples/v2/internal/chatpb;chatpb";
 
 message Connect {
   string user_name = 1;

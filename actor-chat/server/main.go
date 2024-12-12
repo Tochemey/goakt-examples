@@ -37,7 +37,7 @@ import (
 	"github.com/tochemey/goakt/v2/goaktpb"
 	"github.com/tochemey/goakt/v2/log"
 
-	"github.com/tochemey/goakt-examples/v2/chatpb"
+	"github.com/tochemey/goakt-examples/v2/internal/chatpb"
 )
 
 func main() {

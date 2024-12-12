@@ -30,7 +30,7 @@ import (
 	goakt "github.com/tochemey/goakt/v2/actors"
 	"github.com/tochemey/goakt/v2/goaktpb"
 
-	"github.com/tochemey/goakt-examples/v2/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
 // AccountEntity represents the immutable implementation of Actor

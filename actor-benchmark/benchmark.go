@@ -35,7 +35,7 @@ import (
 	"github.com/tochemey/goakt/v2/actors"
 	"github.com/tochemey/goakt/v2/log"
 
-	"github.com/tochemey/goakt-examples/v2/benchpb"
+	"github.com/tochemey/goakt-examples/v2/internal/benchpb"
 )
 
 const receivingTimeout = 100 * time.Millisecond

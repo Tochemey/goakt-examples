@@ -41,8 +41,8 @@ import (
 	"github.com/tochemey/goakt/v2/log"
 
 	kactors "github.com/tochemey/goakt-examples/v2/actor-cluster/k8s/actors"
-	samplepb "github.com/tochemey/goakt-examples/v2/samplepb"
-	"github.com/tochemey/goakt-examples/v2/samplepb/samplepbconnect"
+	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
 
 const askTimeout = 5 * time.Second

@@ -41,7 +41,7 @@ import (
 	"github.com/travisjeffery/go-dynaport"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/tochemey/goakt-examples/v2/chatpb"
+	"github.com/tochemey/goakt-examples/v2/internal/chatpb"
 )
 
 func main() {

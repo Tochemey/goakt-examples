@@ -42,8 +42,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	kactors "github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/actors"
-	samplepb "github.com/tochemey/goakt-examples/v2/samplepb"
-	"github.com/tochemey/goakt-examples/v2/samplepb/samplepbconnect"
+	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
 
 const askTimeout = 5 * time.Second

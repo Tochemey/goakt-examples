@@ -35,9 +35,9 @@ protogen:
             --path protos/chat
 
     # save artifact to
-    SAVE ARTIFACT gen/sample AS LOCAL samplepb
-    SAVE ARTIFACT gen/chat AS LOCAL chatpb
-    SAVE ARTIFACT gen/bench AS LOCAL benchpb
+    SAVE ARTIFACT gen/sample AS LOCAL internal/samplepb
+    SAVE ARTIFACT gen/chat AS LOCAL internal/chatpb
+    SAVE ARTIFACT gen/bench AS LOCAL internal/benchpb
 
 compile-k8s:
     COPY +vendor/files ./

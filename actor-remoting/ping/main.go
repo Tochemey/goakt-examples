@@ -36,7 +36,7 @@ import (
 	"github.com/tochemey/goakt/v2/goaktpb"
 	"github.com/tochemey/goakt/v2/log"
 
-	samplepb "github.com/tochemey/goakt-examples/v2/samplepb"
+	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
 const (
