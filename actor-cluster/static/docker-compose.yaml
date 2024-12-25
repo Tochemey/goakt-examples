@@ -1,13 +1,31 @@
 version: "3.9"
 
 services:
+  node0:
+    image: "accounts:dev"
+    hostname: node0
+    command:
+      - run
+    ports:
+      - "8000:50051"
+      - "9092"
+      - "3322"
+      - "3320"
+    environment:
+      SERVICE_NAME: node0
+      SYSTEM_NAME: Accounts
+      PORT: 50051
+      GOSSIP_PORT: 3322
+      PEERS_PORT: 3320
+      REMOTING_PORT: 50052
+
   node1:
     image: "accounts:dev"
     hostname: node1
     command:
       - run
     ports:
-      - "8000:50051"
+      - "8001:50051"
       - "9092"
       - "3322"
       - "3320"
@@ -25,7 +43,7 @@ services:
     command:
       - run
     ports:
-      - "8001:50051"
+      - "8002:50051"
       - "9092"
       - "3322"
       - "3320"
@@ -43,12 +61,30 @@ services:
     command:
       - run
     ports:
-      - "8002:50051"
+      - "8003:50051"
       - "9092"
       - "3322"
       - "3320"
     environment:
       SERVICE_NAME: node3
+      SYSTEM_NAME: Accounts
+      PORT: 50051
+      GOSSIP_PORT: 3322
+      PEERS_PORT: 3320
+      REMOTING_PORT: 50052
+
+  node4:
+    image: "accounts:dev"
+    hostname: node4
+    command:
+      - run
+    ports:
+      - "8004:50051"
+      - "9092"
+      - "3322"
+      - "3320"
+    environment:
+      SERVICE_NAME: node4
       SYSTEM_NAME: Accounts
       PORT: 50051
       GOSSIP_PORT: 3322

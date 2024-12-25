@@ -28,8 +28,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -62,9 +60,11 @@ var runCmd = &cobra.Command{
 		// define the discovery options
 		discoConfig := static.Config{
 			Hosts: []string{
+				fmt.Sprintf("node0:%d", config.GossipPort),
 				fmt.Sprintf("node1:%d", config.GossipPort),
 				fmt.Sprintf("node2:%d", config.GossipPort),
 				fmt.Sprintf("node3:%d", config.GossipPort),
+				fmt.Sprintf("node4:%d", config.GossipPort),
 			},
 		}
 		// instantiate the dnssd discovery provider
@@ -76,9 +76,7 @@ var runCmd = &cobra.Command{
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(disco).
-			WithPartitionCount(20).
-			WithMinimumPeersQuorum(2).
-			WithReplicaCount(2).
+			WithPartitionCount(19).
 			WithDiscoveryPort(config.GossipPort).
 			WithPeersPort(config.PeersPort).
 			WithKinds(new(actors.AccountEntity))
@@ -97,42 +95,22 @@ var runCmd = &cobra.Command{
 			logger.Panic(err)
 		}
 
-		// start the actor system
-		if err := actorSystem.Start(ctx); err != nil {
-			logger.Panic(err)
-		}
-
 		remoting := goakt.NewRemoting()
-
 		// create the account service
 		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port)
-		// start the account service
-		accountService.Start()
 
-		// wait for interruption/termination
-		sigs := make(chan os.Signal, 1)
-		done := make(chan struct{}, 1)
-		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		// wait for a shutdown signal, and then shutdown
-		go func() {
-			<-sigs
-
-			remoting.Close()
-			// stop the actor system
-			if err := actorSystem.Stop(ctx); err != nil {
-				logger.Panic(err)
-			}
-
-			// stop the account service
-			newCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			defer cancel()
-			if err := accountService.Stop(newCtx); err != nil {
-				logger.Panic(err)
-			}
-
-			done <- struct{}{}
-		}()
-		<-done
+		actorSystem.Run(ctx,
+			func(ctx context.Context) error {
+				// start the account service
+				accountService.Start()
+				return nil
+			},
+			func(ctx context.Context) error {
+				remoting.Close()
+				newCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+				return accountService.Stop(newCtx)
+			})
 	},
 }
 

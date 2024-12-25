@@ -13,7 +13,7 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
-	github.com/tochemey/goakt/v2 v2.10.1
+	github.com/tochemey/goakt/v2 v2.11.0
 	github.com/travisjeffery/go-dynaport v1.0.0
 	go.opentelemetry.io/otel v1.33.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.33.0
@@ -22,7 +22,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.33.0
 	go.opentelemetry.io/otel/trace v1.33.0
 	golang.org/x/net v0.33.0
-	google.golang.org/protobuf v1.36.0
+	google.golang.org/protobuf v1.36.1
 )
 
 require (
