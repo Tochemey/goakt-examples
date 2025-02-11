@@ -31,10 +31,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-
-	goakt "github.com/tochemey/goakt/v2/actors"
-	"github.com/tochemey/goakt/v2/discovery/static"
-	"github.com/tochemey/goakt/v2/log"
+	goakt "github.com/tochemey/goakt/v3/actor"
+	"github.com/tochemey/goakt/v3/discovery/static"
+	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v3/remote"
 
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/static/actors"
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/static/service"
@@ -87,7 +87,7 @@ var runCmd = &cobra.Command{
 			goakt.WithPassivationDisabled(), // disable passivation
 			goakt.WithLogger(logger),
 			goakt.WithActorInitMaxRetries(3),
-			goakt.WithRemoting(host, int32(config.RemotingPort)),
+			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort)),
 			goakt.WithCluster(clusterConfig))
 
 		// handle the error

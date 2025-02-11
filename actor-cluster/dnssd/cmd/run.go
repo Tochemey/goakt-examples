@@ -35,6 +35,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	goakt "github.com/tochemey/goakt/v3/actor"
+	"github.com/tochemey/goakt/v3/discovery/dnssd"
+	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v3/remote"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/prometheus"
@@ -43,10 +47,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
-
-	goakt "github.com/tochemey/goakt/v2/actors"
-	"github.com/tochemey/goakt/v2/discovery/dnssd"
-	"github.com/tochemey/goakt/v2/log"
 
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/actors"
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/service"
@@ -150,7 +150,7 @@ var runCmd = &cobra.Command{
 			goakt.WithPassivationDisabled(), // disable passivation
 			goakt.WithLogger(logger),
 			goakt.WithActorInitMaxRetries(3),
-			goakt.WithRemoting(host, int32(config.RemotingPort)),
+			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort)),
 			goakt.WithCluster(clusterConfig))
 
 		// handle the error

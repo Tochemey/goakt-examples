@@ -32,10 +32,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tochemey/goakt/v2/actors"
-	"github.com/tochemey/goakt/v2/address"
-	"github.com/tochemey/goakt/v2/goaktpb"
-	"github.com/tochemey/goakt/v2/log"
+	actors "github.com/tochemey/goakt/v3/actor"
+	"github.com/tochemey/goakt/v3/address"
+	"github.com/tochemey/goakt/v3/goaktpb"
+	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v3/remote"
 
 	"github.com/tochemey/goakt-examples/v2/internal/chatpb"
 )
@@ -50,7 +51,7 @@ func main() {
 	actorSystem, err := actors.NewActorSystem(
 		"ChatSystem",
 		actors.WithPassivationDisabled(),
-		actors.WithRemoting(host, int32(port)),
+		actors.WithRemote(remote.NewConfig(host, port)),
 		actors.WithLogger(logger))
 
 	if err != nil {

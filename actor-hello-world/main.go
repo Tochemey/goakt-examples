@@ -32,35 +32,50 @@ import (
 	"time"
 
 	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
 	"github.com/tochemey/goakt/v3/log"
 
-	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
-)
-
-const (
-	port = 50052
-	host = "127.0.0.1"
+	hellopb "github.com/tochemey/goakt-examples/v2/internal/helloworldpb"
 )
 
 func main() {
 	ctx := context.Background()
 
 	// use the address default log. real-life implement the log interface`
-	logger := log.New(log.DebugLevel, os.Stdout)
+	logger := log.DefaultLogger
 
 	// create the actor system. kindly in real-life application handle the error
-	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
-		goakt.WithPassivationDisabled(), // set big passivation time
+	actorSystem, _ := goakt.NewActorSystem(
+		"HelloWorld",
 		goakt.WithLogger(logger),
-		goakt.WithActorInitMaxRetries(3),
-		goakt.WithRemoting(host, port))
+		goakt.WithPassivationDisabled(),
+		goakt.WithActorInitMaxRetries(3))
 
 	// start the actor system
-	_ = actorSystem.Start(ctx)
+	if err := actorSystem.Start(ctx); err != nil {
+		logger.Fatal(err)
+		os.Exit(1)
+	}
 
-	// create an actor
-	_, _ = actorSystem.Spawn(ctx, "Pong", NewPong())
+	// create a Hello actor
+	pid, err := actorSystem.Spawn(ctx, "Hello", NewHelloWorld())
+	if err != nil {
+		logger.Fatal(err)
+		os.Exit(1)
+	}
+
+	// send an SayHello message to the actor and expect a response
+	response, err := goakt.Ask(ctx, pid, new(hellopb.SayHello), time.Second)
+	if err != nil {
+		logger.Fatal(err)
+		os.Exit(1)
+	}
+
+	switch response.(type) {
+	case *hellopb.SayHi:
+		logger.Info("received SayHi from actor")
+	default:
+		logger.Fatal("unexpected response from actor")
+	}
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -72,46 +87,24 @@ func main() {
 	os.Exit(0)
 }
 
-type Pong struct {
-	count     int
-	startTime time.Time
-	logger    log.Logger
+type HelloWorld struct{}
+
+var _ goakt.Actor = (*HelloWorld)(nil)
+
+// NewHelloWorld creates an instance
+func NewHelloWorld() *HelloWorld {
+	return &HelloWorld{}
 }
 
-var _ goakt.Actor = (*Pong)(nil)
+func (x *HelloWorld) PreStart(context.Context) error { return nil }
 
-func NewPong() *Pong {
-	return &Pong{}
-}
-
-func (p *Pong) PreStart(ctx context.Context) error {
-	p.count = 0
-	return nil
-}
-
-func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
+func (x *HelloWorld) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
-	case *goaktpb.PostStart:
-		p.logger = ctx.Self().Logger()
-		p.startTime = time.Now()
-	case *samplepb.Ping:
-		p.count++
-		// reply the sender in case there is a sender
-		if ctx.RemoteSender() != nil {
-			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Pong))
-			return
-		}
-
-		if !ctx.Sender().Equals(goakt.NoSender) {
-			ctx.Tell(ctx.Sender(), new(samplepb.Pong))
-		}
+	case *hellopb.SayHello:
+		ctx.Response(new(hellopb.SayHi))
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (p *Pong) PostStop(context.Context) error {
-	duration := time.Since(p.startTime)
-	p.logger.Infof("Ping has processed %d messages per second", int64(p.count)/int64(duration.Seconds()))
-	return nil
-}
+func (x *HelloWorld) PostStop(context.Context) error { return nil }

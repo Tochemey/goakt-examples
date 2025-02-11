@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package hellopb;
+
+option go_package = "github.com/tochemey/goakt-examples/v2/internal/hellopb;hellopb";
+
+message SayHello {}
+
+message SayHi {}

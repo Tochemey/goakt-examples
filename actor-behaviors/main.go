@@ -33,9 +33,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	goakt "github.com/tochemey/goakt/v2/actors"
-	"github.com/tochemey/goakt/v2/goaktpb"
-	"github.com/tochemey/goakt/v2/log"
+	goakt "github.com/tochemey/goakt/v3/actor"
+	"github.com/tochemey/goakt/v3/goaktpb"
+	"github.com/tochemey/goakt/v3/log"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )

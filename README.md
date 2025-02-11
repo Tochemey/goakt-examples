@@ -22,12 +22,13 @@ Run the following command:
 ## Examples
 Click links below for more details on how to run each example.
 
-1. [Clustering](./actor-cluster)
+1. [Hello World](./actor-hello-world)
+2. [Clustering](./actor-cluster)
    - [Kubernetes Discovery](./actor-cluster/k8s)
    - [Static Discovery](./actor-cluster/static)
    - [DNS Discovery](./actor-cluster/dnssd)
-2. [Remoting](./actor-remoting)
-3. [Messaging](./actor-to-actor)
-4. [Simple Receive](./actor-receive)
-5. [Behavior](./actor-behaviors)
-6. [Chat](./actor-chat)
+3. [Remoting](./actor-remoting)
+4. [Messaging](./actor-to-actor)
+5. [Simple Receive](./actor-receive)
+6. [Behavior](./actor-behaviors)
+7. [Chat](./actor-chat)

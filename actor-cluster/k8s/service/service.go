@@ -32,13 +32,12 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/pkg/errors"
-	"github.com/tochemey/goakt/v2/address"
+	actors "github.com/tochemey/goakt/v3/actor"
+	"github.com/tochemey/goakt/v3/address"
+	"github.com/tochemey/goakt/v3/log"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/tochemey/goakt/v2/actors"
-	"github.com/tochemey/goakt/v2/log"
 
 	kactors "github.com/tochemey/goakt-examples/v2/actor-cluster/k8s/actors"
 	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"

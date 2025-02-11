@@ -33,8 +33,8 @@ import (
 
 	. "github.com/klauspost/cpuid/v2" //nolint
 	require "github.com/stretchr/testify/require"
-	"github.com/tochemey/goakt/v2/actors"
-	"github.com/tochemey/goakt/v2/log"
+	actors "github.com/tochemey/goakt/v3/actor"
+	"github.com/tochemey/goakt/v3/log"
 
 	"github.com/tochemey/goakt-examples/v2/internal/benchpb"
 )
@@ -101,7 +101,7 @@ func BenchmarkActor(b *testing.B) {
 		actorSystem, _ := actors.NewActorSystem("bench",
 			actors.WithLogger(log.DiscardLogger),
 			actors.WithActorInitMaxRetries(1),
-			actors.WithExpireActorAfter(5*time.Second))
+			actors.WithPassivation(5*time.Second))
 
 		// start the actor system
 		_ = actorSystem.Start(ctx)
