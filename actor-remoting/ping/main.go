@@ -35,6 +35,7 @@ import (
 	"github.com/tochemey/goakt/v3/address"
 	"github.com/tochemey/goakt/v3/goaktpb"
 	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v3/remote"
 
 	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
@@ -54,7 +55,8 @@ func main() {
 	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
 		goakt.WithPassivationDisabled(), // set big passivation time
 		goakt.WithLogger(logger),
-		goakt.WithRemoting(host, port))
+		goakt.WithRemote(remote.NewConfig(host, port)),
+	)
 
 	// start the actor system
 	_ = actorSystem.Start(ctx)
