@@ -53,10 +53,10 @@ spec:
               name: grpc
               protocol: TCP
             - containerPort: 50052
-              name: actor-remoting-port
+              name: remoting-port
               protocol: TCP
             - containerPort: 3322
-              name: gossip-port
+              name: discovery-port
               protocol: TCP
             - containerPort: 3320
               name: peers-port
@@ -70,7 +70,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: GOSSIP_PORT
+            - name: DISCOVERY_PORT
               value: "3322"
             - name: PEERS_PORT
               value: "3320"

@@ -43,16 +43,16 @@ import (
 )
 
 const (
-	namespace        = "default"
-	applicationName  = "accounts"
-	actorSystemName  = "AccountsSystem"
-	gossipPortName   = "gossip-port"
-	peersPortName    = "peers-port"
-	remotingPortName = "actor-remoting-port"
+	namespace         = "default"
+	applicationName   = "accounts"
+	actorSystemName   = "AccountsSystem"
+	discoveryPortName = "discovery-port"
+	peersPortName     = "peers-port"
+	remotingPortName  = "remoting-port"
 )
 
 type config struct {
-	GossipPort   int `env:"GOSSIP_PORT"`
+	GossipPort   int `env:"DISCOVERY_PORT"`
 	PeersPort    int `env:"PEERS_PORT"`
 	RemotingPort int `env:"REMOTING_PORT"`
 	Port         int `env:"PORT" envDefault:"50051"`
@@ -84,7 +84,7 @@ var runCmd = &cobra.Command{
 			ApplicationName:   applicationName,
 			ActorSystemName:   actorSystemName,
 			Namespace:         namespace,
-			DiscoveryPortName: gossipPortName,
+			DiscoveryPortName: discoveryPortName,
 			RemotingPortName:  remotingPortName,
 			PeersPortName:     peersPortName,
 		})
