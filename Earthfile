@@ -33,13 +33,15 @@ protogen:
             --path protos/sample \
             --path protos/bench \
             --path protos/helloworld \
-            --path protos/chat
+            --path protos/chat \
+            --path protos/scheduler
 
     # save artifact to
     SAVE ARTIFACT gen/sample AS LOCAL internal/samplepb
     SAVE ARTIFACT gen/chat AS LOCAL internal/chatpb
     SAVE ARTIFACT gen/bench AS LOCAL internal/benchpb
     SAVE ARTIFACT gen/helloworld AS LOCAL internal/helloworldpb
+    SAVE ARTIFACT gen/scheduler AS LOCAL internal/schedulerpb
 
 compile-k8s:
     COPY +vendor/files ./
