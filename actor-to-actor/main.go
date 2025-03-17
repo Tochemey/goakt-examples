@@ -57,38 +57,26 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	// create the actors
-	ping := NewPing()
-	pong := NewPong()
-	pingActor, _ := actorSystem.Spawn(ctx, "Ping", ping)
-	pongActor, _ := actorSystem.Spawn(ctx, "Pong", pong)
+	ping, _ := actorSystem.Spawn(ctx, "Ping", NewPing())
+	pong, _ := actorSystem.Spawn(ctx, "Pong", NewPong())
 
 	// wait for actors to start properly
 	time.Sleep(1 * time.Second)
 
 	duration := time.Minute
-	if err := pingActor.Tell(ctx, pongActor, new(samplepb.Ping)); err != nil {
-		panic(err)
+	startTime := time.Now()
+	// Loop until one minute has passed
+	for time.Since(startTime) <= duration {
+		if err := ping.Tell(ctx, pong, new(samplepb.Ping)); err != nil {
+			panic(err)
+		}
 	}
 
-	// Start the timer
-	done := make(chan struct{})
-	go func() {
-		for await := time.After(duration); ; {
-			select {
-			case <-await:
-				done <- struct{}{}
-				return
-			}
-		}
-	}()
+	pingCount := ping.ProcessedCount()
+	pongCount := pong.ProcessedCount()
 
-	<-done
-
-	pingCount := pingActor.ProcessedCount()
-	pongCount := pongActor.ProcessedCount()
-
-	logger.Infof("Ping=%s has processed %d messages in %v", pingActor.Address().String(), pingCount, duration)
-	logger.Infof("Pong=%s has processed %d messages in %v", pongActor.Address().String(), pongCount, duration)
+	logger.Infof("Ping=%s has processed %d messages in %v", ping.ID(), pingCount, duration)
+	logger.Infof("Pong=%s has processed %d messages in %v", pong.ID(), pongCount, duration)
 
 	logger.Infof("Ping has processed per second: %d", int64(pingCount)/int64(duration.Seconds()))
 	logger.Infof("Pong has processed per second: %d", int64(pongCount)/int64(duration.Seconds()))
