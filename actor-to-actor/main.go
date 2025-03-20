@@ -57,29 +57,27 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	// create the actors
-	ping, _ := actorSystem.Spawn(ctx, "Ping", NewPing())
 	pong, _ := actorSystem.Spawn(ctx, "Pong", NewPong())
+	ping, _ := actorSystem.Spawn(ctx, "Ping", NewPing(pong))
 
 	// wait for actors to start properly
 	time.Sleep(1 * time.Second)
 
 	duration := time.Minute
-	startTime := time.Now()
-	// Loop until one minute has passed
-	for time.Since(startTime) <= duration {
-		if err := ping.Tell(ctx, pong, new(samplepb.Ping)); err != nil {
-			panic(err)
-		}
-	}
+	_ = goakt.Tell(ctx, ping, new(samplepb.Begin))
 
-	pingCount := ping.ProcessedCount()
-	pongCount := pong.ProcessedCount()
+	// Wait for one minute to pass
+	<-time.After(duration)
 
-	logger.Infof("Ping=%s has processed %d messages in %v", ping.ID(), pingCount, duration)
-	logger.Infof("Pong=%s has processed %d messages in %v", pong.ID(), pongCount, duration)
+	// wait for the actors to process the messages
+	time.Sleep(1 * time.Second)
+	m1, m2 := ping.Metric(ctx), pong.Metric(ctx)
 
-	logger.Infof("Ping has processed per second: %d", int64(pingCount)/int64(duration.Seconds()))
-	logger.Infof("Pong has processed per second: %d", int64(pongCount)/int64(duration.Seconds()))
+	pingCount := m1.ProcessedCount()
+	pongCount := m2.ProcessedCount()
+
+	logger.Infof("Ping has processed %d messages in %v. (per/sec: %d)", pingCount, duration, int64(pingCount)/int64(duration.Seconds()))
+	logger.Infof("Pong has processed %d messages in %v. (per/sec: %d)", pongCount, duration, int64(pongCount)/int64(duration.Seconds()))
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -92,12 +90,16 @@ func main() {
 }
 
 type Ping struct {
+	// pong actor reference
+	pong *goakt.PID
 }
 
 var _ goakt.Actor = (*Ping)(nil)
 
-func NewPing() *Ping {
-	return &Ping{}
+func NewPing(pong *goakt.PID) *Ping {
+	return &Ping{
+		pong: pong,
+	}
 }
 
 func (p *Ping) PreStart(context.Context) error {
@@ -107,6 +109,8 @@ func (p *Ping) PreStart(context.Context) error {
 func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
+	case *samplepb.Begin:
+		ctx.Tell(p.pong, new(samplepb.Ping))
 	case *samplepb.Pong:
 		ctx.Tell(ctx.Sender(), new(samplepb.Ping))
 	default:
