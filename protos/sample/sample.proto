@@ -58,3 +58,5 @@ message Authenticated {}
 message Logout {}
 
 message Begin {}
+
+message End {}

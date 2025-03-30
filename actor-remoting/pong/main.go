@@ -51,7 +51,7 @@ func main() {
 	logger := log.New(log.DebugLevel, os.Stdout)
 
 	// create the actor system. kindly in real-life application handle the error
-	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
+	actorSystem, _ := goakt.NewActorSystem("Remoting",
 		goakt.WithPassivationDisabled(), // set big passivation time
 		goakt.WithLogger(logger),
 		goakt.WithActorInitMaxRetries(3),
@@ -60,8 +60,18 @@ func main() {
 	// start the actor system
 	_ = actorSystem.Start(ctx)
 
+	// wait for the actor system to be ready
+	time.Sleep(time.Second)
+
 	// create an actor
-	_, _ = actorSystem.Spawn(ctx, "Pong", NewPong())
+	_, _ = actorSystem.Spawn(ctx, "Pong",
+		NewPong(),
+		goakt.WithSupervisor(
+			goakt.NewSupervisor(
+				goakt.WithAnyErrorDirective(goakt.ResumeDirective),
+			),
+		),
+	)
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -74,9 +84,8 @@ func main() {
 }
 
 type Pong struct {
-	count     int
-	startTime time.Time
-	logger    log.Logger
+	count int
+	start time.Time
 }
 
 var _ goakt.Actor = (*Pong)(nil)
@@ -85,34 +94,25 @@ func NewPong() *Pong {
 	return &Pong{}
 }
 
-func (p *Pong) PreStart(ctx context.Context) error {
-	p.count = 0
+func (act *Pong) PreStart(ctx context.Context) error {
 	return nil
 }
 
-func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
+func (act *Pong) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
-		p.logger = ctx.Self().Logger()
-		p.startTime = time.Now()
+		act.start = time.Now()
+	case *samplepb.End:
+		act.count++
+		ctx.Logger().Infof("completed processing message: %d", act.count)
 	case *samplepb.Ping:
-		p.count++
-		// reply the sender in case there is a sender
-		if ctx.RemoteSender() != nil {
-			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Pong))
-			return
-		}
-
-		if !ctx.Sender().Equals(goakt.NoSender) {
-			ctx.Tell(ctx.Sender(), new(samplepb.Pong))
-		}
+		act.count++
+		ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Pong))
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (p *Pong) PostStop(context.Context) error {
-	duration := time.Since(p.startTime)
-	p.logger.Infof("Ping has processed %d messages per second", int64(p.count)/int64(duration.Seconds()))
+func (act *Pong) PostStop(context.Context) error {
 	return nil
 }

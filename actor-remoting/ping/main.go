@@ -52,8 +52,9 @@ func main() {
 	logger := log.New(log.DebugLevel, os.Stdout)
 
 	// create the actor system. kindly in real-life application handle the error
-	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
-		goakt.WithPassivationDisabled(), // set big passivation time
+	actorSystem, _ := goakt.NewActorSystem(
+		"Remoting",
+		goakt.WithPassivationDisabled(),
 		goakt.WithLogger(logger),
 		goakt.WithRemote(remote.NewConfig(host, port)),
 	)
@@ -61,16 +62,28 @@ func main() {
 	// start the actor system
 	_ = actorSystem.Start(ctx)
 
-	// create an actor
-	ping := NewPing()
-	pingActor, _ := actorSystem.Spawn(ctx, "Ping", ping)
+	// wait for the actor system to be ready
+	time.Sleep(time.Second)
 
-	// start the conversation
-	timer := time.AfterFunc(time.Second, func() {
-		address := address.New("Pong", actorSystem.Name(), host, 50052)
-		_ = pingActor.RemoteTell(ctx, address, new(samplepb.Ping))
-	})
-	defer timer.Stop()
+	// create an actor
+	totalScore := 10_000_000
+
+	pid, _ := actorSystem.Spawn(ctx, "Ping", NewPing(totalScore),
+		goakt.WithSupervisor(
+			goakt.NewSupervisor(
+				goakt.WithAnyErrorDirective(goakt.ResumeDirective),
+			),
+		),
+	)
+
+	// wait for the actor to be ready
+	time.Sleep(time.Second)
+
+	// locate the pong actor
+	remoteAddress := address.New("Pong", actorSystem.Name(), host, 50052)
+
+	// send a message to the pong actor
+	_ = pid.RemoteTell(ctx, remoteAddress, new(samplepb.Ping))
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -83,45 +96,37 @@ func main() {
 }
 
 type Ping struct {
-	count     int
-	startTime time.Time
-	logger    log.Logger
+	scores int
+	count  int
 }
 
 var _ goakt.Actor = (*Ping)(nil)
 
-func NewPing() *Ping {
-	return &Ping{}
+func NewPing(totalScore int) *Ping {
+	return &Ping{
+		scores: totalScore,
+	}
 }
 
-func (p *Ping) PreStart(context.Context) error {
-	p.count = 0
+func (act *Ping) PreStart(context.Context) error {
 	return nil
 }
 
-func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
+func (act *Ping) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *goaktpb.PostStart:
-		p.logger = ctx.Self().Logger()
-		p.startTime = time.Now()
 	case *samplepb.Pong:
-		p.count++
-		// reply the sender in case there is a sender
-		if ctx.RemoteSender() != nil {
-			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Ping))
+		act.count++
+		if act.count >= act.scores {
+			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.End))
 			return
 		}
-
-		if !ctx.Sender().Equals(goakt.NoSender) {
-			ctx.Tell(ctx.Sender(), new(samplepb.Ping))
-		}
+		ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Ping))
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (p *Ping) PostStop(context.Context) error {
-	duration := time.Since(p.startTime)
-	p.logger.Infof("Ping has processed %d messages per second", int64(p.count)/int64(duration.Seconds()))
+func (act *Ping) PostStop(context.Context) error {
 	return nil
 }
