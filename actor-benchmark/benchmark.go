@@ -27,160 +27,126 @@ package benchmark
 import (
 	"context"
 	"fmt"
-	"math/rand/v2"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	actors "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/log"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/tochemey/goakt-examples/v2/internal/benchpb"
 )
 
-const receivingTimeout = 100 * time.Millisecond
+const receivingTimeout = time.Second
 
-var (
-	totalSent *atomic.Int64
-	totalRecv *atomic.Int64
-)
+type Actor struct{}
 
-func init() {
-	totalSent = new(atomic.Int64)
-	totalRecv = new(atomic.Int64)
-}
-
-// Benchmarker is an actor that helps run benchmark tests
-type Benchmarker struct{}
-
-func (p *Benchmarker) PreStart(context.Context) error {
+func (a *Actor) PreStart(context.Context) error {
 	return nil
 }
 
-func (p *Benchmarker) Receive(ctx *actors.ReceiveContext) {
+func (a *Actor) Receive(ctx *actors.ReceiveContext) {
 	switch ctx.Message().(type) {
 	case *benchpb.BenchTell:
-		totalRecv.Add(1)
 	case *benchpb.BenchRequest:
-		totalRecv.Add(1)
 		ctx.Response(&benchpb.BenchResponse{})
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (p *Benchmarker) PostStop(context.Context) error {
+func (a *Actor) PostStop(context.Context) error {
 	return nil
 }
 
 // Benchmark defines a load testing engine
 type Benchmark struct {
-	// actorsCount defines the number of actors to create
-	// on each actor system created by the loader
-	actorsCount int
-	// workersCount define the number of message senders
-	workersCount int
-	// duration specifies how long the load testing will run
-	duration time.Duration
-	pids     []*actors.PID
-	system   actors.ActorSystem
+	// toSend define the number of message senders
+	toSend       int
+	pid          *actors.PID
+	sender       *actors.PID
+	system       actors.ActorSystem
+	tellMessages []proto.Message
+	askMessages  []proto.Message
 }
 
 // NewBenchmark creates an instance of Loader
-func NewBenchmark(actorsCount, workersCount int, duration time.Duration) *Benchmark {
+func NewBenchmark(messagesCount int) *Benchmark {
 	return &Benchmark{
-		actorsCount:  actorsCount,
-		workersCount: workersCount,
-		duration:     duration,
-		pids:         make([]*actors.PID, 0, actorsCount),
+		toSend:       messagesCount,
+		tellMessages: make([]proto.Message, messagesCount),
+		askMessages:  make([]proto.Message, messagesCount),
 	}
 }
 
+// ActorRef returns the actor reference
+func (x *Benchmark) ActorRef() *actors.PID {
+	return x.pid
+}
+
 // Start starts the Benchmark
-func (b *Benchmark) Start(ctx context.Context) error {
+func (x *Benchmark) Start(ctx context.Context) error {
 	// create the benchmark actor system
 	name := "benchmark-system"
-	b.system, _ = actors.NewActorSystem(name,
+	var err error
+	x.system, _ = actors.NewActorSystem(name,
 		actors.WithLogger(log.DiscardLogger),
 		actors.WithActorInitMaxRetries(1))
 
-	if err := b.system.Start(ctx); err != nil {
+	if err := x.system.Start(ctx); err != nil {
 		return err
 	}
 
 	// wait for the actor system to properly start
-	time.Sleep(time.Second)
+	time.Sleep(500 * time.Millisecond)
 
-	for i := 0; i < b.actorsCount; i++ {
-		actorName := fmt.Sprintf("actor-%d", i)
-		pid, err := b.system.Spawn(ctx, actorName, &Benchmarker{})
-		if err != nil {
-			return err
-		}
-		b.pids = append(b.pids, pid)
+	actorName := "actor-benchmark"
+	x.pid, err = x.system.Spawn(ctx, actorName, &Actor{})
+	if err != nil {
+		return err
 	}
+
+	x.sender, err = x.system.Spawn(ctx, "sender", &Actor{})
+	if err != nil {
+		return err
+	}
+
 	// wait for the actors to properly start
-	time.Sleep(time.Second)
+	time.Sleep(500 * time.Millisecond)
+
+	// build the messages to be sent
+	for i := range x.toSend {
+		x.tellMessages[i] = new(benchpb.BenchTell)
+		x.askMessages[i] = new(benchpb.BenchRequest)
+	}
+
 	return nil
 }
 
 // Stop stops the benchmark
-func (b *Benchmark) Stop(ctx context.Context) error {
-	return b.system.Stop(ctx)
+func (x *Benchmark) Stop(ctx context.Context) error {
+	return x.system.Stop(ctx)
 }
 
-// BenchTell sends messages to a random actor
-func (b *Benchmark) BenchTell(ctx context.Context) error {
-	wg := sync.WaitGroup{}
-	wg.Add(b.workersCount)
-	deadline := time.Now().Add(b.duration)
-	for i := 0; i < b.workersCount; i++ {
-		go func() {
-			defer wg.Done()
-			for time.Now().Before(deadline) {
-				// randomly pick and actor
-				pid := b.pids[rand.IntN(len(b.pids))] //nolint:gosec
-				// send a message
-				_ = actors.Tell(ctx, pid, new(benchpb.BenchTell))
-				// increase sent counter
-				totalSent.Add(1)
-			}
-		}()
+// BenchTell sends messages to an actor
+func (x *Benchmark) BenchTell(ctx context.Context) error {
+	// wait for the tellMessages to be delivered
+	if err := x.sender.BatchTell(ctx, x.pid, x.tellMessages...); err != nil {
+		return fmt.Errorf("failed to bench: %w", err)
 	}
 
-	// wait for the messages to be delivered
-	wg.Wait()
-	time.Sleep(500 * time.Millisecond)
-	if totalSent.Load() != totalRecv.Load() {
-		return fmt.Errorf("send count and receive count does not match: %d != %d", totalSent.Load(), totalRecv.Load())
-	}
+	// wait for the messages to be processed
+	time.Sleep(time.Second)
 	return nil
 }
 
-// BenchAsk sends messages to a random actor
-func (b *Benchmark) BenchAsk(ctx context.Context) error {
-	wg := sync.WaitGroup{}
-	wg.Add(b.workersCount)
-	deadline := time.Now().Add(b.duration)
-	for i := 0; i < b.workersCount; i++ {
-		go func() {
-			defer wg.Done()
-			for time.Now().Before(deadline) {
-				// randomly pick and actor
-				pid := b.pids[rand.IntN(len(b.pids))] //nolint:gosec
-				// send a message
-				_, _ = actors.Ask(ctx, pid, new(benchpb.BenchRequest), receivingTimeout)
-				// increase sent counter
-				totalSent.Add(1)
-			}
-		}()
+// BenchAsk sends messages to an actor
+func (x *Benchmark) BenchAsk(ctx context.Context) error {
+	// wait for the tellMessages to be delivered
+	if _, err := x.sender.BatchAsk(ctx, x.pid, x.askMessages, time.Minute); err != nil {
+		return fmt.Errorf("failed to bench: %w", err)
 	}
 
-	// wait for the messages to be delivered
-	wg.Wait()
-	time.Sleep(500 * time.Millisecond)
-	if totalSent.Load() != totalRecv.Load() {
-		return fmt.Errorf("send count and receive count does not match: %d != %d", totalSent.Load(), totalRecv.Load())
-	}
+	// wait for the messages to be processed
+	time.Sleep(time.Second)
 	return nil
 }

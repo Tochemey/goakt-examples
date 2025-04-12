@@ -52,7 +52,7 @@ func BenchmarkActor(b *testing.B) {
 		_ = actorSystem.Start(ctx)
 
 		// define the benchmark actor
-		actor := &Benchmarker{}
+		actor := &Actor{}
 
 		// create the actor ref
 		pid, _ := actorSystem.Spawn(ctx, "test", actor)
@@ -80,7 +80,7 @@ func BenchmarkActor(b *testing.B) {
 		_ = actorSystem.Start(ctx)
 
 		// define the benchmark actor
-		actor := &Benchmarker{}
+		actor := &Actor{}
 
 		// create the actor ref
 		pid, _ := actorSystem.Spawn(ctx, "test", actor)
@@ -107,7 +107,7 @@ func BenchmarkActor(b *testing.B) {
 		_ = actorSystem.Start(ctx)
 
 		// define the benchmark actor
-		actor := &Benchmarker{}
+		actor := &Actor{}
 
 		// create the actor ref
 		pid, _ := actorSystem.Spawn(ctx, "test", actor)
@@ -133,7 +133,7 @@ func BenchmarkActor(b *testing.B) {
 		_ = actorSystem.Start(ctx)
 
 		// define the benchmark actor
-		actor := &Benchmarker{}
+		actor := &Actor{}
 
 		// create the actor ref
 		pid, _ := actorSystem.Spawn(ctx, "test", actor)
@@ -162,51 +162,53 @@ func runParallel(b *testing.B, benchFn func(pb *testing.PB)) {
 func TestBenchmark_BenchTell(t *testing.T) {
 	ctx := context.TODO()
 
-	actorsCount := 2000
-	workersCount := 20
-	duration := 10 * time.Second
+	toSend := 10_000_000
 
-	benchmark := NewBenchmark(actorsCount, workersCount, duration)
+	benchmark := NewBenchmark(toSend)
 	require.NoError(t, benchmark.Start(ctx))
 
-	fmt.Printf("Starting benchmark for (%v): num workers:(%d)\n", duration, workersCount)
+	fmt.Printf("Starting benchmark...\n")
+	startTime := time.Now()
 	if err := benchmark.BenchTell(ctx); err != nil {
 		t.Fatal(err)
 	}
 
+	duration := time.Since(startTime)
+	metric := benchmark.ActorRef().Metric(ctx)
+	processedCount := metric.ProcessedCount()
+
 	fmt.Printf("Go Version: %s\n", runtime.Version())
-	fmt.Printf("cpu: %s (Physical Cores: %d)\n", CPU.BrandName, CPU.PhysicalCores)
+	fmt.Printf("CPU: %s (Physical Cores: %d)\n", CPU.BrandName, CPU.PhysicalCores)
 	fmt.Printf("Runtime CPUs: %d\n", runtime.NumCPU())
-	fmt.Printf("Total actors spawned: (%d)\n", actorsCount)
-	fmt.Printf("Total workers: (%d), total messages sent: (%d), total messages received: (%d) - duration: (%v)\n", workersCount, totalSent.Load(), totalRecv.Load(), duration)
-	fmt.Printf("Messages per second: (%d)\n", totalRecv.Load()/int64(duration.Seconds()))
-	t.Cleanup(func() {
-		require.NoError(t, benchmark.Stop(ctx))
-	})
+	fmt.Printf("Total messages sent: (%d) - duration: (%v)\n", toSend, duration)
+	fmt.Printf("Total messages processed: (%d) - duration: (%v)\n", processedCount, duration)
+	fmt.Printf("Messages per second: (%d)\n", int64(processedCount)/int64(duration.Seconds()))
+	require.NoError(t, benchmark.Stop(ctx))
 }
 
 func TestBenchmark_BenchAsk(t *testing.T) {
 	ctx := context.TODO()
 
-	actorsCount := 2000
-	workersCount := 20
-	duration := 10 * time.Second
+	toSend := 10_000_000
 
-	benchmark := NewBenchmark(actorsCount, workersCount, duration)
+	benchmark := NewBenchmark(toSend)
 	require.NoError(t, benchmark.Start(ctx))
 
-	fmt.Printf("Starting benchmark for (%v): num workers:(%d)\n", duration, workersCount)
+	fmt.Printf("Starting benchmark....\n")
+	startTime := time.Now()
 	if err := benchmark.BenchAsk(ctx); err != nil {
 		t.Fatal(err)
 	}
 
+	duration := time.Since(startTime)
+	metric := benchmark.ActorRef().Metric(ctx)
+	processedCount := metric.ProcessedCount()
+
 	fmt.Printf("Go Version: %s\n", runtime.Version())
-	fmt.Printf("cpu: %s (Physical Cores: %d)\n", CPU.BrandName, CPU.PhysicalCores)
+	fmt.Printf("CPU: %s (Physical Cores: %d)\n", CPU.BrandName, CPU.PhysicalCores)
 	fmt.Printf("Runtime CPUs: %d\n", runtime.NumCPU())
-	fmt.Printf("Total actors spawned: (%d)\n", actorsCount)
-	fmt.Printf("Total workers: (%d), total messages sent: (%d), total messages received: (%d) - duration: (%v)\n", workersCount, totalSent.Load(), totalRecv.Load(), duration)
-	fmt.Printf("Messages per second: (%d)\n", totalRecv.Load()/int64(duration.Seconds()))
-	t.Cleanup(func() {
-		require.NoError(t, benchmark.Stop(ctx))
-	})
+	fmt.Printf("Total messages sent: (%d) - duration: (%v)\n", toSend, duration)
+	fmt.Printf("Total messages processed: (%d) - duration: (%v)\n", processedCount, duration)
+	fmt.Printf("Messages per second: (%d)\n", int64(processedCount)/int64(duration.Seconds()))
+	require.NoError(t, benchmark.Stop(ctx))
 }
