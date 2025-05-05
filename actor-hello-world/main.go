@@ -96,7 +96,7 @@ func NewHelloWorld() *HelloWorld {
 	return &HelloWorld{}
 }
 
-func (x *HelloWorld) PreStart(context.Context) error { return nil }
+func (x *HelloWorld) PreStart(*goakt.Context) error { return nil }
 
 func (x *HelloWorld) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
@@ -107,4 +107,4 @@ func (x *HelloWorld) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (x *HelloWorld) PostStop(context.Context) error { return nil }
+func (x *HelloWorld) PostStop(*goakt.Context) error { return nil }

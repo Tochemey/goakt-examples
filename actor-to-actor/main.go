@@ -102,7 +102,7 @@ func NewPing(pong *goakt.PID) *Ping {
 	}
 }
 
-func (p *Ping) PreStart(context.Context) error {
+func (p *Ping) PreStart(*goakt.Context) error {
 	return nil
 }
 
@@ -118,7 +118,7 @@ func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (p *Ping) PostStop(context.Context) error {
+func (p *Ping) PostStop(*goakt.Context) error {
 	return nil
 }
 
@@ -131,7 +131,7 @@ func NewPong() *Pong {
 	return &Pong{}
 }
 
-func (p *Pong) PreStart(context.Context) error {
+func (p *Pong) PreStart(*goakt.Context) error {
 	return nil
 }
 
@@ -145,6 +145,6 @@ func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (p *Pong) PostStop(context.Context) error {
+func (p *Pong) PostStop(*goakt.Context) error {
 	return nil
 }

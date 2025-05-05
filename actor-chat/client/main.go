@@ -84,7 +84,11 @@ func main() {
 		ctx,
 		"ChatClient",
 		NewClient(userName, serverAddress),
-		actors.WithSupervisorStrategies(actors.DefaultSupervisorStrategies...)); err != nil {
+		actors.WithSupervisor(
+			actors.NewSupervisor(
+				actors.WithStrategy(actors.OneForOneStrategy),
+				actors.WithAnyErrorDirective(actors.ResumeDirective),
+			))); err != nil {
 		logger.Fatal(err)
 		os.Exit(1)
 	}
@@ -152,7 +156,7 @@ func NewClient(userName string, serverID *address.Address) *Client {
 	}
 }
 
-func (c *Client) PreStart(context.Context) error {
+func (c *Client) PreStart(*actors.Context) error {
 	return nil
 }
 
@@ -171,7 +175,7 @@ func (c *Client) Receive(ctx *actors.ReceiveContext) {
 	}
 }
 
-func (c *Client) PostStop(context.Context) error {
+func (c *Client) PostStop(*actors.Context) error {
 	c.logger.Info("Chat Client successfully stopped")
 	return nil
 }

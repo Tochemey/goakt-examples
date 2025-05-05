@@ -102,7 +102,7 @@ func NewActor() *Actor {
 	return &Actor{}
 }
 
-func (p *Actor) PreStart(context.Context) error {
+func (p *Actor) PreStart(*goakt.Context) error {
 	return nil
 }
 
@@ -115,6 +115,6 @@ func (p *Actor) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (p *Actor) PostStop(context.Context) error {
+func (p *Actor) PostStop(*goakt.Context) error {
 	return nil
 }

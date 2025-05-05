@@ -108,7 +108,7 @@ func NewPing(totalScore int) *Ping {
 	}
 }
 
-func (act *Ping) PreStart(context.Context) error {
+func (act *Ping) PreStart(*goakt.Context) error {
 	return nil
 }
 
@@ -127,6 +127,6 @@ func (act *Ping) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (act *Ping) PostStop(context.Context) error {
+func (act *Ping) PostStop(*goakt.Context) error {
 	return nil
 }

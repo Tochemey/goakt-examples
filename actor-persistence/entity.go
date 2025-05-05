@@ -30,6 +30,7 @@ import (
 
 	goakt "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/goaktpb"
+	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
@@ -39,7 +40,7 @@ type AccountEntity struct {
 	accountID  string
 	created    bool
 	stateStore StateStore
-	state      *samplepb.Account
+	state      *atomic.Pointer[samplepb.Account]
 }
 
 // enforce compilation error
@@ -51,25 +52,18 @@ func NewAccountEntity() *AccountEntity {
 }
 
 // PreStart is used to pre-set initial values for the actor
-func (entity *AccountEntity) PreStart(context.Context) error {
-	return nil
+func (entity *AccountEntity) PreStart(ctx *goakt.Context) error {
+	entity.state = atomic.NewPointer(new(samplepb.Account))
+	entity.stateStore = ctx.Extension("MemoryStore").(StateStore)
+	entity.accountID = ctx.ActorName()
+	return entity.recoverFromStore(ctx.Context())
 }
 
 // Receive handles the messages sent to the actor
 func (entity *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *goaktpb.PostStart:
-		// initialize some the entity properties
-		entity.accountID = ctx.Self().Name()
-		entity.state = new(samplepb.Account)
-		entity.stateStore = ctx.Extension("MemoryStore").(StateStore)
-
-		// recover state from state store
-		if err := entity.recoverFromStore(ctx.Context()); err != nil {
-			ctx.Err(err)
-			return
-		}
-
+		ctx.Logger().Infof("%s properly started", entity.accountID)
 	case *samplepb.CreateAccount:
 		ctx.Logger().Info("creating account by setting the balance...")
 
@@ -85,15 +79,15 @@ func (entity *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		}
 
 		balance := msg.GetAccountBalance()
-		entity.state.AccountBalance = entity.state.GetAccountBalance() + balance
+		entity.state.Load().AccountBalance = entity.state.Load().GetAccountBalance() + balance
 
 		// persist the actor state
-		if err := entity.stateStore.WriteState(ctx.Context(), entity.accountID, entity.state); err != nil {
+		if err := entity.stateStore.WriteState(ctx.Context(), entity.accountID, entity.state.Load()); err != nil {
 			ctx.Err(err)
 			return
 		}
 
-		ctx.Response(entity.state)
+		ctx.Response(entity.state.Load())
 	case *samplepb.CreditAccount:
 		ctx.Self().Logger().Info("crediting balance...")
 
@@ -104,15 +98,15 @@ func (entity *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		}
 
 		balance := msg.GetBalance()
-		entity.state.AccountBalance = entity.state.GetAccountBalance() + balance
+		entity.state.Load().AccountBalance = entity.state.Load().GetAccountBalance() + balance
 
 		// persist the actor state
-		if err := entity.stateStore.WriteState(ctx.Context(), entity.accountID, entity.state); err != nil {
+		if err := entity.stateStore.WriteState(ctx.Context(), entity.accountID, entity.state.Load()); err != nil {
 			ctx.Err(err)
 			return
 		}
 
-		ctx.Response(entity.state)
+		ctx.Response(entity.state.Load())
 	case *samplepb.GetAccount:
 		ctx.Logger().Info("get account...")
 
@@ -122,15 +116,15 @@ func (entity *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 			return
 		}
 
-		ctx.Response(entity.state)
+		ctx.Response(entity.state.Load())
 	default:
 		ctx.Unhandled()
 	}
 }
 
 // PostStop is used to free-up resources when the actor stops
-func (entity *AccountEntity) PostStop(ctx context.Context) error {
-	return entity.stateStore.WriteState(ctx, entity.accountID, entity.state)
+func (entity *AccountEntity) PostStop(ctx *goakt.Context) error {
+	return entity.stateStore.WriteState(ctx.Context(), entity.accountID, entity.state.Load())
 }
 
 func (entity *AccountEntity) recoverFromStore(ctx context.Context) error {
@@ -140,7 +134,7 @@ func (entity *AccountEntity) recoverFromStore(ctx context.Context) error {
 	}
 
 	if latestState != nil {
-		entity.state = latestState
+		entity.state.Store(latestState)
 	}
 
 	return nil

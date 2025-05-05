@@ -25,8 +25,6 @@
 package actors
 
 import (
-	"context"
-
 	goakt "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/goaktpb"
 
@@ -49,7 +47,7 @@ func NewAccountEntity() *AccountEntity {
 }
 
 // PreStart is used to pre-set initial values for the actor
-func (p *AccountEntity) PreStart(context.Context) error {
+func (p *AccountEntity) PreStart(*goakt.Context) error {
 	return nil
 }
 
@@ -105,7 +103,7 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 }
 
 // PostStop is used to free-up resources when the actor stops
-func (p *AccountEntity) PostStop(context.Context) error {
+func (p *AccountEntity) PostStop(*goakt.Context) error {
 	p.created = false
 	p.balance = 0
 	return nil

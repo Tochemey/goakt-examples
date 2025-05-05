@@ -40,7 +40,7 @@ const receivingTimeout = time.Second
 
 type Actor struct{}
 
-func (a *Actor) PreStart(context.Context) error {
+func (a *Actor) PreStart(*actors.Context) error {
 	return nil
 }
 
@@ -54,7 +54,7 @@ func (a *Actor) Receive(ctx *actors.ReceiveContext) {
 	}
 }
 
-func (a *Actor) PostStop(context.Context) error {
+func (a *Actor) PostStop(*actors.Context) error {
 	return nil
 }
 

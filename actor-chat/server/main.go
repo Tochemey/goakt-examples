@@ -74,7 +74,11 @@ func main() {
 		ctx,
 		"ChatServer",
 		NewServer(),
-		actors.WithSupervisorStrategies(actors.DefaultSupervisorStrategies...)); err != nil {
+		actors.WithSupervisor(
+			actors.NewSupervisor(
+				actors.WithStrategy(actors.OneForOneStrategy),
+				actors.WithAnyErrorDirective(actors.ResumeDirective),
+			))); err != nil {
 		logger.Fatal(err)
 		os.Exit(1)
 	}
@@ -106,7 +110,7 @@ func NewServer() *Server {
 	}
 }
 
-func (s *Server) PreStart(context.Context) error {
+func (s *Server) PreStart(*actors.Context) error {
 	s.users.Clear()
 	s.clients.Clear()
 	return nil
@@ -165,7 +169,7 @@ func (s *Server) Receive(ctx *actors.ReceiveContext) {
 	}
 }
 
-func (s *Server) PostStop(context.Context) error {
+func (s *Server) PostStop(*actors.Context) error {
 	s.users.Clear()
 	s.clients.Clear()
 	s.logger.Info("Chat Server successfully stopped")

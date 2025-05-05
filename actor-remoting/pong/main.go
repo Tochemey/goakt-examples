@@ -94,7 +94,7 @@ func NewPong() *Pong {
 	return &Pong{}
 }
 
-func (act *Pong) PreStart(ctx context.Context) error {
+func (act *Pong) PreStart(*goakt.Context) error {
 	return nil
 }
 
@@ -113,6 +113,6 @@ func (act *Pong) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (act *Pong) PostStop(context.Context) error {
+func (act *Pong) PostStop(*goakt.Context) error {
 	return nil
 }
