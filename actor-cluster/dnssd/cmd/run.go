@@ -49,6 +49,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/actors"
+	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/persistence"
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/service"
 )
 
@@ -131,6 +132,11 @@ var runCmd = &cobra.Command{
 		// instantiate the dnssd discovery provider
 		disco := dnssd.NewDiscovery(&discoConfig)
 
+		persistenceStore := persistence.NewMemoryStore()
+		// Start the persistence storage
+		// This is to demonstrate a proper workflow
+		persistenceStore.Start()
+
 		// grab the host
 		host, _ := os.Hostname()
 
@@ -149,6 +155,7 @@ var runCmd = &cobra.Command{
 			config.ActorSystemName,
 			goakt.WithPassivationDisabled(), // disable passivation
 			goakt.WithLogger(logger),
+			goakt.WithExtensions(persistenceStore),
 			goakt.WithActorInitMaxRetries(3),
 			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort)),
 			goakt.WithCluster(clusterConfig))
@@ -184,6 +191,9 @@ var runCmd = &cobra.Command{
 			if err := actorSystem.Stop(ctx); err != nil {
 				logger.Panic(err)
 			}
+
+			// close this after the system
+			persistenceStore.Stop()
 
 			// stop the account service
 			newCtx, cancel := context.WithTimeout(ctx, 2*time.Second)

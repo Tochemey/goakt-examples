@@ -25,17 +25,24 @@
 package actors
 
 import (
+	"reflect"
+	"sync/atomic"
+	"time"
+
 	goakt "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/goaktpb"
 
+	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/domain"
+	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/persistence"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
+var zeroTime = time.Time{}
+
 // AccountEntity represents the immutable implementation of Actor
 type AccountEntity struct {
-	accountID string
-	balance   float64
-	created   bool
+	state   *atomic.Pointer[domain.Account]
+	storage persistence.Store
 }
 
 // enforce compilation error
@@ -47,55 +54,71 @@ func NewAccountEntity() *AccountEntity {
 }
 
 // PreStart is used to pre-set initial values for the actor
-func (p *AccountEntity) PreStart(*goakt.Context) error {
+func (x *AccountEntity) PreStart(ctx *goakt.Context) error {
+	accountID := ctx.ActorName()
+	x.storage = ctx.Extension(persistence.MemoryStateStoreID).(persistence.Store)
+	recoveredState := x.storage.GetState(ctx.Context(), accountID)
+	x.state.Store(recoveredState)
 	return nil
 }
 
 // Receive handles the messages sent to the actor
-func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
+func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *goaktpb.PostStart:
-		// set the account ID
-		p.accountID = ctx.Self().Name()
+		state := x.state.Load()
+		if reflect.DeepEqual(state, new(domain.Account)) {
+			state.SetCreatedAt(zeroTime)
+			state.SetBalance(0)
+		}
+
 	case *samplepb.CreateAccount:
 		ctx.Self().Logger().Info("creating account by setting the balance...")
+		state := x.state.Load()
+
 		// check whether the create operation has been done already
-		if p.created {
-			ctx.Self().Logger().Infof("account=%s has been created already", p.accountID)
+		if !state.CreatedAt().Equal(zeroTime) {
+			ctx.Self().Logger().Infof("account=%s has been created already", state.AccountID())
 			return
 		}
+
 		// get the data
 		accountID := msg.GetAccountId()
 		balance := msg.GetAccountBalance()
-		// first check whether the accountID is mine
-		if p.accountID == accountID {
-			p.balance = balance
-			p.created = true
-			// here we are handling just an ask
-			ctx.Response(&samplepb.Account{
-				AccountId:      accountID,
-				AccountBalance: p.balance,
-			})
-		}
+
+		// set the new values
+		state.SetBalance(balance)
+		state.SetCreatedAt(time.Now())
+
+		// here we are handling just an ask
+		ctx.Response(&samplepb.Account{
+			AccountId:      accountID,
+			AccountBalance: state.Balance(),
+		})
+
 	case *samplepb.CreditAccount:
 		ctx.Self().Logger().Info("crediting balance...")
+		state := x.state.Load()
+
 		// get the data
 		accountID := msg.GetAccountId()
 		balance := msg.GetBalance()
-		// first check whether the accountID is mine
-		if p.accountID == accountID {
-			p.balance += balance
-			ctx.Response(&samplepb.Account{
-				AccountId:      accountID,
-				AccountBalance: p.balance,
-			})
-		}
+
+		newBalance := state.Balance() + balance
+		state.SetBalance(newBalance)
+
+		ctx.Response(&samplepb.Account{
+			AccountId:      accountID,
+			AccountBalance: state.Balance(),
+		})
+
 	case *samplepb.GetAccount:
 		ctx.Self().Logger().Info("get account...")
+		state := x.state.Load()
 		// get the data
 		ctx.Response(&samplepb.Account{
 			AccountId:      msg.GetAccountId(),
-			AccountBalance: p.balance,
+			AccountBalance: state.Balance(),
 		})
 	default:
 		ctx.Unhandled()
@@ -103,8 +126,8 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 }
 
 // PostStop is used to free-up resources when the actor stops
-func (p *AccountEntity) PostStop(*goakt.Context) error {
-	p.created = false
-	p.balance = 0
+func (x *AccountEntity) PostStop(ctx *goakt.Context) error {
+	underlying := x.state.Load()
+	x.storage.WriteState(ctx.Context(), underlying.AccountID(), underlying)
 	return nil
 }
