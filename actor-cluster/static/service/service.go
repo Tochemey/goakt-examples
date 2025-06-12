@@ -75,32 +75,21 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	accountID := req.GetCreateAccount().GetAccountId()
 	// create the pid and send the command create account
 	accountEntity := &kactors.AccountEntity{}
-	// create the given pid
-	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity)
-	if err != nil {
+
+	s.logger.Infof("creating actor with id=%s", accountID)
+
+	// create the given actor. This will spawn the actor on the cluster
+	if err := s.actorSystem.SpawnOn(ctx, accountID, accountEntity); err != nil {
 		return nil, err
 	}
-	// send the create command to the pid
-	reply, err := actors.Ask(ctx, pid, &samplepb.CreateAccount{
+
+	s.logger.Infof("actor with id=%s is created", accountID)
+
+	// return the appropriate response
+	return connect.NewResponse(&samplepb.CreateAccountResponse{Account: &samplepb.Account{
 		AccountId:      accountID,
-		AccountBalance: req.GetCreateAccount().GetAccountBalance(),
-	}, time.Second)
-
-	// handle the error
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	// pattern match on the reply
-	switch x := reply.(type) {
-	case *samplepb.Account:
-		// return the appropriate response
-		return connect.NewResponse(&samplepb.CreateAccountResponse{Account: x}), nil
-	default:
-		// create the error message to send
-		err := fmt.Errorf("invalid reply=%s", reply.ProtoReflect().Descriptor().FullName())
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
+		AccountBalance: 0,
+	}}), nil
 }
 
 // CreditAccount helps credit a given account
@@ -111,7 +100,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	addr, pid, err := s.actorSystem.ActorOf(ctx, accountID)
 	if err != nil {
 		// check whether it is not found error
-		if !errors.Is(err, actors.ErrActorNotFound(accountID)) {
+		if !errors.Is(err, actors.ErrActorNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 
