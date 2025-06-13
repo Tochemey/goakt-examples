@@ -111,7 +111,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	addr, pid, err := s.actorSystem.ActorOf(ctx, accountID)
 	if err != nil {
 		// check whether it is not found error
-		if !errors.Is(err, actors.ErrActorNotFound(accountID)) {
+		if !errors.Is(err, actors.ErrActorNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 

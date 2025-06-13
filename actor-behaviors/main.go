@@ -26,7 +26,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -69,7 +68,7 @@ func main() {
 	// 1- We perform the authentication
 	response, err := goakt.Ask(ctx, actorRef, new(samplepb.Authenticate), time.Second)
 	if err != nil {
-		logger.Panicf(fmt.Sprintf("failed to authenticate: %v", err))
+		logger.Panicf("failed to authenticate: %v", err)
 	}
 
 	// we need to make sure we have successfully authenticated before performing any action
@@ -91,7 +90,7 @@ func main() {
 	}, time.Second)
 
 	if err != nil {
-		logger.Panicf(fmt.Sprintf("failed to create account: %v", err))
+		logger.Panicf("failed to create account: %v", err)
 	}
 
 	accountCreated := response.(*samplepb.AccountCreated)
@@ -104,7 +103,7 @@ func main() {
 	}, time.Second)
 
 	if err != nil {
-		logger.Panicf(fmt.Sprintf("failed to credit account: %v", err))
+		logger.Panicf("failed to credit account: %v", err)
 	}
 
 	accountCredited := response.(*samplepb.AccountCredited)
@@ -117,7 +116,7 @@ func main() {
 	}, time.Second)
 
 	if err != nil {
-		logger.Panicf(fmt.Sprintf("failed to debit account: %v", err))
+		logger.Panicf("failed to debit account: %v", err)
 	}
 
 	accountDebited := response.(*samplepb.AccountDebited)
@@ -126,7 +125,7 @@ func main() {
 	// 4- let us fetch the account information
 	response, err = goakt.Ask(ctx, actorRef, &samplepb.GetAccount{AccountId: accountID}, time.Second)
 	if err != nil {
-		logger.Panicf(fmt.Sprintf("failed to get account: %v", err))
+		logger.Panicf("failed to get account: %v", err)
 	}
 
 	account := response.(*samplepb.Account)
@@ -134,7 +133,7 @@ func main() {
 
 	// 5- Logout
 	if err := goakt.Tell(ctx, actorRef, new(samplepb.Logout)); err != nil {
-		logger.Panicf(fmt.Sprintf("failed to logout: %v", err))
+		logger.Panicf("failed to logout: %v", err)
 	}
 
 	// capture ctrl+c
@@ -159,7 +158,7 @@ func NewAccountActor() *AccountActor {
 	return &AccountActor{}
 }
 
-func (actor *AccountActor) PreStart(context.Context) error {
+func (actor *AccountActor) PreStart(*goakt.Context) error {
 	return nil
 }
 
@@ -245,7 +244,7 @@ func (actor *AccountActor) DebitState(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (actor *AccountActor) PostStop(context.Context) error {
+func (actor *AccountActor) PostStop(*goakt.Context) error {
 	actor.balance = 0
 	return nil
 }
