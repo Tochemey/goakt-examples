@@ -57,7 +57,6 @@ func main() {
 
 	actorSystem, err := actors.NewActorSystem(
 		"ChatSystem",
-		actors.WithPassivationDisabled(),
 		actors.WithRemote(remote.NewConfig(host, port)),
 		actors.WithLogger(logger))
 

@@ -33,8 +33,8 @@ import (
 
 	"github.com/google/uuid"
 	goakt "github.com/tochemey/goakt/v3/actor"
+	"github.com/tochemey/goakt/v3/goaktpb"
 	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/passivation"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
@@ -69,76 +69,74 @@ func main() {
 	// wait for system to start properly
 	time.Sleep(1 * time.Second)
 
-	// create an actor
-	entityID := uuid.NewString()
-	pid, err := actorSystem.Spawn(ctx, entityID, NewAccountEntity(),
-		goakt.WithPassivationStrategy(passivation.NewTimeBasedStrategy(time.Minute)))
-	if err != nil {
-		logger.Panic(err)
+	// register the grain
+	grain := &Grain{}
+	if err := actorSystem.RegisterGrains(grain); err != nil {
+		logger.Fatal(err)
 	}
+
+	accountID := uuid.NewString()
+	identity := goakt.NewIdentity(grain, accountID)
 
 	var command proto.Message
 
 	// create the account
 	command = &samplepb.CreateAccount{
-		AccountId:      entityID,
+		AccountId:      accountID,
 		AccountBalance: 500.00,
 	}
 
-	// send the message to the actor and wait for the response
-	response, err := goakt.Ask(ctx, pid, command, time.Minute)
+	response, err := actorSystem.SendGrainSync(ctx, identity, command, goakt.WithRequestTimeout(time.Minute))
 	if err != nil {
-		logger.Panic(err)
+		logger.Fatal(err)
 	}
 
 	account := response.(*samplepb.Account)
 	logger.Infof("current balance on opening: %v", account.GetAccountBalance())
 
 	// fetch the account from the store and compare the outcome
-	fromStore, err := stateStore.GetLatestState(ctx, entityID)
+	fromStore, err := stateStore.GetLatestState(ctx, accountID)
 	if err != nil {
-		logger.Panic(err)
+		logger.Fatal(err)
 	}
 
 	logger.Infof("current balance from store: %v", fromStore.GetAccountBalance())
 
 	// send another command to credit the balance
 	command = &samplepb.CreditAccount{
-		AccountId: entityID,
+		AccountId: accountID,
 		Balance:   250,
 	}
 
 	// send the message to the actor and wait for the response
-	response, err = goakt.Ask(ctx, pid, command, time.Minute)
+	response, err = actorSystem.SendGrainSync(ctx, identity, command, goakt.WithRequestTimeout(time.Minute))
 	if err != nil {
-		logger.Panic(err)
+		logger.Fatal(err)
 	}
 
 	account = response.(*samplepb.Account)
 	logger.Infof("current balance after a credit of 250: %v", account.GetAccountBalance())
 
 	// fetch the account from the store and compare the outcome
-	fromStore, err = stateStore.GetLatestState(ctx, entityID)
+	fromStore, err = stateStore.GetLatestState(ctx, accountID)
 	if err != nil {
-		logger.Panic(err)
+		logger.Fatal(err)
 	}
 
 	logger.Infof("current balance from store: %v", fromStore.GetAccountBalance())
 
-	// Wait for the actor to passivate and create a new instance of the actor and fetch its state.
-	time.Sleep(2 * time.Minute)
-
-	// here we create a new instance of the entity and we expect to recover its previous state from store
-	pid, err = actorSystem.Spawn(ctx, entityID, NewAccountEntity())
+	// Deactivate the grain
+	err = actorSystem.SendGrainAsync(ctx, identity, &goaktpb.PoisonPill{})
 	if err != nil {
-		logger.Panic(err)
+		logger.Fatal(err)
 	}
+	time.Sleep(1 * time.Minute)
 
-	command = &samplepb.GetAccount{AccountId: entityID}
+	command = &samplepb.GetAccount{AccountId: accountID}
 	// send the message to the actor and wait for the response
-	response, err = goakt.Ask(ctx, pid, command, time.Minute)
+	response, err = actorSystem.SendGrainSync(ctx, identity, command, goakt.WithRequestTimeout(time.Minute))
 	if err != nil {
-		logger.Panic(err)
+		logger.Fatal(err)
 	}
 
 	account = response.(*samplepb.Account)

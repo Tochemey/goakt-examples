@@ -1,6 +1,6 @@
 VERSION 0.8
 
-FROM tochemey/docker-go:1.23.2-5.0.0
+FROM tochemey/docker-go:1.24.0-5.2.1
 
 all:
 	BUILD +protogen
@@ -61,7 +61,7 @@ k8s-image:
     EXPOSE 3320
 
     ENTRYPOINT ["./accounts"]
-    SAVE IMAGE accounts:dev
+    SAVE IMAGE accounts:dev-k8s
 
 
 compile-dnssd:
