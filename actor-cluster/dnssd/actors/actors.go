@@ -26,11 +26,11 @@ package actors
 
 import (
 	"reflect"
-	"sync/atomic"
 	"time"
 
 	goakt "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/goaktpb"
+	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/domain"
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/persistence"
@@ -58,6 +58,7 @@ func (x *AccountEntity) PreStart(ctx *goakt.Context) error {
 	accountID := ctx.ActorName()
 	x.storage = ctx.Extension(persistence.MemoryStateStoreID).(persistence.Store)
 	recoveredState := x.storage.GetState(ctx.Context(), accountID)
+	x.state = atomic.NewPointer[domain.Account](new(domain.Account))
 	x.state.Store(recoveredState)
 	return nil
 }

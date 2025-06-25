@@ -27,21 +27,21 @@ metadata:
   name: accounts
   labels:
     app.kubernetes.io/name: accounts
-    app.kubernetes.io/component: accounts
-    app.kubernetes.io/part-of: AccountsSystem
+    app.kubernetes.io/component: AccountsSystem
+    app.kubernetes.io/part-of: Sample
 spec:
   replicas: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: accounts
-      app.kubernetes.io/component: accounts
-      app.kubernetes.io/part-of: AccountsSystem
+      app.kubernetes.io/component: AccountsSystem
+      app.kubernetes.io/part-of: Sample
   template:
     metadata:
       labels:
         app.kubernetes.io/name: accounts
-        app.kubernetes.io/component: accounts
-        app.kubernetes.io/part-of: AccountsSystem
+        app.kubernetes.io/component: AccountsSystem
+        app.kubernetes.io/part-of: Sample
     spec:
       containers:
         - name: accounts
@@ -90,13 +90,13 @@ metadata:
   name: accounts
   labels:
     app.kubernetes.io/name: accounts
-    app.kubernetes.io/component: accounts
-    app.kubernetes.io/part-of: AccountsSystem
+    app.kubernetes.io/component: AccountsSystem
+    app.kubernetes.io/part-of: Sample
 spec:
   selector:
     app.kubernetes.io/name: accounts
-    app.kubernetes.io/component: accounts
-    app.kubernetes.io/part-of: AccountsSystem
+    app.kubernetes.io/component: AccountsSystem
+    app.kubernetes.io/part-of: Sample
   clusterIP: None
   ports:
     - protocol: TCP
