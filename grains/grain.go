@@ -29,7 +29,6 @@ import (
 	"fmt"
 
 	"github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/extension"
 	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
@@ -53,10 +52,6 @@ func (g *Grain) OnActivate(ctx context.Context, props *actor.GrainProps) error {
 
 func (g *Grain) OnDeactivate(ctx context.Context, props *actor.GrainProps) error {
 	return g.stateStore.WriteState(ctx, g.id, g.state.Load())
-}
-
-func (g *Grain) Dependencies() []extension.Dependency {
-	return nil
 }
 
 func (g *Grain) OnReceive(ctx *actor.GrainContext) {
