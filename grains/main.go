@@ -26,6 +26,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -44,7 +45,7 @@ func main() {
 	ctx := context.Background()
 
 	// use the address default log. real-life implement the log interface`
-	logger := log.DefaultLogger
+	logger := log.DiscardLogger
 
 	stateStore := NewMemoryStore()
 
@@ -71,12 +72,11 @@ func main() {
 
 	// register the grain
 	grain := &Grain{}
-	if err := actorSystem.RegisterGrains(grain); err != nil {
-		logger.Fatal(err)
-	}
 
 	accountID := uuid.NewString()
-	identity := goakt.NewIdentity(grain, accountID)
+	identity, err := actorSystem.GrainIdentity(ctx, accountID, func(ctx context.Context) (goakt.Grain, error) {
+		return grain, nil
+	})
 
 	var command proto.Message
 
@@ -86,13 +86,13 @@ func main() {
 		AccountBalance: 500.00,
 	}
 
-	response, err := actorSystem.SendGrainSync(ctx, identity, command, goakt.WithRequestTimeout(time.Minute))
+	response, err := actorSystem.AskGrain(ctx, identity, command, time.Second)
 	if err != nil {
 		logger.Fatal(err)
 	}
 
 	account := response.(*samplepb.Account)
-	logger.Infof("current balance on opening: %v", account.GetAccountBalance())
+	fmt.Printf("current balance on opening: %v\n", account.GetAccountBalance())
 
 	// fetch the account from the store and compare the outcome
 	fromStore, err := stateStore.GetLatestState(ctx, accountID)
@@ -100,7 +100,7 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	logger.Infof("current balance from store: %v", fromStore.GetAccountBalance())
+	fmt.Printf("current balance from store: %v\n", fromStore.GetAccountBalance())
 
 	// send another command to credit the balance
 	command = &samplepb.CreditAccount{
@@ -109,13 +109,13 @@ func main() {
 	}
 
 	// send the message to the actor and wait for the response
-	response, err = actorSystem.SendGrainSync(ctx, identity, command, goakt.WithRequestTimeout(time.Minute))
+	response, err = actorSystem.AskGrain(ctx, identity, command, time.Second)
 	if err != nil {
 		logger.Fatal(err)
 	}
 
 	account = response.(*samplepb.Account)
-	logger.Infof("current balance after a credit of 250: %v", account.GetAccountBalance())
+	fmt.Printf("current balance after a credit of 250: %v\n", account.GetAccountBalance())
 
 	// fetch the account from the store and compare the outcome
 	fromStore, err = stateStore.GetLatestState(ctx, accountID)
@@ -123,24 +123,26 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	logger.Infof("current balance from store: %v", fromStore.GetAccountBalance())
+	fmt.Printf("current balance from store: %v\n", fromStore.GetAccountBalance())
 
 	// Deactivate the grain
-	err = actorSystem.SendGrainAsync(ctx, identity, &goaktpb.PoisonPill{})
+	err = actorSystem.TellGrain(ctx, identity, &goaktpb.PoisonPill{})
 	if err != nil {
 		logger.Fatal(err)
 	}
+
+	fmt.Println("waiting for a minute before reactivating the grain. This is just to simulate a long deactivation period...")
 	time.Sleep(1 * time.Minute)
 
 	command = &samplepb.GetAccount{AccountId: accountID}
 	// send the message to the actor and wait for the response
-	response, err = actorSystem.SendGrainSync(ctx, identity, command, goakt.WithRequestTimeout(time.Minute))
+	response, err = actorSystem.AskGrain(ctx, identity, command, time.Second)
 	if err != nil {
 		logger.Fatal(err)
 	}
 
 	account = response.(*samplepb.Account)
-	logger.Infof("current balance after (re)start: %v", account.GetAccountBalance())
+	fmt.Printf("current balance after (re)activation: %v\n", account.GetAccountBalance())
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)

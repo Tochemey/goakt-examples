@@ -31,7 +31,6 @@ import (
 	"github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/extension"
 	"go.uber.org/atomic"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
@@ -45,51 +44,50 @@ type Grain struct {
 
 var _ actor.Grain = (*Grain)(nil)
 
-func (g *Grain) OnActivate(ctx *actor.GrainContext) error {
+func (g *Grain) OnActivate(ctx context.Context, props *actor.GrainProps) error {
 	g.state = atomic.NewPointer(new(samplepb.Account))
-	g.stateStore = ctx.Extension("MemoryStore").(StateStore)
-	g.id = ctx.Self().Name()
-	return g.recoverFromStore(ctx.Context())
+	g.stateStore = props.ActorSystem().Extension("MemoryStore").(StateStore)
+	g.id = props.Identity().Name()
+	return g.recoverFromStore(ctx)
 }
 
-func (g *Grain) OnDeactivate(ctx *actor.GrainContext) error {
-	return g.stateStore.WriteState(ctx.Context(), g.id, g.state.Load())
+func (g *Grain) OnDeactivate(ctx context.Context, props *actor.GrainProps) error {
+	return g.stateStore.WriteState(ctx, g.id, g.state.Load())
 }
 
 func (g *Grain) Dependencies() []extension.Dependency {
 	return nil
 }
 
-func (g *Grain) ReceiveSync(ctx context.Context, message proto.Message) (proto.Message, error) {
-	switch m := message.(type) {
+func (g *Grain) OnReceive(ctx *actor.GrainContext) {
+	switch m := ctx.Message().(type) {
 	case *samplepb.CreateAccount:
 		if g.created {
-			return nil, fmt.Errorf("account %s already created", g.id)
+			ctx.Err(fmt.Errorf("account %s already created", g.id))
+			return
 		}
 
 		balance := m.GetAccountBalance()
 		g.state.Load().AccountBalance = g.state.Load().GetAccountBalance() + balance
-		if err := g.stateStore.WriteState(ctx, g.id, g.state.Load()); err != nil {
-			return nil, fmt.Errorf("failed to write state: %w", err)
+		if err := g.stateStore.WriteState(ctx.Context(), g.id, g.state.Load()); err != nil {
+			ctx.Err(fmt.Errorf("failed to write state: %w", err))
+			return
 		}
 
-		return g.state.Load(), nil
+		ctx.Response(g.state.Load())
 	case *samplepb.CreditAccount:
 		balance := m.GetBalance()
 		g.state.Load().AccountBalance = g.state.Load().GetAccountBalance() + balance
-		if err := g.stateStore.WriteState(ctx, g.id, g.state.Load()); err != nil {
-			return nil, fmt.Errorf("failed to write state: %w", err)
+		if err := g.stateStore.WriteState(ctx.Context(), g.id, g.state.Load()); err != nil {
+			ctx.Err(fmt.Errorf("failed to write state: %w", err))
+			return
 		}
-		return g.state.Load(), nil
+		ctx.Response(g.state.Load())
 	case *samplepb.GetAccount:
-		return g.state.Load(), nil
+		ctx.Response(g.state.Load())
 	default:
-		return nil, fmt.Errorf("unhandled message type %T", message)
+		ctx.Unhandled()
 	}
-}
-
-func (g *Grain) ReceiveAsync(ctx context.Context, message proto.Message) error {
-	return nil
 }
 
 func (g *Grain) recoverFromStore(ctx context.Context) error {
