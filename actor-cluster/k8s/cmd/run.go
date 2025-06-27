@@ -79,17 +79,19 @@ var runCmd = &cobra.Command{
 		// use the address default log. real-life implement the log interface`
 		logger := log.New(log.DebugLevel, os.Stdout)
 
+		podLabels := map[string]string{
+			"app.kubernetes.io/part-of":   "Sample",
+			"app.kubernetes.io/component": actorSystemName,
+			"app.kubernetes.io/name":      applicationName,
+		}
+
 		// instantiate the k8 discovery provider
 		discovery := kubernetes.NewDiscovery(&kubernetes.Config{
 			Namespace:         namespace,
 			DiscoveryPortName: discoveryPortName,
 			RemotingPortName:  remotingPortName,
 			PeersPortName:     peersPortName,
-			PodLabels: map[string]string{
-				"app.kubernetes.io/part-of":   "Sample",
-				"app.kubernetes.io/component": actorSystemName,
-				"app.kubernetes.io/name":      applicationName,
-			},
+			PodLabels:         podLabels,
 		})
 
 		// get the port config
