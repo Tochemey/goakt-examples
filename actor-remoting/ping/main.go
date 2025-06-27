@@ -54,7 +54,6 @@ func main() {
 	// create the actor system. kindly in real-life application handle the error
 	actorSystem, _ := goakt.NewActorSystem(
 		"Remoting",
-		goakt.WithPassivationDisabled(),
 		goakt.WithLogger(logger),
 		goakt.WithRemote(remote.NewConfig(host, port)),
 	)
@@ -69,6 +68,7 @@ func main() {
 	totalScore := 10_000_000
 
 	pid, _ := actorSystem.Spawn(ctx, "Ping", NewPing(totalScore),
+		goakt.WithLongLived(),
 		goakt.WithSupervisor(
 			goakt.NewSupervisor(
 				goakt.WithAnyErrorDirective(goakt.ResumeDirective),

@@ -79,14 +79,19 @@ var runCmd = &cobra.Command{
 		// use the address default log. real-life implement the log interface`
 		logger := log.New(log.DebugLevel, os.Stdout)
 
+		podLabels := map[string]string{
+			"app.kubernetes.io/part-of":   "Sample",
+			"app.kubernetes.io/component": actorSystemName,
+			"app.kubernetes.io/name":      applicationName,
+		}
+
 		// instantiate the k8 discovery provider
 		discovery := kubernetes.NewDiscovery(&kubernetes.Config{
-			ApplicationName:   applicationName,
-			ActorSystemName:   actorSystemName,
 			Namespace:         namespace,
 			DiscoveryPortName: discoveryPortName,
 			RemotingPortName:  remotingPortName,
 			PeersPortName:     peersPortName,
+			PodLabels:         podLabels,
 		})
 
 		// get the port config
@@ -108,7 +113,6 @@ var runCmd = &cobra.Command{
 		// create the actor system
 		actorSystem, err := goakt.NewActorSystem(
 			actorSystemName,
-			goakt.WithPassivationDisabled(), // disable passivation
 			goakt.WithLogger(logger),
 			goakt.WithActorInitMaxRetries(3),
 			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort)),

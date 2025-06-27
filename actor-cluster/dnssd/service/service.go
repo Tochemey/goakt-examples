@@ -79,7 +79,7 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	// create the pid and send the command create account
 	accountEntity := kactors.NewAccountEntity()
 	// create the given pid
-	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity)
+	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity, actors.WithLongLived())
 	if err != nil {
 		return nil, err
 	}

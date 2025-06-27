@@ -57,7 +57,6 @@ func main() {
 
 	actorSystem, err := actors.NewActorSystem(
 		"ChatSystem",
-		actors.WithPassivationDisabled(),
 		actors.WithRemote(remote.NewConfig(host, port)),
 		actors.WithLogger(logger))
 
@@ -102,7 +101,7 @@ func main() {
 		fmt.Print("> ")
 		input, err := reader.ReadString('\n')
 		if err != nil {
-			logger.Error("failed to read from stdin: %v", err)
+			logger.Errorf("failed to read from stdin: %v", err)
 			continue
 		}
 

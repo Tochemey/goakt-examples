@@ -46,7 +46,6 @@ func main() {
 
 	// create the actor system. kindly in real-life application handle the error
 	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
-		goakt.WithPassivationDisabled(),
 		goakt.WithLogger(logger))
 
 	// start the actor system

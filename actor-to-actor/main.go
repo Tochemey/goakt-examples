@@ -47,7 +47,6 @@ func main() {
 	// create the actor system. kindly in real-life application handle the error
 	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
 		goakt.WithLogger(logger),
-		goakt.WithPassivationDisabled(),
 		goakt.WithActorInitMaxRetries(3))
 
 	// start the actor system
@@ -57,8 +56,8 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	// create the actors
-	pong, _ := actorSystem.Spawn(ctx, "Pong", NewPong())
-	ping, _ := actorSystem.Spawn(ctx, "Ping", NewPing(pong))
+	pong, _ := actorSystem.Spawn(ctx, "Pong", NewPong(), goakt.WithLongLived())
+	ping, _ := actorSystem.Spawn(ctx, "Ping", NewPing(pong), goakt.WithLongLived())
 
 	// wait for actors to start properly
 	time.Sleep(1 * time.Second)

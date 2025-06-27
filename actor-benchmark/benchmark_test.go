@@ -35,6 +35,7 @@ import (
 	require "github.com/stretchr/testify/require"
 	actors "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v3/passivation"
 
 	"github.com/tochemey/goakt-examples/v2/internal/benchpb"
 )
@@ -73,8 +74,7 @@ func BenchmarkActor(b *testing.B) {
 		// create the actor system
 		actorSystem, _ := actors.NewActorSystem("bench",
 			actors.WithLogger(log.DiscardLogger),
-			actors.WithActorInitMaxRetries(1),
-			actors.WithPassivationDisabled())
+			actors.WithActorInitMaxRetries(1))
 
 		// start the actor system
 		_ = actorSystem.Start(ctx)
@@ -83,7 +83,7 @@ func BenchmarkActor(b *testing.B) {
 		actor := &Actor{}
 
 		// create the actor ref
-		pid, _ := actorSystem.Spawn(ctx, "test", actor)
+		pid, _ := actorSystem.Spawn(ctx, "test", actor, actors.WithLongLived())
 
 		runParallel(b, func(pb *testing.PB) {
 			for pb.Next() {
@@ -100,8 +100,7 @@ func BenchmarkActor(b *testing.B) {
 		// create the actor system
 		actorSystem, _ := actors.NewActorSystem("bench",
 			actors.WithLogger(log.DiscardLogger),
-			actors.WithActorInitMaxRetries(1),
-			actors.WithPassivation(5*time.Second))
+			actors.WithActorInitMaxRetries(1))
 
 		// start the actor system
 		_ = actorSystem.Start(ctx)
@@ -110,7 +109,7 @@ func BenchmarkActor(b *testing.B) {
 		actor := &Actor{}
 
 		// create the actor ref
-		pid, _ := actorSystem.Spawn(ctx, "test", actor)
+		pid, _ := actorSystem.Spawn(ctx, "test", actor, actors.WithPassivationStrategy(passivation.NewTimeBasedStrategy(5*time.Second)))
 		runParallel(b, func(pb *testing.PB) {
 			for pb.Next() {
 				// send a message to the actor
@@ -126,8 +125,7 @@ func BenchmarkActor(b *testing.B) {
 		// create the actor system
 		actorSystem, _ := actors.NewActorSystem("bench",
 			actors.WithLogger(log.DiscardLogger),
-			actors.WithActorInitMaxRetries(1),
-			actors.WithPassivationDisabled())
+			actors.WithActorInitMaxRetries(1))
 
 		// start the actor system
 		_ = actorSystem.Start(ctx)
@@ -136,7 +134,7 @@ func BenchmarkActor(b *testing.B) {
 		actor := &Actor{}
 
 		// create the actor ref
-		pid, _ := actorSystem.Spawn(ctx, "test", actor)
+		pid, _ := actorSystem.Spawn(ctx, "test", actor, actors.WithLongLived())
 		runParallel(b, func(pb *testing.PB) {
 			for pb.Next() {
 				// send a message to the actor
