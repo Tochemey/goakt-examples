@@ -4,5 +4,5 @@ cluster-down:
 
 .PHONY: cluster-up
 cluster-up:
-	minikube image load --overwrite=true accounts:dev
+	minikube image load --overwrite=true accounts:dev-k8s
 	kubectl apply -f ./k8s.yaml

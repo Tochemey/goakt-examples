@@ -45,7 +45,7 @@ spec:
     spec:
       containers:
         - name: accounts
-          image: "accounts:dev"
+          image: "accounts:dev-k8s"
           command: ["./accounts", "run"]
           imagePullPolicy: IfNotPresent
           ports:

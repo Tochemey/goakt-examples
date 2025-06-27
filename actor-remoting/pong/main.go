@@ -52,7 +52,6 @@ func main() {
 
 	// create the actor system. kindly in real-life application handle the error
 	actorSystem, _ := goakt.NewActorSystem("Remoting",
-		goakt.WithPassivationDisabled(), // set big passivation time
 		goakt.WithLogger(logger),
 		goakt.WithActorInitMaxRetries(3),
 		goakt.WithRemote(remote.NewConfig(host, port)))
@@ -66,6 +65,7 @@ func main() {
 	// create an actor
 	_, _ = actorSystem.Spawn(ctx, "Pong",
 		NewPong(),
+		goakt.WithLongLived(),
 		goakt.WithSupervisor(
 			goakt.NewSupervisor(
 				goakt.WithAnyErrorDirective(goakt.ResumeDirective),

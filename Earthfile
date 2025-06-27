@@ -61,7 +61,7 @@ k8s-image:
     EXPOSE 3320
 
     ENTRYPOINT ["./accounts"]
-    SAVE IMAGE accounts:dev
+    SAVE IMAGE accounts:dev-k8s
 
 
 compile-dnssd:

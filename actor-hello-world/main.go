@@ -47,7 +47,6 @@ func main() {
 	actorSystem, _ := goakt.NewActorSystem(
 		"HelloWorld",
 		goakt.WithLogger(logger),
-		goakt.WithPassivationDisabled(),
 		goakt.WithActorInitMaxRetries(3))
 
 	// start the actor system
