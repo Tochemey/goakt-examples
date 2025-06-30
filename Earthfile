@@ -109,3 +109,26 @@ static-image:
 
     ENTRYPOINT ["./accounts"]
     SAVE IMAGE accounts:dev
+
+compile-grains-dnssd:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/grains-dnssd
+    SAVE ARTIFACT bin/accounts /accounts
+
+dnssd-grains-image:
+    FROM alpine:3.17
+
+    WORKDIR /app
+    COPY +compile-grains-dnssd/accounts ./accounts
+    RUN chmod +x ./accounts
+
+    # expose the various ports in the container
+    EXPOSE 50051
+    EXPOSE 50052
+    EXPOSE 3322
+    EXPOSE 3320
+    EXPOSE 9092
+
+    ENTRYPOINT ["./accounts"]
+    SAVE IMAGE accounts-grains:dev
