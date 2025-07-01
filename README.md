@@ -34,3 +34,4 @@ Click links below for more details on how to run each example.
 7. [Chat](./actor-chat)
 8. [Persistence using Extension](./actor-persistence)
 9. [Grains](./grains)
+10. [Cluster Grains](./actor-cluster/grains-dnssd)
