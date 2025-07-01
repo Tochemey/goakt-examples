@@ -32,9 +32,9 @@ type Account struct {
 	createdAt time.Time
 }
 
-func NewAccount(actorID string, balance float64, createAt time.Time) *Account {
+func NewAccount(accountID string, balance float64, createAt time.Time) *Account {
 	return &Account{
-		accountID: actorID,
+		accountID: accountID,
 		balance:   balance,
 		createdAt: createAt,
 	}

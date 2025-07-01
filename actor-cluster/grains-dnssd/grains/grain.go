@@ -55,6 +55,7 @@ func NewAccountGrain() *AccountGrain {
 
 func (x *AccountGrain) OnActivate(ctx context.Context, props *actor.GrainProps) error {
 	accountID := props.Identity().Name()
+	x.state = atomic.NewPointer[domain.Account](domain.NewAccount(accountID, 0, zeroTime))
 	actorSystem := props.ActorSystem()
 	x.storage = actorSystem.Extension(persistence.StateStoreID).(persistence.Store)
 	recoveredState, err := x.storage.GetState(ctx, accountID)
@@ -62,7 +63,6 @@ func (x *AccountGrain) OnActivate(ctx context.Context, props *actor.GrainProps) 
 		return err
 	}
 
-	x.state = atomic.NewPointer[domain.Account](new(domain.Account))
 	x.state.Store(recoveredState)
 	x.logger = actorSystem.Logger()
 	return nil

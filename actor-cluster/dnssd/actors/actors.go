@@ -58,7 +58,7 @@ func (x *AccountEntity) PreStart(ctx *goakt.Context) error {
 	accountID := ctx.ActorName()
 	x.storage = ctx.Extension(persistence.MemoryStateStoreID).(persistence.Store)
 	recoveredState := x.storage.GetState(ctx.Context(), accountID)
-	x.state = atomic.NewPointer[domain.Account](new(domain.Account))
+	x.state = atomic.NewPointer[domain.Account](domain.NewAccount(accountID, 0, zeroTime))
 	x.state.Store(recoveredState)
 	return nil
 }
