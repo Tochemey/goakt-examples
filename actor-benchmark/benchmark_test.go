@@ -28,6 +28,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,20 +53,28 @@ func BenchmarkActor(b *testing.B) {
 		// start the actor system
 		_ = actorSystem.Start(ctx)
 
-		// define the benchmark actor
-		actor := &Actor{}
+		time.Sleep(time.Second)
 
 		// create the actor ref
-		pid, _ := actorSystem.Spawn(ctx, "test", actor)
+		sender, _ := actorSystem.Spawn(ctx, "sender", new(Actor))
+		receiver, _ := actorSystem.Spawn(ctx, "receiver", new(Actor))
+
+		var counter int64
+		b.ResetTimer()
+		b.ReportAllocs()
 
 		runParallel(b, func(pb *testing.PB) {
 			for pb.Next() {
-				// send a message to the actor
-				_ = actors.Tell(ctx, pid, new(benchpb.BenchTell))
+				err := sender.Tell(ctx, receiver, new(benchpb.BenchTell))
+				if err != nil {
+					b.Fatal(err)
+				}
+				atomic.AddInt64(&counter, 1)
 			}
 		})
-
-		_ = pid.Shutdown(ctx)
+		b.StopTimer()
+		messagesPerSec := float64(atomic.LoadInt64(&counter)) / b.Elapsed().Seconds()
+		b.ReportMetric(messagesPerSec, "messages/sec")
 		_ = actorSystem.Stop(ctx)
 	})
 	b.Run("tell without passivation", func(b *testing.B) {
@@ -143,6 +152,41 @@ func BenchmarkActor(b *testing.B) {
 		})
 
 		_ = pid.Shutdown(ctx)
+		_ = actorSystem.Stop(ctx)
+	})
+	b.Run("tell(bounded mailbox)", func(b *testing.B) {
+		ctx := context.TODO()
+
+		// create the actor system
+		actorSystem, _ := actors.NewActorSystem("bench",
+			actors.WithLogger(log.DiscardLogger),
+			actors.WithActorInitMaxRetries(1))
+
+		// start the actor system
+		_ = actorSystem.Start(ctx)
+
+		// wait for system to start properly
+		time.Sleep(time.Second)
+
+		// create the actors
+		sender, _ := actorSystem.Spawn(ctx, "sender", new(Actor), actors.WithMailbox(actors.NewBoundedMailbox(b.N)))
+		receiver, _ := actorSystem.Spawn(ctx, "receiver", new(Actor), actors.WithMailbox(actors.NewBoundedMailbox(b.N)))
+
+		var counter int64
+		b.ResetTimer()
+		b.ReportAllocs()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				err := sender.Tell(ctx, receiver, new(benchpb.BenchTell))
+				if err != nil {
+					b.Fatal(err)
+				}
+				atomic.AddInt64(&counter, 1)
+			}
+		})
+		b.StopTimer()
+		messagesPerSec := float64(atomic.LoadInt64(&counter)) / b.Elapsed().Seconds()
+		b.ReportMetric(messagesPerSec, "messages/sec")
 		_ = actorSystem.Stop(ctx)
 	})
 }
