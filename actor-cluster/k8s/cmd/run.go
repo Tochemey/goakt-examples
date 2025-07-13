@@ -26,6 +26,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -44,7 +45,7 @@ import (
 
 const (
 	namespace         = "default"
-	applicationName   = "accounts"
+	serviceName       = "accounts"
 	actorSystemName   = "AccountsSystem"
 	discoveryPortName = "discovery-port"
 	peersPortName     = "peers-port"
@@ -58,12 +59,12 @@ type config struct {
 	Port         int `env:"PORT" envDefault:"50051"`
 }
 
-func getConfig() *config {
+func getConfig(logger log.Logger) *config {
 	// load the host node configuration
 	cfg := &config{}
 	opts := env.Options{RequiredIfNoDef: true, UseFieldNameByDefault: false}
 	if err := env.ParseWithOptions(cfg, opts); err != nil {
-		panic(err)
+		logger.Fatal(err)
 	}
 	return cfg
 }
@@ -74,15 +75,14 @@ var runCmd = &cobra.Command{
 	Short: "A brief description of your command",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		// create a background context
-		ctx := context.Background()
-		// use the address default log. real-life implement the log interface`
+		ctx := cmd.Context()
+
 		logger := log.New(log.DebugLevel, os.Stdout)
 
 		podLabels := map[string]string{
 			"app.kubernetes.io/part-of":   "Sample",
 			"app.kubernetes.io/component": actorSystemName,
-			"app.kubernetes.io/name":      applicationName,
+			"app.kubernetes.io/name":      serviceName,
 		}
 
 		// instantiate the k8 discovery provider
@@ -95,10 +95,14 @@ var runCmd = &cobra.Command{
 		})
 
 		// get the port config
-		config := getConfig()
+		config := getConfig(logger)
 
 		// grab the host
-		host, _ := os.Hostname()
+		hostname, err := os.Hostname()
+		if err != nil {
+			logger.Fatal("failed to get the host name: ", err)
+		}
+		host := fmt.Sprintf("%s.%s.%s.svc.cluster.local", hostname, serviceName, namespace)
 
 		clusterConfig := goakt.
 			NewClusterConfig().
@@ -120,12 +124,12 @@ var runCmd = &cobra.Command{
 
 		// handle the error
 		if err != nil {
-			logger.Panic(err)
+			logger.Fatal(err)
 		}
 
 		// start the actor system
 		if err := actorSystem.Start(ctx); err != nil {
-			logger.Panic(err)
+			logger.Fatal(err)
 		}
 
 		remoting := goakt.NewRemoting()
@@ -146,14 +150,14 @@ var runCmd = &cobra.Command{
 
 			// stop the actor system
 			if err := actorSystem.Stop(ctx); err != nil {
-				logger.Panic(err)
+				logger.Fatal(err)
 			}
 
 			// stop the account service
 			newCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
 			if err := accountService.Stop(newCtx); err != nil {
-				logger.Panic(err)
+				logger.Fatal(err)
 			}
 
 			done <- struct{}{}

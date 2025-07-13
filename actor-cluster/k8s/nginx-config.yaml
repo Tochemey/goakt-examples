@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  nginx.conf: |
+    events {
+      worker_connections 512;
+      use epoll;
+    }
+    http {
+      sendfile on;
+      tcp_nopush on;
+      keepalive_timeout 15s;
+      client_body_buffer_size 4k;
+      client_max_body_size 1m;
+    
+       access_log off;
+      error_log /var/log/nginx/error.log warn;
+    
+      upstream grpc_servers {
+        server accounts-0.accounts:50051;
+        server accounts-1.accounts:50051;
+        server accounts-2.accounts:50051;
+      }
+
+      server {
+        listen 80 http2;
+        location / {
+          grpc_pass grpc://grpc_servers;
+          error_page 502 = /error502grpc;
+        }
+
+        location = /error502grpc {
+          internal;
+          default_type application/grpc;
+          add_header grpc-status 14;
+          add_header grpc-message "unavailable";
+          return 204;
+        }
+      }
+    }

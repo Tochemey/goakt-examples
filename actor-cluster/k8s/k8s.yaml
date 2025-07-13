@@ -22,7 +22,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: accounts
   labels:
@@ -30,6 +30,7 @@ metadata:
     app.kubernetes.io/component: AccountsSystem
     app.kubernetes.io/part-of: Sample
 spec:
+  serviceName: accounts
   replicas: 3
   selector:
     matchLabels:
@@ -43,6 +44,7 @@ spec:
         app.kubernetes.io/component: AccountsSystem
         app.kubernetes.io/part-of: Sample
     spec:
+      restartPolicy: Always
       containers:
         - name: accounts
           image: "accounts:dev-k8s"
@@ -78,11 +80,16 @@ spec:
               value: "50052"
           resources:
             requests:
-              memory: "64Mi"
-              cpu: "50m"
-            limits:
-              memory: "64Mi"
+              memory: "256Mi"
               cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
