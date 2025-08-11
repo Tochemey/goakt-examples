@@ -48,9 +48,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/grains-dnssd/grains"
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/grains-dnssd/persistence"
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/grains-dnssd/service"
+	"github.com/tochemey/goakt-examples/v2/grains-cluster/grains-dnssd/grains"
+	"github.com/tochemey/goakt-examples/v2/grains-cluster/grains-dnssd/persistence"
+	"github.com/tochemey/goakt-examples/v2/grains-cluster/grains-dnssd/service"
 )
 
 func initTracer(ctx context.Context, res *resource.Resource, traceURL string) *sdktrace.TracerProvider {
@@ -175,7 +175,7 @@ var runCmd = &cobra.Command{
 		remoting := goakt.NewRemoting()
 
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port, tracer.Tracer(""))
+		accountService := service.NewAccountService(actorSystem, logger, config.Port, tracer.Tracer(""))
 		// start the account service
 		accountService.Start()
 

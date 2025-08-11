@@ -32,8 +32,8 @@ import (
 	"github.com/tochemey/goakt/v3/log"
 	"go.uber.org/atomic"
 
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/grains-dnssd/domain"
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/grains-dnssd/persistence"
+	"github.com/tochemey/goakt-examples/v2/grains-cluster/grains-dnssd/domain"
+	"github.com/tochemey/goakt-examples/v2/grains-cluster/grains-dnssd/persistence"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 

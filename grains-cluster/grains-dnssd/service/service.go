@@ -39,7 +39,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/grains-dnssd/grains"
+	"github.com/tochemey/goakt-examples/v2/grains-cluster/grains-dnssd/grains"
 	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
@@ -57,7 +57,7 @@ type AccountService struct {
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system goakt.ActorSystem, remoting *goakt.Remoting, logger log.Logger, port int, tracer trace.Tracer) *AccountService {
+func NewAccountService(system goakt.ActorSystem, logger log.Logger, port int, tracer trace.Tracer) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,

@@ -24,7 +24,9 @@
 
 package main
 
-import "github.com/tochemey/goakt-examples/v2/actor-cluster/grains-dnssd/cmd"
+import (
+	"github.com/tochemey/goakt-examples/v2/grains-cluster/grains-dnssd/cmd"
+)
 
 func main() {
 	cmd.Execute()
