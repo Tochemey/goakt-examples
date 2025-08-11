@@ -113,7 +113,7 @@ static-image:
 compile-grains-dnssd:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/grains-dnssd
+    RUN go build -mod=vendor  -o bin/accounts ./grains-cluster/grains-dnssd
     SAVE ARTIFACT bin/accounts /accounts
 
 dnssd-grains-image:
