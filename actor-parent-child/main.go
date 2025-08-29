@@ -67,7 +67,7 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	// send a message to child actor
-	err = actor.NoSender.SendAsync(ctx, "child", &samplepb.End{})
+	err = actorSystem.NoSender().SendAsync(ctx, "child", &samplepb.End{})
 	if err != nil {
 		logger.Fatal(err)
 	}

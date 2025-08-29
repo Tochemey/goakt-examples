@@ -172,7 +172,7 @@ var runCmd = &cobra.Command{
 			logger.Fatal(err)
 		}
 
-		remoting := goakt.NewRemoting()
+		remoting := remote.NewRemoting()
 
 		// create the account service
 		accountService := service.NewAccountService(actorSystem, logger, config.Port, tracer.Tracer(""))

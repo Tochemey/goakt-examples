@@ -43,7 +43,7 @@ import (
 
 func BenchmarkActor(b *testing.B) {
 	b.Run("tell", func(b *testing.B) {
-		ctx := context.TODO()
+		ctx := context.Background()
 
 		// create the actor system
 		actorSystem, _ := actors.NewActorSystem("bench",

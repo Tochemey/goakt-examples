@@ -34,7 +34,9 @@ import (
 	"github.com/pkg/errors"
 	actors "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/address"
+	gerrors "github.com/tochemey/goakt/v3/errors"
 	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v3/remote"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/protobuf/proto"
@@ -51,13 +53,13 @@ type AccountService struct {
 	logger      log.Logger
 	port        int
 	server      *http.Server
-	remoting    *actors.Remoting
+	remoting    remote.Remoting
 }
 
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system actors.ActorSystem, remoting *actors.Remoting, logger log.Logger, port int) *AccountService {
+func NewAccountService(system actors.ActorSystem, remoting remote.Remoting, logger log.Logger, port int) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
@@ -110,7 +112,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	addr, pid, err := s.actorSystem.ActorOf(ctx, accountID)
 	if err != nil {
 		// check whether it is not found error
-		if !errors.Is(err, actors.ErrActorNotFound) {
+		if !errors.Is(err, gerrors.ErrActorNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 
