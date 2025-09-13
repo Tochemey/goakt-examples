@@ -32,47 +32,10 @@ import (
 	"github.com/tochemey/goakt-examples/v2/actor-cluster/dnssd/domain"
 )
 
-const MemoryStateStoreID = "MemoryStore"
-
 type Store interface {
 	extension.Extension
-	Start()
-	WriteState(ctx context.Context, actorID string, state *domain.Account)
-	GetState(ctx context.Context, actorID string) *domain.Account
-	Stop()
-}
-
-type MemoryStore struct {
-	db *Map[string, *domain.Account]
-}
-
-var _ Store = (*MemoryStore)(nil)
-
-func NewMemoryStore() Store {
-	return &MemoryStore{
-		db: New[string, *domain.Account](),
-	}
-}
-
-func (x *MemoryStore) ID() string {
-	return MemoryStateStoreID
-}
-
-func (x *MemoryStore) Start() {
-}
-
-func (x *MemoryStore) WriteState(_ context.Context, actorID string, state *domain.Account) {
-	x.db.Set(actorID, state)
-}
-
-func (x *MemoryStore) GetState(_ context.Context, actorID string) *domain.Account {
-	value, ok := x.db.Get(actorID)
-	if !ok {
-		return &domain.Account{}
-	}
-	return value
-}
-
-func (x *MemoryStore) Stop() {
-	x.db.Reset()
+	Start(ctx context.Context) error
+	WriteState(ctx context.Context, actorID string, state *domain.Account) error
+	GetState(ctx context.Context, actorID string) (*domain.Account, error)
+	Stop() error
 }

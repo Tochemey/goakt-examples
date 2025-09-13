@@ -35,6 +35,11 @@ type Config struct {
 	GossipPort      int    `env:"GOSSIP_PORT"`
 	PeersPort       int    `env:"PEERS_PORT"`
 	RemotingPort    int    `env:"REMOTING_PORT"`
+	DBHost          string `env:"DB_HOST"`
+	DBPort          int    `env:"DB_PORT"`
+	DBName          string `env:"DB_NAME"`
+	DBUser          string `env:"DB_USER"`
+	DBPassword      string `env:"DB_PASSWORD"`
 }
 
 // GetConfig returns the configuration

@@ -56,9 +56,14 @@ func NewAccountEntity() *AccountEntity {
 // PreStart is used to pre-set initial values for the actor
 func (x *AccountEntity) PreStart(ctx *goakt.Context) error {
 	accountID := ctx.ActorName()
-	x.storage = ctx.Extension(persistence.MemoryStateStoreID).(persistence.Store)
-	recoveredState := x.storage.GetState(ctx.Context(), accountID)
-	x.state = atomic.NewPointer[domain.Account](domain.NewAccount(accountID, 0, zeroTime))
+	x.storage = ctx.Extension(persistence.PostgresStateStoreID).(persistence.Store)
+	// recover the state
+	latestState, err := x.storage.GetState(ctx.Context(), accountID)
+	if err != nil {
+		return err
+	}
+	recoveredState := latestState
+	x.state = atomic.NewPointer(domain.NewAccount(accountID, 0, zeroTime))
 	x.state.Store(recoveredState)
 	return nil
 }

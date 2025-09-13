@@ -38,7 +38,6 @@ import (
 	gerrors "github.com/tochemey/goakt/v3/errors"
 	"github.com/tochemey/goakt/v3/log"
 	"github.com/tochemey/goakt/v3/remote"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/protobuf/proto"
@@ -56,18 +55,16 @@ type AccountService struct {
 	logger      log.Logger
 	port        int
 	server      *http.Server
-	tracer      trace.Tracer
 }
 
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system actors.ActorSystem, remoting remote.Remoting, logger log.Logger, port int, tracer trace.Tracer) *AccountService {
+func NewAccountService(system actors.ActorSystem, remoting remote.Remoting, logger log.Logger, port int) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
 		port:        port,
-		tracer:      tracer,
 		remoting:    remoting,
 	}
 }
@@ -223,7 +220,7 @@ func (s *AccountService) listenAndServe() {
 	// create an interceptor
 	interceptor, err := otelconnect.NewInterceptor()
 	if err != nil {
-		s.logger.Panic(err)
+		s.logger.Fatal(err)
 	}
 	// create the resource and handler
 	path, handler := samplepbconnect.NewAccountServiceHandler(s,
@@ -250,6 +247,6 @@ func (s *AccountService) listenAndServe() {
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		s.logger.Panic(errors.Wrap(err, "failed to start actor-remoting service"))
+		s.logger.Fatal(errors.Wrap(err, "failed to start actor-remoting service"))
 	}
 }

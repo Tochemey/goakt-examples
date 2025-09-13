@@ -6,6 +6,9 @@ services:
       replicas: 3
     command:
       - run
+    depends_on:
+      - db
+      - collector
     ports:
       - "8000-8020:50051"
       - "9092"
@@ -17,6 +20,25 @@ services:
       PEERS_PORT: 3320
       REMOTING_PORT: 50052
       TRACE_URL: "collector:4317"
+      DB_USER: "postgres"
+      DB_PASSWORD: "changeme"
+      DB_HOST: "db"
+      DB_PORT: 5432
+      DB_NAME: "postgres"
+
+  db:
+    image: postgres:17
+    restart: always
+    profiles:
+      - persistence
+    # volumes:
+    #   - ./db/migrations:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
 
   tracer:
     image: jaegertracing/all-in-one:1.25

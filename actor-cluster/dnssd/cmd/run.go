@@ -102,14 +102,15 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create a background context
 		ctx := context.Background()
+		// use the address default log. real-life implement the log interface`
+		logger := log.New(log.DebugLevel, os.Stdout)
+
 		// get the configuration from the env vars
 		config, err := service.GetConfig()
 		//  handle the error
 		if err != nil {
-			panic(err)
+			logger.Fatal(err)
 		}
-		// use the address default log. real-life implement the log interface`
-		logger := log.New(log.DebugLevel, os.Stdout)
 
 		res, err := resource.New(ctx,
 			resource.WithHost(),
@@ -120,11 +121,11 @@ var runCmd = &cobra.Command{
 			),
 		)
 		if err != nil {
-			panic(err)
+			logger.Fatal(err)
 		}
 
 		// initialize traces and metric providers
-		tracer := initTracer(ctx, res, config.TraceURL)
+		_ = initTracer(ctx, res, config.TraceURL)
 		// define the discovery options
 		discoConfig := dnssd.Config{
 			DomainName: config.ServiceName,
@@ -132,10 +133,19 @@ var runCmd = &cobra.Command{
 		// instantiate the dnssd discovery provider
 		disco := dnssd.NewDiscovery(&discoConfig)
 
-		persistenceStore := persistence.NewMemoryStore()
+		persistenceStore := persistence.NewPostgresStore(&persistence.PostgresConfig{
+			DBHost:     config.DBHost,
+			DBPort:     config.DBPort,
+			DBName:     config.DBName,
+			DBUser:     config.DBUser,
+			DBPassword: config.DBPassword,
+		})
+
 		// Start the persistence storage
 		// This is to demonstrate a proper workflow
-		persistenceStore.Start()
+		if err := persistenceStore.Start(ctx); err != nil {
+			logger.Fatal(err)
+		}
 
 		// grab the host
 		host, _ := os.Hostname()
@@ -172,7 +182,7 @@ var runCmd = &cobra.Command{
 		remoting := remote.NewRemoting()
 
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port, tracer.Tracer(""))
+		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port)
 		// start the account service
 		accountService.Start()
 
@@ -188,17 +198,19 @@ var runCmd = &cobra.Command{
 
 			// stop the actor system
 			if err := actorSystem.Stop(ctx); err != nil {
-				logger.Panic(err)
+				logger.Fatal(err)
 			}
 
 			// close this after the system
-			persistenceStore.Stop()
+			if err := persistenceStore.Stop(); err != nil {
+				logger.Fatal(err)
+			}
 
 			// stop the account service
 			newCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
 			if err := accountService.Stop(newCtx); err != nil {
-				logger.Panic(err)
+				logger.Fatal(err)
 			}
 
 			done <- struct{}{}
