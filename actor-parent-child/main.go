@@ -110,7 +110,7 @@ func (p *Parent) Receive(ctx *actor.ReceiveContext) {
 		}
 	case *goaktpb.Terminated:
 		// Handle termination of child actors
-		ctx.Logger().Infof("Child actor %s has been terminated", msg.GetActorId())
+		ctx.Logger().Infof("Child actor %s has been terminated", msg.GetAddress())
 	default:
 		ctx.Unhandled()
 	}

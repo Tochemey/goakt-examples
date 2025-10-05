@@ -1,6 +1,6 @@
 VERSION 0.8
 
-FROM tochemey/docker-go:1.24.0-5.2.1
+FROM tochemey/docker-go:1.25.1-5.3.0
 
 all:
 	BUILD +protogen
