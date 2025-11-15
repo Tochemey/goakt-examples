@@ -26,13 +26,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
-	"github.com/pkg/errors"
 	goakt "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/log"
 	"go.opentelemetry.io/otel/trace"
@@ -71,10 +71,7 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	req := c.Msg
 
 	accountID := req.GetCreateAccount().GetAccountId()
-	identity, err := s.actorSystem.GrainIdentity(ctx, accountID, func(ctx context.Context) (goakt.Grain, error) {
-		return grains.NewAccountGrain(), nil
-	})
-
+	identity, err := s.getGrain(ctx, accountID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -102,10 +99,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	req := c.Msg
 
 	accountID := req.GetCreditAccount().GetAccountId()
-	identity, err := s.actorSystem.GrainIdentity(ctx, accountID, func(ctx context.Context) (goakt.Grain, error) {
-		return grains.NewAccountGrain(), nil
-	})
-
+	identity, err := s.getGrain(ctx, accountID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -134,10 +128,7 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 	req := c.Msg
 
 	accountID := req.GetAccountId()
-	identity, err := s.actorSystem.GrainIdentity(ctx, accountID, func(ctx context.Context) (goakt.Grain, error) {
-		return grains.NewAccountGrain(), nil
-	})
-
+	identity, err := s.getGrain(ctx, accountID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -180,7 +171,8 @@ func (s *AccountService) listenAndServe() {
 	// create an interceptor
 	interceptor, err := otelconnect.NewInterceptor()
 	if err != nil {
-		s.logger.Panic(err)
+		s.logger.Fatal(err)
+		return
 	}
 
 	path, handler := samplepbconnect.NewAccountServiceHandler(s,
@@ -204,6 +196,24 @@ func (s *AccountService) listenAndServe() {
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		s.logger.Panic(errors.Wrap(err, "failed to start actor-remoting service"))
+		s.logger.Fatal(fmt.Errorf("http server listen error: %w", err))
 	}
+}
+
+func (s *AccountService) getGrain(ctx context.Context, name string) (*goakt.GrainIdentity, error) {
+	opts := []goakt.GrainOption{
+		goakt.WithActivationStrategy(goakt.RoundRobinActivation),
+		goakt.WithGrainInitTimeout(2 * time.Second),
+		goakt.WithGrainDeactivateAfter(2 * time.Minute),
+	}
+
+	grainFactory := func(ctx context.Context) (goakt.Grain, error) {
+		return grains.NewAccountGrain(), nil
+	}
+
+	identity, err := s.actorSystem.GrainIdentity(ctx, name, grainFactory, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return identity, nil
 }

@@ -1,6 +1,25 @@
 VERSION 0.8
 
-FROM tochemey/docker-go:1.25.1-5.3.0
+FROM golang:1.25.3-alpine
+
+# install gcc dependencies into alpine for CGO
+RUN apk --no-cache add git ca-certificates gcc musl-dev libc-dev binutils-gold curl openssh
+
+# install docker tools
+# https://docs.docker.com/engine/install/debian/
+RUN apk add --update --no-cache docker
+
+# install the go generator plugins
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+RUN export PATH="$PATH:$(go env GOPATH)/bin"
+
+# install buf from source
+RUN GO111MODULE=on GOBIN=/usr/local/bin go install github.com/bufbuild/buf/cmd/buf@v1.59.0
+
+# install the various tools to generate connect-go
+RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+RUN go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
 
 all:
 	BUILD +protogen
