@@ -63,7 +63,7 @@ protogen:
 compile-k8s:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/k8s
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/k8s
     SAVE ARTIFACT bin/accounts /accounts
 
 k8s-image:
@@ -86,7 +86,7 @@ k8s-image:
 compile-dnssd:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/dnssd
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/dnssd
     SAVE ARTIFACT bin/accounts /accounts
 
 dnssd-image:
@@ -109,7 +109,7 @@ dnssd-image:
 compile-static:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/static
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/static
     SAVE ARTIFACT bin/accounts /accounts
 
 static-image:
@@ -132,7 +132,7 @@ static-image:
 compile-grains-dnssd:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./grains-cluster/grains-dnssd
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-grains-cluster/grains-dnssd
     SAVE ARTIFACT bin/accounts /accounts
 
 dnssd-grains-image:
@@ -156,7 +156,7 @@ dnssd-grains-image:
 compile-dynalloc:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./actor-cluster/dynalloc
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/dynalloc
     SAVE ARTIFACT bin/accounts /accounts
 
 dynalloc-image:
