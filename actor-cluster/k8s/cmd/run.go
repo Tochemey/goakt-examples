@@ -112,7 +112,7 @@ var runCmd = &cobra.Command{
 			WithReplicaCount(1).
 			WithDiscoveryPort(config.GossipPort).
 			WithPeersPort(config.PeersPort).
-			WithKinds(new(actors.AccountEntity))
+			WithKinds(new(actors.Account))
 
 		// create the actor system
 		actorSystem, err := goakt.NewActorSystem(

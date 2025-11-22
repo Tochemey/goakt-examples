@@ -31,17 +31,15 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"connectrpc.com/otelconnect"
 	"github.com/pkg/errors"
 	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/address"
-	gerrors "github.com/tochemey/goakt/v3/errors"
 	"github.com/tochemey/goakt/v3/log"
 	"github.com/tochemey/goakt/v3/remote"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
-	"google.golang.org/protobuf/proto"
 
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/k8s/actors"
+	"github.com/tochemey/goakt-examples/v2/actor-cluster/dynalloc/actors"
 	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
@@ -76,30 +74,35 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	accountID := req.GetCreateAccount().GetAccountId()
 	// create the pid and send the command create account
 	account := actors.NewAccount()
-	// create the given pid
-	pid, err := s.actorSystem.Spawn(ctx, accountID, account, goakt.WithLongLived())
-	if err != nil {
+
+	s.logger.Infof("creating actor with id=%s", accountID)
+
+	// create the given actor. This will spawn the actor on the cluster
+	if err := s.actorSystem.SpawnOn(ctx, accountID, account, goakt.WithLongLived(), goakt.WithPlacement(goakt.Random)); err != nil {
 		return nil, err
 	}
-	// send the create command to the pid
-	reply, err := goakt.Ask(ctx, pid, &samplepb.CreateAccount{
+
+	// Wait for the actor to properly start because it is done across cluster of nodes
+	// TODO: Better way to do this is to create the actor first and in a second request credit his account
+	time.Sleep(time.Second)
+
+	s.logger.Infof("actor with id=%s is created", accountID)
+
+	command := &samplepb.CreateAccount{
 		AccountId:      accountID,
 		AccountBalance: req.GetCreateAccount().GetAccountBalance(),
-	}, time.Second)
+	}
 
-	// handle the error
+	message, err := s.actorSystem.NoSender().SendSync(ctx, accountID, command, askTimeout)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// pattern match on the reply
-	switch x := reply.(type) {
+	switch x := message.(type) {
 	case *samplepb.Account:
-		// return the appropriate response
 		return connect.NewResponse(&samplepb.CreateAccountResponse{Account: x}), nil
 	default:
-		// create the error message to send
-		err := fmt.Errorf("invalid reply=%s", reply.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%s", message.ProtoReflect().Descriptor().FullName())
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
@@ -107,41 +110,16 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 // CreditAccount helps credit a given account
 func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[samplepb.CreditAccountRequest]) (*connect.Response[samplepb.CreditAccountResponse], error) {
 	req := c.Msg
+
 	accountID := req.GetCreditAccount().GetAccountId()
-
-	addr, pid, err := s.actorSystem.ActorOf(ctx, accountID)
-	if err != nil {
-		// check whether it is not found error
-		if !errors.Is(err, gerrors.ErrActorNotFound) {
-			return nil, connect.NewError(connect.CodeNotFound, err)
-		}
-
-		// return not found
-		return nil, connect.NewError(connect.CodeNotFound, err)
-	}
-
-	var message proto.Message
 	command := &samplepb.CreditAccount{
 		AccountId: accountID,
 		Balance:   req.GetCreditAccount().GetBalance(),
 	}
 
-	if pid != nil {
-		s.logger.Info("actor is found locally...")
-		message, err = goakt.Ask(ctx, pid, command, time.Second)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-	}
-
-	if pid == nil {
-		s.logger.Info("actor is not found locally...")
-		reply, err := s.remoting.RemoteAsk(ctx, address.NoSender(), addr, command, askTimeout)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-
-		message, _ = reply.UnmarshalNew()
+	message, err := s.actorSystem.NoSender().SendSync(ctx, accountID, command, askTimeout)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	switch x := message.(type) {
@@ -157,37 +135,15 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samplepb.GetAccountRequest]) (*connect.Response[samplepb.GetAccountResponse], error) {
 	// grab the actual request
 	req := c.Msg
-	// grab the account id
 	accountID := req.GetAccountId()
 
-	// locate the given actor
-	addr, pid, err := s.actorSystem.ActorOf(ctx, accountID)
-	// handle the error
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	var message proto.Message
 	command := &samplepb.GetAccount{
 		AccountId: accountID,
 	}
 
-	if pid != nil {
-		s.logger.Info("actor is found locally...")
-		message, err = goakt.Ask(ctx, pid, command, time.Second)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-	}
-
-	if pid == nil {
-		s.logger.Info("actor is not found locally...")
-		reply, err := s.remoting.RemoteAsk(ctx, address.NoSender(), addr, command, askTimeout)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-
-		message, _ = reply.UnmarshalNew()
+	message, err := s.actorSystem.NoSender().SendSync(ctx, accountID, command, askTimeout)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	// pattern match on the reply
@@ -216,8 +172,14 @@ func (s *AccountService) Stop(ctx context.Context) error {
 func (s *AccountService) listenAndServe() {
 	// create a http service mux
 	mux := http.NewServeMux()
+	// create an interceptor
+	interceptor, err := otelconnect.NewInterceptor()
+	if err != nil {
+		s.logger.Panic(err)
+	}
 	// create the resource and handler
-	path, handler := samplepbconnect.NewAccountServiceHandler(s)
+	path, handler := samplepbconnect.NewAccountServiceHandler(s,
+		connect.WithInterceptors(interceptor))
 	mux.Handle(path, handler)
 	// create the address
 	serverAddr := fmt.Sprintf(":%d", s.port)

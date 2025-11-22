@@ -36,8 +36,8 @@ import (
 	"github.com/tochemey/goakt/v3/log"
 	"github.com/tochemey/goakt/v3/remote"
 
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/static/actors"
-	"github.com/tochemey/goakt-examples/v2/actor-cluster/static/service"
+	"github.com/tochemey/goakt-examples/v2/actor-cluster/dynalloc/actors"
+	"github.com/tochemey/goakt-examples/v2/actor-cluster/dynalloc/service"
 )
 
 // runCmd represents the run command

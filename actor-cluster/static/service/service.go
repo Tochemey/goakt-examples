@@ -33,7 +33,7 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
 	"github.com/pkg/errors"
-	actors "github.com/tochemey/goakt/v3/actor"
+	goakt "github.com/tochemey/goakt/v3/actor"
 	"github.com/tochemey/goakt/v3/address"
 	gerrors "github.com/tochemey/goakt/v3/errors"
 	"github.com/tochemey/goakt/v3/log"
@@ -42,7 +42,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/protobuf/proto"
 
-	kactors "github.com/tochemey/goakt-examples/v2/actor-cluster/static/actors"
+	"github.com/tochemey/goakt-examples/v2/actor-cluster/static/actors"
 	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
@@ -50,7 +50,7 @@ import (
 const askTimeout = 5 * time.Second
 
 type AccountService struct {
-	actorSystem actors.ActorSystem
+	actorSystem goakt.ActorSystem
 	logger      log.Logger
 	port        int
 	server      *http.Server
@@ -60,7 +60,7 @@ type AccountService struct {
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system actors.ActorSystem, remoting remote.Remoting, logger log.Logger, port int) *AccountService {
+func NewAccountService(system goakt.ActorSystem, remoting remote.Remoting, logger log.Logger, port int) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
@@ -76,14 +76,14 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	// grab the account id
 	accountID := req.GetCreateAccount().GetAccountId()
 	// create the pid and send the command create account
-	accountEntity := &kactors.AccountEntity{}
+	accountEntity := &actors.Account{}
 	// create the given pid
-	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity, actors.WithLongLived())
+	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity, goakt.WithLongLived())
 	if err != nil {
 		return nil, err
 	}
 	// send the create command to the pid
-	reply, err := actors.Ask(ctx, pid, &samplepb.CreateAccount{
+	reply, err := goakt.Ask(ctx, pid, &samplepb.CreateAccount{
 		AccountId:      accountID,
 		AccountBalance: req.GetCreateAccount().GetAccountBalance(),
 	}, time.Second)
@@ -129,7 +129,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 
 	if pid != nil {
 		s.logger.Info("actor is found locally...")
-		message, err = actors.Ask(ctx, pid, command, time.Second)
+		message, err = goakt.Ask(ctx, pid, command, time.Second)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
@@ -175,7 +175,7 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 
 	if pid != nil {
 		s.logger.Info("actor is found locally...")
-		message, err = actors.Ask(ctx, pid, command, time.Second)
+		message, err = goakt.Ask(ctx, pid, command, time.Second)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}

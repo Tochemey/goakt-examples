@@ -31,68 +31,61 @@ import (
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
-// AccountEntity represents the immutable implementation of Actor
-type AccountEntity struct {
+// Account represents the immutable implementation of Actor
+type Account struct {
 	accountID string
 	balance   float64
 	created   bool
 }
 
 // enforce compilation error
-var _ goakt.Actor = (*AccountEntity)(nil)
+var _ goakt.Actor = (*Account)(nil)
+
+func NewAccount() *Account {
+	return &Account{}
+}
 
 // PreStart is used to pre-set initial values for the actor
-func (p *AccountEntity) PreStart(*goakt.Context) error {
+func (x *Account) PreStart(*goakt.Context) error {
 	return nil
 }
 
 // Receive handles the messages sent to the actor
-func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
+func (x *Account) Receive(ctx *goakt.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *goaktpb.PostStart:
-		// set the account ID
-		p.accountID = ctx.Self().Name()
-		ctx.Self().Logger().Infof("account entity=(%s) successfully started", p.accountID)
+		x.accountID = ctx.Self().Name()
+		ctx.Self().Logger().Infof("account entity=(%s) successfully started", x.accountID)
 	case *samplepb.CreateAccount:
 		ctx.Self().Logger().Info("creating account by setting the balance...")
-		// check whether the create operation has been done already
-		if p.created {
-			ctx.Self().Logger().Infof("account=%s has been created already", p.accountID)
+		if x.created {
+			ctx.Self().Logger().Infof("account=%s has been created already", x.accountID)
+			ctx.Unhandled()
 			return
 		}
-		// get the data
+
 		accountID := msg.GetAccountId()
 		balance := msg.GetAccountBalance()
-		// first check whether the accountID is mine
-		if p.accountID == accountID {
-			p.balance = balance
-			p.created = true
-			// here we are handling just an ask
-			ctx.Response(&samplepb.Account{
-				AccountId:      accountID,
-				AccountBalance: p.balance,
-			})
-		}
+		x.balance = balance
+		x.created = true
+		ctx.Response(&samplepb.Account{
+			AccountId:      accountID,
+			AccountBalance: x.balance,
+		})
 	case *samplepb.CreditAccount:
 		ctx.Self().Logger().Info("crediting balance...")
-		// get the data
-		accountID := msg.GetAccountId()
 		balance := msg.GetBalance()
-		// first check whether the accountID is mine
-		if p.accountID == accountID {
-			p.balance += balance
-			ctx.Response(&samplepb.Account{
-				AccountId:      accountID,
-				AccountBalance: p.balance,
-			})
-		}
+		x.balance += balance
+		ctx.Response(&samplepb.Account{
+			AccountId:      msg.GetAccountId(),
+			AccountBalance: x.balance,
+		})
 	case *samplepb.GetAccount:
 		ctx.Self().Logger().Info("get account...")
-		// get the data
 		accountID := msg.GetAccountId()
 		ctx.Response(&samplepb.Account{
 			AccountId:      accountID,
-			AccountBalance: p.balance,
+			AccountBalance: x.balance,
 		})
 
 	default:
@@ -101,8 +94,8 @@ func (p *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 }
 
 // PostStop is used to free-up resources when the actor stops
-func (p *AccountEntity) PostStop(*goakt.Context) error {
-	p.created = false
-	p.balance = 0.0
+func (x *Account) PostStop(*goakt.Context) error {
+	x.created = false
+	x.balance = 0.0
 	return nil
 }
