@@ -128,7 +128,7 @@ var runCmd = &cobra.Command{
 		_ = initTracer(ctx, res, config.TraceURL)
 		// define the discovery options
 		discoConfig := dnssd.Config{
-			DomainName: config.ServiceName,
+			DomainName: config.DomainName,
 		}
 		// instantiate the dnssd discovery provider
 		disco := dnssd.NewDiscovery(&discoConfig)

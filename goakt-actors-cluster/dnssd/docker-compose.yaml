@@ -13,7 +13,7 @@ services:
       - "8000-8020:50051"
       - "9092"
     environment:
-      SERVICE_NAME: accounts
+      DOMAIN_NAME: accounts # this is exactly the service name
       SYSTEM_NAME: AccountsSystem
       PORT: 50051
       GOSSIP_PORT: 3322

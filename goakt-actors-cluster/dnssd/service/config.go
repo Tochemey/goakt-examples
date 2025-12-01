@@ -29,7 +29,7 @@ import "github.com/caarlos0/env/v11"
 // Config defines the service configuration
 type Config struct {
 	Port            int    `env:"PORT" envDefault:"50051"`
-	ServiceName     string `env:"SERVICE_NAME"`
+	DomainName      string `env:"DOMAIN_NAME"`
 	ActorSystemName string `env:"SYSTEM_NAME"`
 	TraceURL        string `env:"TRACE_URL"`
 	GossipPort      int    `env:"GOSSIP_PORT"`
