@@ -154,10 +154,12 @@ var runCmd = &cobra.Command{
 			NewClusterConfig().
 			WithDiscovery(disco).
 			WithPartitionCount(20).
-			WithMinimumPeersQuorum(2).
-			WithReplicaCount(2).
+			WithMinimumPeersQuorum(1).
+			WithReplicaCount(1).
 			WithDiscoveryPort(config.GossipPort).
 			WithPeersPort(config.PeersPort).
+			WithClusterBalancerInterval(time.Second).
+			WithClusterStateSyncInterval(3 * time.Second).
 			WithKinds(new(actors.AccountEntity))
 
 		// create the actor system

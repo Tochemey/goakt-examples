@@ -35,6 +35,7 @@ import (
 	"github.com/tochemey/goakt/v3/goaktpb"
 	"github.com/tochemey/goakt/v3/log"
 	"github.com/tochemey/goakt/v3/remote"
+	"github.com/tochemey/goakt/v3/supervisor"
 
 	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
@@ -67,8 +68,8 @@ func main() {
 		NewPong(),
 		goakt.WithLongLived(),
 		goakt.WithSupervisor(
-			goakt.NewSupervisor(
-				goakt.WithAnyErrorDirective(goakt.ResumeDirective),
+			supervisor.NewSupervisor(
+				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
 			),
 		),
 	)

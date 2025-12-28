@@ -79,6 +79,7 @@ var runCmd = &cobra.Command{
 			WithPartitionCount(19).
 			WithDiscoveryPort(config.GossipPort).
 			WithPeersPort(config.PeersPort).
+			WithClusterBalancerInterval(time.Second).
 			WithKinds(new(actors.Account))
 
 		// create the actor system

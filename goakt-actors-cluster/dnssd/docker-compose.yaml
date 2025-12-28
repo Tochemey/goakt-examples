@@ -1,9 +1,6 @@
 services:
   accounts:
     image: "accounts:dev"
-    deploy:
-      mode: replicated
-      replicas: 3
     command:
       - run
     depends_on:
@@ -29,8 +26,6 @@ services:
   db:
     image: postgres:17
     restart: always
-    profiles:
-      - persistence
     # volumes:
     #   - ./db/migrations:/docker-entrypoint-initdb.d
     environment:
@@ -42,8 +37,6 @@ services:
 
   tracer:
     image: jaegertracing/all-in-one:1.25
-    profiles:
-      - observability
     container_name: tracer
     environment:
       COLLECTOR_ZIPKIN_HTTP_PORT: 9411
@@ -55,8 +48,6 @@ services:
 
   prometheus:
     image: prom/prometheus
-    profiles:
-      - observability
     volumes:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
     command:
@@ -66,11 +57,10 @@ services:
 
   collector:
     image: otel/opentelemetry-collector-contrib:0.52.0
-    profiles:
-      - observability
     command: ["--config=/etc/otel/config.yaml", ""]
     depends_on:
       - tracer
+      - prometheus
     ports:
       - "4317:4317" # OTLP gRPC receiver
       - "13133:13133" # health_check extension

@@ -39,6 +39,7 @@ import (
 	"github.com/tochemey/goakt/v3/goaktpb"
 	"github.com/tochemey/goakt/v3/log"
 	"github.com/tochemey/goakt/v3/remote"
+	"github.com/tochemey/goakt/v3/supervisor"
 	"github.com/travisjeffery/go-dynaport"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -84,9 +85,9 @@ func main() {
 		"ChatClient",
 		NewClient(userName, serverAddress),
 		actors.WithSupervisor(
-			actors.NewSupervisor(
-				actors.WithStrategy(actors.OneForOneStrategy),
-				actors.WithAnyErrorDirective(actors.ResumeDirective),
+			supervisor.NewSupervisor(
+				supervisor.WithStrategy(supervisor.OneForOneStrategy),
+				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
 			))); err != nil {
 		logger.Fatal(err)
 		os.Exit(1)

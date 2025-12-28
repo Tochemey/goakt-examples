@@ -37,6 +37,7 @@ import (
 	"github.com/tochemey/goakt/v3/goaktpb"
 	"github.com/tochemey/goakt/v3/log"
 	"github.com/tochemey/goakt/v3/remote"
+	"github.com/tochemey/goakt/v3/supervisor"
 
 	"github.com/tochemey/goakt-examples/v2/internal/chatpb"
 )
@@ -74,9 +75,9 @@ func main() {
 		"ChatServer",
 		NewServer(),
 		actors.WithSupervisor(
-			actors.NewSupervisor(
-				actors.WithStrategy(actors.OneForOneStrategy),
-				actors.WithAnyErrorDirective(actors.ResumeDirective),
+			supervisor.NewSupervisor(
+				supervisor.WithStrategy(supervisor.OneForOneStrategy),
+				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
 			))); err != nil {
 		logger.Fatal(err)
 		os.Exit(1)
@@ -139,13 +140,13 @@ func (s *Server) Receive(ctx *actors.ReceiveContext) {
 		sender := ctx.RemoteSender()
 
 		if _, ok := s.clients.Load(sender.String()); !ok {
-			s.logger.Warnf("cannot disconnect unknown client=(%s)", sender.ID())
+			s.logger.Warnf("cannot disconnect unknown client=(%s)", sender.String())
 			return
 		}
 
 		value, ok := s.users.Load(sender.String())
 		if !ok {
-			s.logger.Warnf("cannot disconnect unknown user=(%s)", sender.ID())
+			s.logger.Warnf("cannot disconnect unknown user=(%s)", sender.String())
 			return
 		}
 
