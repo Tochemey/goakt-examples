@@ -24,7 +24,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -38,6 +37,23 @@ import (
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/dynalloc/service"
 )
 
+func getLogLevel(level string) log.Level {
+	var logLevel log.Level
+	switch level {
+	case "debug":
+		logLevel = log.DebugLevel
+	case "info":
+		logLevel = log.InfoLevel
+	case "warn":
+		logLevel = log.WarningLevel
+	case "error":
+		logLevel = log.ErrorLevel
+	default:
+		logLevel = log.InfoLevel
+	}
+	return logLevel
+}
+
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -46,25 +62,20 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create a background context
 		ctx := context.Background()
+
 		// get the configuration from the env vars
 		config, err := service.GetConfig()
 		//  handle the error
 		if err != nil {
 			panic(err)
 		}
+
 		// use the address default log. real-life implement the log interface`
-		logger := log.New(log.DebugLevel, os.Stdout)
+		logger := log.New(getLogLevel(config.LogLevel), os.Stdout)
 
 		// define the discovery options
-		discoConfig := static.Config{
-			Hosts: []string{
-				fmt.Sprintf("node0:%d", config.GossipPort),
-				fmt.Sprintf("node1:%d", config.GossipPort),
-				fmt.Sprintf("node2:%d", config.GossipPort),
-				fmt.Sprintf("node3:%d", config.GossipPort),
-				fmt.Sprintf("node4:%d", config.GossipPort),
-			},
-		}
+		hosts := config.DiscoveryHosts
+		discoConfig := static.Config{Hosts: hosts}
 		// instantiate the dnssd discovery provider
 		disco := static.NewDiscovery(&discoConfig)
 
@@ -74,10 +85,14 @@ var runCmd = &cobra.Command{
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(disco).
-			WithPartitionCount(19).
-			WithDiscoveryPort(config.GossipPort).
+			WithPartitionCount(20).
+			WithBootstrapTimeout(10 * time.Second).
+			WithReadTimeout(3 * time.Second).
+			WithWriteTimeout(3 * time.Second).
+			WithDiscoveryPort(config.DiscoveryPort).
 			WithPeersPort(config.PeersPort).
 			WithClusterBalancerInterval(time.Second).
+			WithClusterStateSyncInterval(3 * time.Second).
 			WithKinds(new(actors.Account))
 
 		// create the actor system

@@ -71,6 +71,23 @@ func initTracer(ctx context.Context, res *resource.Resource, traceURL string) *s
 	return tp
 }
 
+func getLogLevel(level string) log.Level {
+	var logLevel log.Level
+	switch level {
+	case "debug":
+		logLevel = log.DebugLevel
+	case "info":
+		logLevel = log.InfoLevel
+	case "warn":
+		logLevel = log.WarningLevel
+	case "error":
+		logLevel = log.ErrorLevel
+	default:
+		logLevel = log.InfoLevel
+	}
+	return logLevel
+}
+
 func initMeter(res *resource.Resource) *metric.MeterProvider {
 	// The exporter embeds a default OpenTelemetry Reader and
 	// implements prometheus.Collector, allowing it to be used as
@@ -100,15 +117,16 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// create a background context
 		ctx := context.Background()
-		// use the address default log. real-life implement the log interface`
-		logger := log.New(log.DebugLevel, os.Stdout)
 
 		// get the configuration from the env vars
 		config, err := service.GetConfig()
 		//  handle the error
 		if err != nil {
-			logger.Fatal(err)
+			panic(err)
 		}
+
+		// use the address default log. real-life implement the log interface`
+		logger := log.New(getLogLevel(config.LogLevel), os.Stdout)
 
 		res, err := resource.New(ctx,
 			resource.WithHost(),
@@ -124,6 +142,7 @@ var runCmd = &cobra.Command{
 
 		// initialize traces and metric providers
 		_ = initTracer(ctx, res, config.TraceURL)
+		_ = initMeter(res)
 		// define the discovery options
 		discoConfig := dnssd.Config{
 			DomainName: config.DomainName,
@@ -152,9 +171,10 @@ var runCmd = &cobra.Command{
 			NewClusterConfig().
 			WithDiscovery(disco).
 			WithPartitionCount(20).
-			WithMinimumPeersQuorum(1).
-			WithReplicaCount(1).
-			WithDiscoveryPort(config.GossipPort).
+			WithBootstrapTimeout(10 * time.Second).
+			WithReadTimeout(3 * time.Second).
+			WithWriteTimeout(3 * time.Second).
+			WithDiscoveryPort(config.DiscoveryPort).
 			WithPeersPort(config.PeersPort).
 			WithClusterBalancerInterval(time.Second).
 			WithClusterStateSyncInterval(3 * time.Second).

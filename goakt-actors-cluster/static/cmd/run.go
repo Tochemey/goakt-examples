@@ -24,7 +24,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -56,15 +55,8 @@ var runCmd = &cobra.Command{
 		logger := log.New(log.DebugLevel, os.Stdout)
 
 		// define the discovery options
-		discoConfig := static.Config{
-			Hosts: []string{
-				fmt.Sprintf("node0:%d", config.GossipPort),
-				fmt.Sprintf("node1:%d", config.GossipPort),
-				fmt.Sprintf("node2:%d", config.GossipPort),
-				fmt.Sprintf("node3:%d", config.GossipPort),
-				fmt.Sprintf("node4:%d", config.GossipPort),
-			},
-		}
+		hosts := config.DiscoveryHosts
+		discoConfig := static.Config{Hosts: hosts}
 		// instantiate the dnssd discovery provider
 		disco := static.NewDiscovery(&discoConfig)
 
@@ -74,10 +66,14 @@ var runCmd = &cobra.Command{
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(disco).
-			WithPartitionCount(19).
-			WithDiscoveryPort(config.GossipPort).
+			WithPartitionCount(20).
+			WithBootstrapTimeout(10 * time.Second).
+			WithReadTimeout(3 * time.Second).
+			WithWriteTimeout(3 * time.Second).
+			WithDiscoveryPort(config.DiscoveryPort).
 			WithPeersPort(config.PeersPort).
 			WithClusterBalancerInterval(time.Second).
+			WithClusterStateSyncInterval(3 * time.Second).
 			WithKinds(new(actors.Account))
 
 		// create the actor system

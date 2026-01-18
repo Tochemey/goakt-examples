@@ -1,0 +1,10 @@
+accounts.dnssd.local:53 {
+  hosts {
+    172.28.0.11 accounts.dnssd.local
+    172.28.0.12 accounts.dnssd.local
+    172.28.0.13 accounts.dnssd.local
+    fallthrough
+  }
+  log
+  errors
+}

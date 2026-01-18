@@ -51,6 +51,23 @@ import (
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/service"
 )
 
+func getLogLevel(level string) log.Level {
+	var logLevel log.Level
+	switch level {
+	case "debug":
+		logLevel = log.DebugLevel
+	case "info":
+		logLevel = log.InfoLevel
+	case "warn":
+		logLevel = log.WarningLevel
+	case "error":
+		logLevel = log.ErrorLevel
+	default:
+		logLevel = log.InfoLevel
+	}
+	return logLevel
+}
+
 func initTracer(ctx context.Context, res *resource.Resource, traceURL string) *sdktrace.TracerProvider {
 	exporter, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithInsecure(),
@@ -98,16 +115,18 @@ var runCmd = &cobra.Command{
 	Short: "A brief description of your command",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		// use the address default log. real-life implement the log interface`
-		logger := log.New(log.DebugLevel, os.Stdout)
 		// create a background context
 		ctx := context.Background()
+
 		// get the configuration from the env vars
 		config, err := service.GetConfig()
 		//  handle the error
 		if err != nil {
-			logger.Fatal(err)
+			panic(err)
 		}
+
+		// use the address default log. real-life implement the log interface`
+		logger := log.New(getLogLevel(config.LogLevel), os.Stdout)
 
 		res, err := resource.New(ctx,
 			resource.WithHost(),
@@ -123,9 +142,10 @@ var runCmd = &cobra.Command{
 
 		// initialize traces and metric providers
 		tracer := initTracer(ctx, res, config.TraceURL)
+		_ = initMeter(res)
 		// define the discovery options
 		discoConfig := dnssd.Config{
-			DomainName: config.ServiceName,
+			DomainName: config.DomainName,
 		}
 		// instantiate the dnssd discovery provider
 		disco := dnssd.NewDiscovery(&discoConfig)

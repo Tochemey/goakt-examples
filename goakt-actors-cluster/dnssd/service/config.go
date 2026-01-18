@@ -30,7 +30,7 @@ type Config struct {
 	DomainName      string `env:"DOMAIN_NAME"`
 	ActorSystemName string `env:"SYSTEM_NAME"`
 	TraceURL        string `env:"TRACE_URL"`
-	GossipPort      int    `env:"GOSSIP_PORT"`
+	DiscoveryPort   int    `env:"DISCOVERY_PORT"`
 	PeersPort       int    `env:"PEERS_PORT"`
 	RemotingPort    int    `env:"REMOTING_PORT"`
 	DBHost          string `env:"DB_HOST"`
@@ -38,6 +38,7 @@ type Config struct {
 	DBName          string `env:"DB_NAME"`
 	DBUser          string `env:"DB_USER"`
 	DBPassword      string `env:"DB_PASSWORD"`
+	LogLevel        string `env:"LOG_LEVEL" envDefault:"debug"`
 }
 
 // GetConfig returns the configuration

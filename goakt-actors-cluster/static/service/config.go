@@ -26,12 +26,13 @@ import "github.com/caarlos0/env/v11"
 
 // Config defines the service configuration
 type Config struct {
-	Port            int    `env:"PORT" envDefault:"50051"`
-	ServiceName     string `env:"SERVICE_NAME"`
-	ActorSystemName string `env:"SYSTEM_NAME"`
-	GossipPort      int    `env:"GOSSIP_PORT"`
-	PeersPort       int    `env:"PEERS_PORT"`
-	RemotingPort    int    `env:"REMOTING_PORT"`
+	Port            int      `env:"PORT" envDefault:"50051"`
+	ServiceName     string   `env:"SERVICE_NAME"`
+	ActorSystemName string   `env:"SYSTEM_NAME"`
+	DiscoveryPort   int      `env:"DISCOVERY_PORT"`
+	PeersPort       int      `env:"PEERS_PORT"`
+	RemotingPort    int      `env:"REMOTING_PORT"`
+	DiscoveryHosts  []string `env:"DISCOVERY_HOSTS" envSeparator:","`
 }
 
 // GetConfig returns the configuration

@@ -35,13 +35,6 @@ import (
 )
 
 const PostgresStateStoreID = "PostgresStore"
-const schema = `
-CREATE TABLE IF NOT EXISTS accounts (
-	actor_id VARCHAR(255) NOT NULL PRIMARY KEY,
-	balance NUMERIC(19, 2) NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-`
 
 type PostgresConfig struct {
 	DBHost     string // DBHost represents the database host
@@ -90,12 +83,6 @@ func (x *PostgresStore) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to ping the database connection: %w", err)
 	}
 
-	// create the schema if it does not exist
-	if _, err := pool.Exec(ctx, schema); err != nil {
-		pool.Close()
-		return fmt.Errorf("failed to create the schema: %w", err)
-	}
-
 	// set the db handle
 	x.pool = pool
 	return nil
@@ -116,7 +103,7 @@ func (x *PostgresStore) Stop() error {
 func (x *PostgresStore) WriteState(ctx context.Context, actorID string, state *domain.Account) error {
 	insertQuery := `INSERT INTO accounts (actor_id, balance) VALUES ($1, $2)
 	ON CONFLICT (actor_id) DO UPDATE SET balance = EXCLUDED.balance;`
-	_, err := x.pool.Exec(ctx, insertQuery, actorID, state.Balance)
+	_, err := x.pool.Exec(ctx, insertQuery, actorID, state.Balance())
 	if err != nil {
 		return fmt.Errorf("failed to write state for actor %s: %v\n", actorID, err)
 	}

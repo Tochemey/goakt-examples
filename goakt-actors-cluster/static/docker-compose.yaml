@@ -1,92 +1,87 @@
 version: "3.9"
 
+x-node-base: &node-base
+  image: "accounts:dev"
+  command:
+    - run
+  environment:
+    SYSTEM_NAME: Accounts
+    PORT: 50051
+    DISCOVERY_PORT: 3322
+    PEERS_PORT: 3320
+    REMOTING_PORT: 50052
+  expose:
+    - "50051"
+    - "50052"
+    - "3322"
+    - "3320"
+  networks:
+    - cluster
+  restart: unless-stopped
+
 services:
+  lb:
+    image: "nginx:1.27-alpine"
+    hostname: lb
+    ports:
+      - "9000:50051"
+    volumes:
+      - "./nginx.conf:/etc/nginx/nginx.conf:ro"
+    depends_on:
+      - node0
+      - node1
+      - node2
+      - node3
+      - node4
+    networks:
+      - cluster
+    restart: unless-stopped
+
   node0:
-    image: "accounts:dev"
+    <<: *node-base
     hostname: node0
-    command:
-      - run
     ports:
       - "8000:50051"
-      - "9092"
-      - "3322"
-      - "3320"
     environment:
       SERVICE_NAME: node0
-      SYSTEM_NAME: Accounts
-      PORT: 50051
-      GOSSIP_PORT: 3322
-      PEERS_PORT: 3320
-      REMOTING_PORT: 50052
+      DISCOVERY_HOSTS: "node1:3322,node2:3322,node3:3322,node4:3322"
 
   node1:
-    image: "accounts:dev"
+    <<: *node-base
     hostname: node1
-    command:
-      - run
     ports:
       - "8001:50051"
-      - "9092"
-      - "3322"
-      - "3320"
     environment:
       SERVICE_NAME: node1
-      SYSTEM_NAME: Accounts
-      PORT: 50051
-      GOSSIP_PORT: 3322
-      PEERS_PORT: 3320
-      REMOTING_PORT: 50052
+      DISCOVERY_HOSTS: "node0:3322,node2:3322,node3:3322,node4:3322"
 
   node2:
-    image: "accounts:dev"
+    <<: *node-base
     hostname: node2
-    command:
-      - run
     ports:
       - "8002:50051"
-      - "9092"
-      - "3322"
-      - "3320"
     environment:
       SERVICE_NAME: node2
-      SYSTEM_NAME: Accounts
-      PORT: 50051
-      GOSSIP_PORT: 3322
-      PEERS_PORT: 3320
-      REMOTING_PORT: 50052
+      DISCOVERY_HOSTS: "node0:3322,node1:3322,node3:3322,node4:3322"
 
   node3:
-    image: "accounts:dev"
+    <<: *node-base
     hostname: node3
-    command:
-      - run
     ports:
       - "8003:50051"
-      - "9092"
-      - "3322"
-      - "3320"
     environment:
       SERVICE_NAME: node3
-      SYSTEM_NAME: Accounts
-      PORT: 50051
-      GOSSIP_PORT: 3322
-      PEERS_PORT: 3320
-      REMOTING_PORT: 50052
+      DISCOVERY_HOSTS: "node0:3322,node1:3322,node2:3322,node4:3322"
 
   node4:
-    image: "accounts:dev"
+    <<: *node-base
     hostname: node4
-    command:
-      - run
     ports:
       - "8004:50051"
-      - "9092"
-      - "3322"
-      - "3320"
     environment:
       SERVICE_NAME: node4
-      SYSTEM_NAME: Accounts
-      PORT: 50051
-      GOSSIP_PORT: 3322
-      PEERS_PORT: 3320
-      REMOTING_PORT: 50052
+      DISCOVERY_HOSTS: "node0:3322,node1:3322,node2:3322,node3:3322"
+
+networks:
+  cluster:
+    name: goakt-static-cluster

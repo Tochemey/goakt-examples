@@ -15,4 +15,4 @@ scrape_configs:
   - job_name: accounts
     scrape_interval: 5s
     static_configs:
-      - targets: ["accounts:9092"]
+      - targets: ["accounts1:9092", "accounts2:9092", "accounts3:9092"]

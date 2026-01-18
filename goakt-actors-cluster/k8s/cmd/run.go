@@ -51,10 +51,10 @@ const (
 )
 
 type config struct {
-	GossipPort   int `env:"DISCOVERY_PORT"`
-	PeersPort    int `env:"PEERS_PORT"`
-	RemotingPort int `env:"REMOTING_PORT"`
-	Port         int `env:"PORT" envDefault:"50051"`
+	DiscoveryPort int `env:"DISCOVERY_PORT"`
+	PeersPort     int `env:"PEERS_PORT"`
+	RemotingPort  int `env:"REMOTING_PORT"`
+	Port          int `env:"PORT" envDefault:"50051"`
 }
 
 func getConfig(logger log.Logger) *config {
@@ -108,7 +108,7 @@ var runCmd = &cobra.Command{
 			WithPartitionCount(20).
 			WithMinimumPeersQuorum(1).
 			WithReplicaCount(1).
-			WithDiscoveryPort(config.GossipPort).
+			WithDiscoveryPort(config.DiscoveryPort).
 			WithPeersPort(config.PeersPort).
 			WithClusterBalancerInterval(time.Second).
 			WithKinds(new(actors.Account))

@@ -1,22 +1,40 @@
 services:
-  accounts:
+  accounts1:
     image: "accounts-grains:dev"
-    deploy:
-      mode: replicated
-      replicas: 3
-    command:
-      - run
-    ports:
-      - "8000-8020:50051"
-      - "9092"
+    command: ["run"]
+    depends_on:
+      db:
+        condition: service_healthy
+      collector:
+        condition: service_started
+    hostname: accounts1
+    container_name: accounts1
+    networks:
+      cluster:
+        ipv4_address: 172.28.0.11
+    dns:
+      - 172.28.0.10
+
+    # Expose only inside the compose network; we'll publish one stable port via LB
+    expose:
+      - "50051" # client
+      - "50052" # remoting
+      - "3322" # gossip
+      - "3320" # peers
+      - "9092" # metrics
+
     environment:
-      SERVICE_NAME: accounts
+      # DNS-SD discovery uses the CoreDNS hostname below.
+      DOMAIN_NAME: accounts.dnssd.local
       SYSTEM_NAME: AccountsSystem
+
       PORT: 50051
       GOSSIP_PORT: 3322
       PEERS_PORT: 3320
       REMOTING_PORT: 50052
+
       TRACE_URL: "collector:4317"
+
       DB_USER: "postgres"
       DB_PASSWORD: "changeme"
       DB_HOST: "db"
@@ -24,23 +42,139 @@ services:
       DB_NAME: "postgres"
       DB_SCHEMA: "sample"
 
-  db:
-    image: postgres:11
-    restart: always
+  accounts2:
+    image: "accounts-grains:dev"
+    command: ["run"]
+    depends_on:
+      db:
+        condition: service_healthy
+      collector:
+        condition: service_started
+    hostname: accounts2
+    container_name: accounts2
+    networks:
+      cluster:
+        ipv4_address: 172.28.0.12
+    dns:
+      - 172.28.0.10
+
+    expose:
+      - "50051"
+      - "50052"
+      - "3322"
+      - "3320"
+      - "9092"
+
+    environment:
+      DOMAIN_NAME: accounts.dnssd.local
+      SYSTEM_NAME: AccountsSystem
+
+      PORT: 50051
+      GOSSIP_PORT: 3322
+      PEERS_PORT: 3320
+      REMOTING_PORT: 50052
+
+      TRACE_URL: "collector:4317"
+
+      DB_USER: "postgres"
+      DB_PASSWORD: "changeme"
+      DB_HOST: "db"
+      DB_PORT: 5432
+      DB_NAME: "postgres"
+      DB_SCHEMA: "sample"
+
+  accounts3:
+    image: "accounts-grains:dev"
+    command: ["run"]
+    depends_on:
+      db:
+        condition: service_healthy
+      collector:
+        condition: service_started
+    hostname: accounts3
+    container_name: accounts3
+    networks:
+      cluster:
+        ipv4_address: 172.28.0.13
+    dns:
+      - 172.28.0.10
+
+    expose:
+      - "50051"
+      - "50052"
+      - "3322"
+      - "3320"
+      - "9092"
+
+    environment:
+      DOMAIN_NAME: accounts.dnssd.local
+      SYSTEM_NAME: AccountsSystem
+
+      PORT: 50051
+      GOSSIP_PORT: 3322
+      PEERS_PORT: 3320
+      REMOTING_PORT: 50052
+
+      TRACE_URL: "collector:4317"
+
+      DB_USER: "postgres"
+      DB_PASSWORD: "changeme"
+      DB_HOST: "db"
+      DB_PORT: 5432
+      DB_NAME: "postgres"
+      DB_SCHEMA: "sample"
+
+  # Single stable client endpoint on localhost:8000
+  # (because you cannot bind 50051 to the host from 3 containers)
+  lb:
+    image: nginx:alpine
+    depends_on:
+      - accounts1
+      - accounts2
+      - accounts3
+    ports:
+      - "8000:50051"
     volumes:
-      - ./db/migrations:/docker-entrypoint-initdb.d
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - cluster
+    dns:
+      - 172.28.0.10
+
+  coredns:
+    image: coredns/coredns:1.11.1
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - ./coredns.Corefile:/etc/coredns/Corefile:ro
+    networks:
+      cluster:
+        ipv4_address: 172.28.0.10
+
+  db:
+    image: postgres:17
+    restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       POSTGRES_DB: postgres
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-postgres} -h 127.0.0.1 -p 5432",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     ports:
       - "5432:5432"
-
+    volumes:
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - cluster
 
   tracer:
     image: jaegertracing/all-in-one:1.25
-    profiles:
-      - observability
     container_name: tracer
     environment:
       COLLECTOR_ZIPKIN_HTTP_PORT: 9411
@@ -49,25 +183,26 @@ services:
       - "16686:16686" # frontend
       - "14268"
       - "5775"
+    networks:
+      - cluster
 
   prometheus:
     image: prom/prometheus
-    profiles:
-      - observability
     volumes:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
     command:
       - "--config.file=/etc/prometheus/prometheus.yaml"
     ports:
       - "9090:9090"
+    networks:
+      - cluster
 
   collector:
     image: otel/opentelemetry-collector-contrib:0.52.0
-    profiles:
-      - observability
-    command: ["--config=/etc/otel/config.yaml", ""]
+    command: ["--config=/etc/otel/config.yaml"]
     depends_on:
       - tracer
+      - prometheus
     ports:
       - "4317:4317" # OTLP gRPC receiver
       - "13133:13133" # health_check extension
@@ -80,3 +215,11 @@ services:
       - "9411" # Zipkin receiver
     volumes:
       - ./otel-collector.yaml:/etc/otel/config.yaml
+    networks:
+      - cluster
+
+networks:
+  cluster:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

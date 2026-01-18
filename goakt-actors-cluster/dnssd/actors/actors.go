@@ -94,6 +94,9 @@ func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		state.SetBalance(balance)
 		state.SetCreatedAt(time.Now())
 
+		// update the in-memory state
+		x.state.Store(state)
+
 		// here we are handling just an ask
 		ctx.Response(&samplepb.Account{
 			AccountId:      accountID,
@@ -111,6 +114,8 @@ func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		newBalance := state.Balance() + balance
 		state.SetBalance(newBalance)
 
+		// update the in-memory state
+		x.state.Store(state)
 		ctx.Response(&samplepb.Account{
 			AccountId:      accountID,
 			AccountBalance: state.Balance(),
@@ -132,6 +137,5 @@ func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 // PostStop is used to free-up resources when the actor stops
 func (x *AccountEntity) PostStop(ctx *goakt.Context) error {
 	underlying := x.state.Load()
-	x.storage.WriteState(ctx.Context(), underlying.AccountID(), underlying)
-	return nil
+	return x.storage.WriteState(ctx.Context(), underlying.AccountID(), underlying)
 }
