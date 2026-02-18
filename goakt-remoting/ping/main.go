@@ -39,22 +39,17 @@ import (
 	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
-const (
-	port = 50051
-	host = "127.0.0.1"
-)
-
 func main() {
 	ctx := context.Background()
 
 	// use the address default log. real-life implement the log interface`
-	logger := log.New(log.DebugLevel, os.Stdout)
+	logger := log.New(log.InfoLevel, os.Stdout)
 
 	// create the actor system. kindly in real-life application handle the error
 	actorSystem, _ := goakt.NewActorSystem(
 		"Remoting",
 		goakt.WithLogger(logger),
-		goakt.WithRemote(remote.NewConfig(host, port)),
+		goakt.WithRemote(remote.NewConfig("127.0.0.1", 9000)),
 	)
 
 	// start the actor system
@@ -64,7 +59,7 @@ func main() {
 	time.Sleep(time.Second)
 
 	// create an actor
-	totalScore := 10_000_000
+	totalScore := 1_000
 
 	pid, _ := actorSystem.Spawn(ctx, "Ping", NewPing(totalScore),
 		goakt.WithLongLived(),
@@ -79,10 +74,12 @@ func main() {
 	time.Sleep(time.Second)
 
 	// locate the pong actor
-	remoteAddress := address.New("Pong", actorSystem.Name(), host, 50052)
+	remoteAddress := address.New("Pong", actorSystem.Name(), "127.0.0.1", 9010)
 
 	// send a message to the pong actor
-	_ = pid.RemoteTell(ctx, remoteAddress, new(samplepb.Ping))
+	if err := pid.RemoteTell(ctx, remoteAddress, new(samplepb.Ping)); err != nil {
+		logger.Fatalf("failed to send message to remote actor: %v", err)
+	}
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -116,6 +113,7 @@ func (act *Ping) Receive(ctx *goakt.ReceiveContext) {
 	case *goaktpb.PostStart:
 	case *samplepb.Pong:
 		act.count++
+		ctx.Logger().Infof("Received pong count: %d", act.count)
 		if act.count >= act.scores {
 			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.End))
 			return

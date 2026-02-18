@@ -38,11 +38,6 @@ import (
 	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
-const (
-	port = 50052
-	host = "127.0.0.1"
-)
-
 func main() {
 	ctx := context.Background()
 
@@ -53,7 +48,7 @@ func main() {
 	actorSystem, _ := goakt.NewActorSystem("Remoting",
 		goakt.WithLogger(logger),
 		goakt.WithActorInitMaxRetries(3),
-		goakt.WithRemote(remote.NewConfig(host, port)))
+		goakt.WithRemote(remote.NewConfig("127.0.0.1", 9010)))
 
 	// start the actor system
 	_ = actorSystem.Start(ctx)
@@ -106,6 +101,7 @@ func (act *Pong) Receive(ctx *goakt.ReceiveContext) {
 		ctx.Logger().Infof("completed processing message: %d", act.count)
 	case *samplepb.Ping:
 		act.count++
+		ctx.Logger().Infof("Received pong count: %d", act.count)
 		ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Pong))
 	default:
 		ctx.Unhandled()

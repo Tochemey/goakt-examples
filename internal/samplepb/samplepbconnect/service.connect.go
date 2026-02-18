@@ -44,14 +44,6 @@ const (
 	AccountServiceGetAccountProcedure = "/samplepb.AccountService/GetAccount"
 )
 
-// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
-var (
-	accountServiceServiceDescriptor             = samplepb.File_sample_service_proto.Services().ByName("AccountService")
-	accountServiceCreateAccountMethodDescriptor = accountServiceServiceDescriptor.Methods().ByName("CreateAccount")
-	accountServiceCreditAccountMethodDescriptor = accountServiceServiceDescriptor.Methods().ByName("CreditAccount")
-	accountServiceGetAccountMethodDescriptor    = accountServiceServiceDescriptor.Methods().ByName("GetAccount")
-)
-
 // AccountServiceClient is a client for the samplepb.AccountService service.
 type AccountServiceClient interface {
 	CreateAccount(context.Context, *connect.Request[samplepb.CreateAccountRequest]) (*connect.Response[samplepb.CreateAccountResponse], error)
@@ -68,23 +60,24 @@ type AccountServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) AccountServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
+	accountServiceMethods := samplepb.File_sample_service_proto.Services().ByName("AccountService").Methods()
 	return &accountServiceClient{
 		createAccount: connect.NewClient[samplepb.CreateAccountRequest, samplepb.CreateAccountResponse](
 			httpClient,
 			baseURL+AccountServiceCreateAccountProcedure,
-			connect.WithSchema(accountServiceCreateAccountMethodDescriptor),
+			connect.WithSchema(accountServiceMethods.ByName("CreateAccount")),
 			connect.WithClientOptions(opts...),
 		),
 		creditAccount: connect.NewClient[samplepb.CreditAccountRequest, samplepb.CreditAccountResponse](
 			httpClient,
 			baseURL+AccountServiceCreditAccountProcedure,
-			connect.WithSchema(accountServiceCreditAccountMethodDescriptor),
+			connect.WithSchema(accountServiceMethods.ByName("CreditAccount")),
 			connect.WithClientOptions(opts...),
 		),
 		getAccount: connect.NewClient[samplepb.GetAccountRequest, samplepb.GetAccountResponse](
 			httpClient,
 			baseURL+AccountServiceGetAccountProcedure,
-			connect.WithSchema(accountServiceGetAccountMethodDescriptor),
+			connect.WithSchema(accountServiceMethods.ByName("GetAccount")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -125,22 +118,23 @@ type AccountServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	accountServiceMethods := samplepb.File_sample_service_proto.Services().ByName("AccountService").Methods()
 	accountServiceCreateAccountHandler := connect.NewUnaryHandler(
 		AccountServiceCreateAccountProcedure,
 		svc.CreateAccount,
-		connect.WithSchema(accountServiceCreateAccountMethodDescriptor),
+		connect.WithSchema(accountServiceMethods.ByName("CreateAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
 	accountServiceCreditAccountHandler := connect.NewUnaryHandler(
 		AccountServiceCreditAccountProcedure,
 		svc.CreditAccount,
-		connect.WithSchema(accountServiceCreditAccountMethodDescriptor),
+		connect.WithSchema(accountServiceMethods.ByName("CreditAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
 	accountServiceGetAccountHandler := connect.NewUnaryHandler(
 		AccountServiceGetAccountProcedure,
 		svc.GetAccount,
-		connect.WithSchema(accountServiceGetAccountMethodDescriptor),
+		connect.WithSchema(accountServiceMethods.ByName("GetAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/samplepb.AccountService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,6 @@
 VERSION 0.8
 
-FROM golang:1.25.5-alpine
+FROM golang:1.26.0-alpine
 
 # install gcc dependencies into alpine for CGO
 RUN apk --no-cache add git ca-certificates gcc musl-dev libc-dev binutils-gold curl openssh
@@ -50,14 +50,12 @@ protogen:
     RUN buf generate \
             --template buf.gen.yaml \
             --path protos/sample \
-            --path protos/bench \
             --path protos/helloworld \
             --path protos/chat
 
     # save artifact to
     SAVE ARTIFACT gen/sample AS LOCAL internal/samplepb
     SAVE ARTIFACT gen/chat AS LOCAL internal/chatpb
-    SAVE ARTIFACT gen/bench AS LOCAL internal/benchpb
     SAVE ARTIFACT gen/helloworld AS LOCAL internal/helloworldpb
 
 compile-k8s:

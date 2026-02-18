@@ -2,15 +2,58 @@ syntax = "proto3";
 
 package chatpb;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/tochemey/goakt-examples/v2/internal/chatpb;chatpb";
 
+// Connect is sent by a client to join the chat server in a given room.
+// If room is empty, the client joins the default "general" room.
 message Connect {
   string user_name = 1;
+  string room = 2;
 }
 
+// Disconnect is sent by a client to leave the chat.
 message Disconnect {}
 
+// Message is sent by a client to post a message to its current room.
 message Message {
   string user_name = 1;
   string content = 2;
+  string room = 3;
+  google.protobuf.Timestamp sent_at = 4;
+}
+
+// DirectMessage is sent by a client to privately address another user.
+message DirectMessage {
+  string from_user = 1;
+  string to_user = 2;
+  string content = 3;
+  google.protobuf.Timestamp sent_at = 4;
+}
+
+// ListUsersRequest is sent by a client to retrieve online users in a room.
+message ListUsersRequest {
+  string room = 1;
+}
+
+// ListUsersResponse is sent by the server back to the requesting client.
+message ListUsersResponse {
+  repeated string user_names = 1;
+}
+
+// Broadcast is pushed by the server to every client in a room when a new
+// message arrives.
+message Broadcast {
+  string from_user = 1;
+  string content = 2;
+  string room = 3;
+  google.protobuf.Timestamp sent_at = 4;
+}
+
+// SystemEvent carries join/leave and other server-generated notifications
+// pushed to clients in a room.
+message SystemEvent {
+  string text = 1;
+  google.protobuf.Timestamp at = 2;
 }
