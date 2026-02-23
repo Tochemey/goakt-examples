@@ -2,7 +2,8 @@
 
 [![GitHub go.mod Go version](https://badges.chse.dev/github/go-mod/go-version/Tochemey/goakt-examples)](https://go.dev/doc/install)
 
-This repo contains examples for [Go-Akt](https://github.com/Tochemey/goakt). All the examples here target Go-Akt latest release
+This repo contains examples for [Go-Akt](https://github.com/Tochemey/goakt). All the examples here target GoAkt upcoming v4.0.0.
+The examples for the latest stable version of Go-Akt (v3.14.0) can be found in the [v3 branch](https://github.com/Tochemey/goakt-examples/tree/release/v3.14)
 
 ## Installation
 To download the examples code:
