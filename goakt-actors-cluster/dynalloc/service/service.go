@@ -31,14 +31,13 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
 	"github.com/pkg/errors"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/dynalloc/actors"
-	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
 
@@ -49,18 +48,16 @@ type AccountService struct {
 	logger      log.Logger
 	port        int
 	server      *http.Server
-	remoting    remote.Remoting
 }
 
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system goakt.ActorSystem, remoting remote.Remoting, logger log.Logger, port int) *AccountService {
+func NewAccountService(system goakt.ActorSystem, logger log.Logger, port int) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
 		port:        port,
-		remoting:    remoting,
 	}
 }
 
@@ -100,7 +97,7 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	case *samplepb.Account:
 		return connect.NewResponse(&samplepb.CreateAccountResponse{Account: x}), nil
 	default:
-		err := fmt.Errorf("invalid reply=%s", message.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", message)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
@@ -124,7 +121,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	case *samplepb.Account:
 		return connect.NewResponse(&samplepb.CreditAccountResponse{Account: x}), nil
 	default:
-		err := fmt.Errorf("invalid reply=%s", message.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", message)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
@@ -149,7 +146,7 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 	case *samplepb.Account:
 		return connect.NewResponse(&samplepb.GetAccountResponse{Account: x}), nil
 	default:
-		err := fmt.Errorf("invalid reply=%s", message.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", message)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }

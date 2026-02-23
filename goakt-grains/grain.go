@@ -26,7 +26,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/tochemey/goakt/v3/actor"
+	"github.com/tochemey/goakt/v4/actor"
 	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"

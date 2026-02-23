@@ -29,13 +29,12 @@ import (
 	"syscall"
 	"time"
 
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
-	"github.com/tochemey/goakt/v3/supervisor"
+	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
+	"github.com/tochemey/goakt/v4/supervisor"
 
-	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
 func main() {
@@ -45,27 +44,34 @@ func main() {
 	logger := log.New(log.DebugLevel, os.Stdout)
 
 	// create the actor system. kindly in real-life application handle the error
-	actorSystem, _ := goakt.NewActorSystem("Remoting",
-		goakt.WithLogger(logger),
-		goakt.WithActorInitMaxRetries(3),
-		goakt.WithRemote(remote.NewConfig("127.0.0.1", 9010)))
+	actorSystem, err := actor.NewActorSystem("Remoting",
+		actor.WithLogger(logger),
+		actor.WithActorInitMaxRetries(3),
+		actor.WithRemote(remote.NewConfig("127.0.0.1", 9010)))
+
+	if err != nil {
+		logger.Fatalf("failed to create actor system: %v", err)
+	}
 
 	// start the actor system
-	_ = actorSystem.Start(ctx)
-
-	// wait for the actor system to be ready
-	time.Sleep(time.Second)
+	if err := actorSystem.Start(ctx); err != nil {
+		logger.Fatalf("failed to start actor system: %v", err)
+	}
 
 	// create an actor
-	_, _ = actorSystem.Spawn(ctx, "Pong",
+	_, err = actorSystem.Spawn(ctx, "Pong",
 		NewPong(),
-		goakt.WithLongLived(),
-		goakt.WithSupervisor(
+		actor.WithLongLived(),
+		actor.WithSupervisor(
 			supervisor.NewSupervisor(
 				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
 			),
 		),
 	)
+
+	if err != nil {
+		logger.Fatalf("failed to spawn actor: %v", err)
+	}
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
@@ -82,32 +88,31 @@ type Pong struct {
 	start time.Time
 }
 
-var _ goakt.Actor = (*Pong)(nil)
+var _ actor.Actor = (*Pong)(nil)
 
 func NewPong() *Pong {
 	return &Pong{}
 }
 
-func (act *Pong) PreStart(*goakt.Context) error {
+func (act *Pong) PreStart(*actor.Context) error {
 	return nil
 }
 
-func (act *Pong) Receive(ctx *goakt.ReceiveContext) {
+func (act *Pong) Receive(ctx *actor.ReceiveContext) {
 	switch ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *actor.PostStart:
 		act.start = time.Now()
 	case *samplepb.End:
-		act.count++
 		ctx.Logger().Infof("completed processing message: %d", act.count)
 	case *samplepb.Ping:
 		act.count++
 		ctx.Logger().Infof("Received pong count: %d", act.count)
-		ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Pong))
+		ctx.Tell(ctx.Sender(), new(samplepb.Pong))
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (act *Pong) PostStop(*goakt.Context) error {
+func (act *Pong) PostStop(*actor.Context) error {
 	return nil
 }

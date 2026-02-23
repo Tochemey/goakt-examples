@@ -6,14 +6,14 @@ require (
 	connectrpc.com/connect v1.19.1
 	connectrpc.com/otelconnect v0.9.0
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/caarlos0/env/v11 v11.3.1
+	github.com/caarlos0/env/v11 v11.4.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
-	github.com/tochemey/goakt/v3 v3.14.0
+	github.com/tochemey/goakt/v4 v4.0.0-20260223191850-fa7cec65ac50
 	github.com/tochemey/gopack v0.2.1
 	github.com/travisjeffery/go-dynaport v1.0.0
 	go.opentelemetry.io/otel v1.40.0

@@ -29,12 +29,10 @@ import (
 	"syscall"
 	"time"
 
-	actors "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/address"
-	"github.com/tochemey/goakt/v3/goaktpb"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
-	"github.com/tochemey/goakt/v3/supervisor"
+	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
+	"github.com/tochemey/goakt/v4/supervisor"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -53,10 +51,10 @@ func main() {
 
 	logger := log.New(log.InfoLevel, os.Stdout)
 
-	actorSystem, err := actors.NewActorSystem(
+	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
-		actors.WithRemote(remote.NewConfig(host, port)),
-		actors.WithLogger(logger))
+		actor.WithRemote(remote.NewConfig(host, port)),
+		actor.WithLogger(logger))
 
 	if err != nil {
 		logger.Fatal(err)
@@ -74,7 +72,7 @@ func main() {
 		ctx,
 		"ChatServer",
 		NewServer(),
-		actors.WithSupervisor(
+		actor.WithSupervisor(
 			supervisor.NewSupervisor(
 				supervisor.WithStrategy(supervisor.OneForOneStrategy),
 				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
@@ -93,7 +91,7 @@ func main() {
 
 // clientInfo holds the remote address and room for a connected client.
 type clientInfo struct {
-	addr     *address.Address
+	pid      *actor.PID
 	userName string
 	room     string
 }
@@ -110,22 +108,22 @@ type Server struct {
 	history map[string][]*chatpb.Broadcast // key: room name → ring buffer
 }
 
-var _ actors.Actor = (*Server)(nil)
+var _ actor.Actor = (*Server)(nil)
 
 func NewServer() *Server {
 	return &Server{}
 }
 
-func (s *Server) PreStart(ctx *actors.Context) error {
+func (s *Server) PreStart(ctx *actor.Context) error {
 	ctx.ActorSystem().Logger().Info("Chat Server starting")
 	s.clients = make(map[string]*clientInfo)
 	s.history = make(map[string][]*chatpb.Broadcast)
 	return nil
 }
 
-func (s *Server) Receive(ctx *actors.ReceiveContext) {
+func (s *Server) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *actor.PostStart:
 		s.logger = ctx.Logger()
 		s.logger.Info("Chat Server started — waiting for clients")
 
@@ -149,7 +147,7 @@ func (s *Server) Receive(ctx *actors.ReceiveContext) {
 	}
 }
 
-func (s *Server) PostStop(*actors.Context) error {
+func (s *Server) PostStop(*actor.Context) error {
 	s.clients = make(map[string]*clientInfo)
 	s.history = make(map[string][]*chatpb.Broadcast)
 	s.logger.Info("Chat Server stopped")
@@ -157,9 +155,9 @@ func (s *Server) PostStop(*actors.Context) error {
 }
 
 // handleConnect registers a client, replays recent history, then notifies peers.
-func (s *Server) handleConnect(ctx *actors.ReceiveContext, msg *chatpb.Connect) {
-	sender := ctx.RemoteSender()
-	key := sender.String()
+func (s *Server) handleConnect(ctx *actor.ReceiveContext, msg *chatpb.Connect) {
+	sender := ctx.Sender()
+	key := sender.ID()
 
 	room := msg.GetRoom()
 	if room == "" {
@@ -170,7 +168,7 @@ func (s *Server) handleConnect(ctx *actors.ReceiveContext, msg *chatpb.Connect) 
 		s.logger.Warnf("client %s already connected", key)
 		return
 	}
-	s.clients[key] = &clientInfo{addr: sender, userName: msg.GetUserName(), room: room}
+	s.clients[key] = &clientInfo{pid: sender, userName: msg.GetUserName(), room: room}
 	history := make([]*chatpb.Broadcast, len(s.history[room]))
 	copy(history, s.history[room])
 
@@ -178,7 +176,7 @@ func (s *Server) handleConnect(ctx *actors.ReceiveContext, msg *chatpb.Connect) 
 
 	// replay recent history to the newcomer
 	for _, b := range history {
-		ctx.RemoteTell(sender, b)
+		ctx.Tell(sender, b)
 	}
 
 	// notify everyone else in the room
@@ -190,9 +188,9 @@ func (s *Server) handleConnect(ctx *actors.ReceiveContext, msg *chatpb.Connect) 
 }
 
 // handleDisconnect removes a client and notifies peers.
-func (s *Server) handleDisconnect(ctx *actors.ReceiveContext) {
-	sender := ctx.RemoteSender()
-	key := sender.String()
+func (s *Server) handleDisconnect(ctx *actor.ReceiveContext) {
+	sender := ctx.Sender()
+	key := sender.ID()
 
 	info, exists := s.clients[key]
 	if !exists {
@@ -211,9 +209,9 @@ func (s *Server) handleDisconnect(ctx *actors.ReceiveContext) {
 }
 
 // handleMessage fans out a room message to all peers and appends to history.
-func (s *Server) handleMessage(ctx *actors.ReceiveContext, msg *chatpb.Message) {
-	sender := ctx.RemoteSender()
-	key := sender.String()
+func (s *Server) handleMessage(ctx *actor.ReceiveContext, msg *chatpb.Message) {
+	sender := ctx.Sender()
+	key := sender.ID()
 
 	info, exists := s.clients[key]
 	if !exists {
@@ -238,18 +236,20 @@ func (s *Server) handleMessage(ctx *actors.ReceiveContext, msg *chatpb.Message) 
 }
 
 // handleDirectMessage routes a private message to the target user only.
-func (s *Server) handleDirectMessage(ctx *actors.ReceiveContext, msg *chatpb.DirectMessage) {
+func (s *Server) handleDirectMessage(ctx *actor.ReceiveContext, msg *chatpb.DirectMessage) {
 	target := msg.GetToUser()
 
-	var targetAddr *address.Address
+	var targetID *actor.PID
 	for _, info := range s.clients {
-		if info.userName == target {
-			targetAddr = info.addr
-			break
+		if info != nil {
+			if info.userName == target && info.pid.ID() == target {
+				targetID = info.pid
+				break
+			}
 		}
 	}
 
-	if targetAddr == nil {
+	if targetID == nil {
 		s.logger.Warnf("direct message to unknown user %q", target)
 		return
 	}
@@ -260,11 +260,11 @@ func (s *Server) handleDirectMessage(ctx *actors.ReceiveContext, msg *chatpb.Dir
 		Content:  msg.GetContent(),
 		SentAt:   timestamppb.Now(),
 	}
-	ctx.RemoteTell(targetAddr, dm)
+	ctx.Tell(targetID, dm)
 }
 
 // handleListUsers replies with the list of users in the requested room.
-func (s *Server) handleListUsers(ctx *actors.ReceiveContext, msg *chatpb.ListUsersRequest) {
+func (s *Server) handleListUsers(ctx *actor.ReceiveContext, msg *chatpb.ListUsersRequest) {
 	room := msg.GetRoom()
 	if room == "" {
 		room = defaultRoom
@@ -277,16 +277,16 @@ func (s *Server) handleListUsers(ctx *actors.ReceiveContext, msg *chatpb.ListUse
 		}
 	}
 
-	ctx.RemoteTell(ctx.RemoteSender(), &chatpb.ListUsersResponse{UserNames: names})
+	ctx.Tell(ctx.Sender(), &chatpb.ListUsersResponse{UserNames: names})
 }
 
 // broadcastToRoom sends msg to every client in room except the one identified by excludeKey.
-func (s *Server) broadcastToRoom(ctx *actors.ReceiveContext, room, excludeKey string, msg proto.Message) {
+func (s *Server) broadcastToRoom(ctx *actor.ReceiveContext, room, excludeKey string, msg proto.Message) {
 	for key, info := range s.clients {
 		if key == excludeKey || info.room != room {
 			continue
 		}
-		ctx.RemoteTell(info.addr, msg)
+		ctx.Tell(info.pid, msg)
 	}
 }
 

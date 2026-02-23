@@ -31,21 +31,21 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/grains"
-	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
 
 const askTimeout = 5 * time.Second
 
 type AccountService struct {
-	actorSystem goakt.ActorSystem
+	actorSystem actor.ActorSystem
 	logger      log.Logger
 	port        int
 	server      *http.Server
@@ -55,7 +55,7 @@ type AccountService struct {
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system goakt.ActorSystem, logger log.Logger, port int, tracer trace.Tracer) *AccountService {
+func NewAccountService(system actor.ActorSystem, logger log.Logger, port int, tracer trace.Tracer) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
@@ -87,7 +87,7 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	case *samplepb.Account:
 		return connect.NewResponse(&samplepb.CreateAccountResponse{Account: x}), nil
 	default:
-		err := fmt.Errorf("invalid reply=%s", reply.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", reply)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
@@ -116,7 +116,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	case *samplepb.Account:
 		return connect.NewResponse(&samplepb.CreditAccountResponse{Account: x}), nil
 	default:
-		err := fmt.Errorf("invalid reply=%s", message.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", message)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
@@ -145,7 +145,7 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 	case *samplepb.Account:
 		return connect.NewResponse(&samplepb.GetAccountResponse{Account: x}), nil
 	default:
-		err := fmt.Errorf("invalid reply=%s", message.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", message)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
@@ -198,14 +198,14 @@ func (s *AccountService) listenAndServe() {
 	}
 }
 
-func (s *AccountService) getGrain(ctx context.Context, name string) (*goakt.GrainIdentity, error) {
-	opts := []goakt.GrainOption{
-		goakt.WithActivationStrategy(goakt.RoundRobinActivation),
-		goakt.WithGrainInitTimeout(2 * time.Second),
-		goakt.WithGrainDeactivateAfter(2 * time.Minute),
+func (s *AccountService) getGrain(ctx context.Context, name string) (*actor.GrainIdentity, error) {
+	opts := []actor.GrainOption{
+		actor.WithActivationStrategy(actor.RoundRobinActivation),
+		actor.WithGrainInitTimeout(2 * time.Second),
+		actor.WithGrainDeactivateAfter(2 * time.Minute),
 	}
 
-	grainFactory := func(ctx context.Context) (goakt.Grain, error) {
+	grainFactory := func(ctx context.Context) (actor.Grain, error) {
 		return grains.NewAccountGrain(), nil
 	}
 

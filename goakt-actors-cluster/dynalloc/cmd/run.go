@@ -28,10 +28,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/discovery/static"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/discovery/static"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/dynalloc/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/dynalloc/service"
@@ -108,9 +108,8 @@ var runCmd = &cobra.Command{
 			logger.Panic(err)
 		}
 
-		remoting := remote.NewRemoting()
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port)
+		accountService := service.NewAccountService(actorSystem, logger, config.Port)
 
 		actorSystem.Run(ctx,
 			func(ctx context.Context) error {
@@ -119,7 +118,6 @@ var runCmd = &cobra.Command{
 				return nil
 			},
 			func(ctx context.Context) error {
-				remoting.Close()
 				newCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
 				return accountService.Stop(newCtx)

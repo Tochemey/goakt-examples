@@ -27,16 +27,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/address"
-	"github.com/tochemey/goakt/v3/goaktpb"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
-	"github.com/tochemey/goakt/v3/supervisor"
+	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
+	"github.com/tochemey/goakt/v4/supervisor"
 
-	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
 func main() {
@@ -46,38 +43,45 @@ func main() {
 	logger := log.New(log.InfoLevel, os.Stdout)
 
 	// create the actor system. kindly in real-life application handle the error
-	actorSystem, _ := goakt.NewActorSystem(
+	actorSystem, err := actor.NewActorSystem(
 		"Remoting",
-		goakt.WithLogger(logger),
-		goakt.WithRemote(remote.NewConfig("127.0.0.1", 9000)),
+		actor.WithLogger(logger),
+		actor.WithRemote(remote.NewConfig("127.0.0.1", 9000)),
 	)
 
-	// start the actor system
-	_ = actorSystem.Start(ctx)
+	if err != nil {
+		logger.Fatalf("failed to create actor system: %v", err)
+	}
 
-	// wait for the actor system to be ready
-	time.Sleep(time.Second)
+	// start the actor system
+	if err := actorSystem.Start(ctx); err != nil {
+		logger.Fatalf("failed to start actor system: %v", err)
+	}
 
 	// create an actor
 	totalScore := 1_000
 
-	pid, _ := actorSystem.Spawn(ctx, "Ping", NewPing(totalScore),
-		goakt.WithLongLived(),
-		goakt.WithSupervisor(
+	ping, err := actorSystem.Spawn(ctx, "Ping", NewPing(totalScore),
+		actor.WithLongLived(),
+		actor.WithSupervisor(
 			supervisor.NewSupervisor(
 				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
 			),
 		),
 	)
 
-	// wait for the actor to be ready
-	time.Sleep(time.Second)
+	if err != nil {
+		logger.Fatalf("failed to spawn actor: %v", err)
+	}
 
 	// locate the pong actor
-	remoteAddress := address.New("Pong", actorSystem.Name(), "127.0.0.1", 9010)
+	pong, err := ping.RemoteLookup(ctx, "127.0.0.1", 9010, "Pong")
+	if err != nil {
+		logger.Fatalf("failed to lookup remote actor: %v", err)
+	}
 
 	// send a message to the pong actor
-	if err := pid.RemoteTell(ctx, remoteAddress, new(samplepb.Ping)); err != nil {
+	if err := ping.Tell(ctx, pong, new(samplepb.Ping)); err != nil {
 		logger.Fatalf("failed to send message to remote actor: %v", err)
 	}
 
@@ -96,7 +100,7 @@ type Ping struct {
 	count  int
 }
 
-var _ goakt.Actor = (*Ping)(nil)
+var _ actor.Actor = (*Ping)(nil)
 
 func NewPing(totalScore int) *Ping {
 	return &Ping{
@@ -104,26 +108,26 @@ func NewPing(totalScore int) *Ping {
 	}
 }
 
-func (act *Ping) PreStart(*goakt.Context) error {
+func (act *Ping) PreStart(*actor.Context) error {
 	return nil
 }
 
-func (act *Ping) Receive(ctx *goakt.ReceiveContext) {
+func (act *Ping) Receive(ctx *actor.ReceiveContext) {
 	switch ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *actor.PostStart:
 	case *samplepb.Pong:
 		act.count++
 		ctx.Logger().Infof("Received pong count: %d", act.count)
 		if act.count >= act.scores {
-			ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.End))
+			ctx.Tell(ctx.Sender(), new(samplepb.End))
 			return
 		}
-		ctx.RemoteTell(ctx.RemoteSender(), new(samplepb.Ping))
+		ctx.Tell(ctx.Sender(), new(samplepb.Ping))
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (act *Ping) PostStop(*goakt.Context) error {
+func (act *Ping) PostStop(*actor.Context) error {
 	return nil
 }

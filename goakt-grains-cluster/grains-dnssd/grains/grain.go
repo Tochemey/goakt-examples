@@ -26,8 +26,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
 	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/domain"

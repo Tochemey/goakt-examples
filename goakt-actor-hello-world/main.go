@@ -29,8 +29,8 @@ import (
 	"syscall"
 	"time"
 
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/log"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
 
 	hellopb "github.com/tochemey/goakt-examples/v2/internal/helloworldpb"
 )

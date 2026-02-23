@@ -31,9 +31,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
-	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
@@ -53,11 +52,11 @@ func main() {
 	}
 
 	// create the actor system. kindly in real-life application handle the error
-	actorSystem, _ := goakt.
+	actorSystem, _ := actor.
 		NewActorSystem(
 			"AccountsSystem",
-			goakt.WithLogger(logger),
-			goakt.WithExtensions(stateStore),
+			actor.WithLogger(logger),
+			actor.WithExtensions(stateStore),
 		)
 
 	// start the actor system
@@ -72,7 +71,7 @@ func main() {
 	grain := &Grain{}
 
 	accountID := uuid.NewString()
-	identity, err := actorSystem.GrainIdentity(ctx, accountID, func(ctx context.Context) (goakt.Grain, error) {
+	identity, err := actorSystem.GrainIdentity(ctx, accountID, func(ctx context.Context) (actor.Grain, error) {
 		return grain, nil
 	})
 
@@ -124,7 +123,7 @@ func main() {
 	fmt.Printf("current balance from store: %v\n", fromStore.GetAccountBalance())
 
 	// Deactivate the grain
-	err = actorSystem.TellGrain(ctx, identity, &goaktpb.PoisonPill{})
+	err = actorSystem.TellGrain(ctx, identity, &actor.PoisonPill{})
 	if err != nil {
 		logger.Fatal(err)
 	}

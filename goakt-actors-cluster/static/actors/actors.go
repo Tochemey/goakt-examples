@@ -23,8 +23,7 @@
 package actors
 
 import (
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
+	goakt "github.com/tochemey/goakt/v4/actor"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
@@ -51,15 +50,15 @@ func (p *Account) PreStart(*goakt.Context) error {
 // Receive handles the messages sent to the actor
 func (p *Account) Receive(ctx *goakt.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *goakt.PostStart:
 		// set the account ID
 		p.accountID = ctx.Self().Name()
-		ctx.Self().Logger().Infof("account entity=(%s) successfully started", p.accountID)
+		ctx.Logger().Infof("account entity=(%s) successfully started", p.accountID)
 	case *samplepb.CreateAccount:
-		ctx.Self().Logger().Info("creating account by setting the balance...")
+		ctx.Logger().Info("creating account by setting the balance...")
 		// check whether the create operation has been done already
 		if p.created {
-			ctx.Self().Logger().Infof("account=%s has been created already", p.accountID)
+			ctx.Logger().Infof("account=%s has been created already", p.accountID)
 			return
 		}
 		// get the data
@@ -76,7 +75,7 @@ func (p *Account) Receive(ctx *goakt.ReceiveContext) {
 			})
 		}
 	case *samplepb.CreditAccount:
-		ctx.Self().Logger().Info("crediting balance...")
+		ctx.Logger().Info("crediting balance...")
 		// get the data
 		accountID := msg.GetAccountId()
 		balance := msg.GetBalance()
@@ -89,7 +88,7 @@ func (p *Account) Receive(ctx *goakt.ReceiveContext) {
 			})
 		}
 	case *samplepb.GetAccount:
-		ctx.Self().Logger().Info("get account...")
+		ctx.Logger().Info("get account...")
 		// get the data
 		accountID := msg.GetAccountId()
 		ctx.Response(&samplepb.Account{
