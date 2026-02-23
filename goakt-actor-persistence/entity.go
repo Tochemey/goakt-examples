@@ -26,8 +26,7 @@ import (
 	"context"
 	"fmt"
 
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
+	goakt "github.com/tochemey/goakt/v4/actor"
 	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
@@ -60,7 +59,7 @@ func (entity *AccountEntity) PreStart(ctx *goakt.Context) error {
 // Receive handles the messages sent to the actor
 func (entity *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *goakt.PostStart:
 		ctx.Logger().Infof("%s properly started", entity.accountID)
 	case *samplepb.CreateAccount:
 		ctx.Logger().Info("creating account by setting the balance...")
@@ -72,7 +71,7 @@ func (entity *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		}
 
 		if entity.created {
-			ctx.Self().Logger().Infof("account=%s has been created already", entity.accountID)
+			ctx.Logger().Infof("account=%s has been created already", entity.accountID)
 			return
 		}
 
@@ -87,7 +86,7 @@ func (entity *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 
 		ctx.Response(entity.state.Load())
 	case *samplepb.CreditAccount:
-		ctx.Self().Logger().Info("crediting balance...")
+		ctx.Logger().Info("crediting balance...")
 
 		if entity.accountID != msg.GetAccountId() {
 			ctx.Logger().Infof("account=%s is not mine", entity.accountID)

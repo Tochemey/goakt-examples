@@ -23,8 +23,7 @@
 package actors
 
 import (
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
+	"github.com/tochemey/goakt/v4/actor"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
@@ -37,27 +36,27 @@ type Account struct {
 }
 
 // enforce compilation error
-var _ goakt.Actor = (*Account)(nil)
+var _ actor.Actor = (*Account)(nil)
 
 func NewAccount() *Account {
 	return &Account{}
 }
 
 // PreStart is used to pre-set initial values for the actor
-func (x *Account) PreStart(*goakt.Context) error {
+func (x *Account) PreStart(*actor.Context) error {
 	return nil
 }
 
 // Receive handles the messages sent to the actor
-func (x *Account) Receive(ctx *goakt.ReceiveContext) {
+func (x *Account) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *actor.PostStart:
 		x.accountID = ctx.Self().Name()
-		ctx.Self().Logger().Infof("account entity=(%s) successfully started", x.accountID)
+		ctx.Logger().Infof("account entity=(%s) successfully started", x.accountID)
 	case *samplepb.CreateAccount:
-		ctx.Self().Logger().Info("creating account by setting the balance...")
+		ctx.Logger().Info("creating account by setting the balance...")
 		if x.created {
-			ctx.Self().Logger().Infof("account=%s has been created already", x.accountID)
+			ctx.Logger().Infof("account=%s has been created already", x.accountID)
 			ctx.Unhandled()
 			return
 		}
@@ -71,7 +70,7 @@ func (x *Account) Receive(ctx *goakt.ReceiveContext) {
 			AccountBalance: x.balance,
 		})
 	case *samplepb.CreditAccount:
-		ctx.Self().Logger().Info("crediting balance...")
+		ctx.Logger().Info("crediting balance...")
 		balance := msg.GetBalance()
 		x.balance += balance
 		ctx.Response(&samplepb.Account{
@@ -79,7 +78,7 @@ func (x *Account) Receive(ctx *goakt.ReceiveContext) {
 			AccountBalance: x.balance,
 		})
 	case *samplepb.GetAccount:
-		ctx.Self().Logger().Info("get account...")
+		ctx.Logger().Info("get account...")
 		accountID := msg.GetAccountId()
 		ctx.Response(&samplepb.Account{
 			AccountId:      accountID,
@@ -92,7 +91,7 @@ func (x *Account) Receive(ctx *goakt.ReceiveContext) {
 }
 
 // PostStop is used to free-up resources when the actor stops
-func (x *Account) PostStop(*goakt.Context) error {
+func (x *Account) PostStop(*actor.Context) error {
 	x.created = false
 	x.balance = 0.0
 	return nil

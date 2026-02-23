@@ -33,10 +33,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/discovery/dnssd"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/discovery/dnssd"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/prometheus"
@@ -190,7 +190,7 @@ var runCmd = &cobra.Command{
 			logger.Fatal(err)
 		}
 
-		remoting := remote.NewRemoting()
+		remoting := remote.NewClient()
 
 		// create the account service
 		accountService := service.NewAccountService(actorSystem, logger, config.Port, tracer.Tracer(""))

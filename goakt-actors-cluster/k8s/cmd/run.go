@@ -32,10 +32,10 @@ import (
 
 	"github.com/caarlos0/env/v11"
 	"github.com/spf13/cobra"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/discovery/kubernetes"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/discovery/kubernetes"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/k8s/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/k8s/service"
@@ -131,10 +131,8 @@ var runCmd = &cobra.Command{
 			logger.Fatal(err)
 		}
 
-		remoting := remote.NewRemoting()
-
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port)
+		accountService := service.NewAccountService(actorSystem, logger, config.Port)
 		// start the account service
 		accountService.Start()
 
@@ -145,7 +143,6 @@ var runCmd = &cobra.Command{
 		// wait for a shutdown signal, and then shutdown
 		go func() {
 			<-sigs
-			remoting.Close()
 
 			// stop the actor system
 			if err := actorSystem.Stop(ctx); err != nil {

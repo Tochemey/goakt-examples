@@ -30,9 +30,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
-	"github.com/tochemey/goakt/v3/log"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
@@ -161,7 +160,7 @@ func (actor *AccountActor) PreStart(*goakt.Context) error {
 
 func (actor *AccountActor) Receive(ctx *goakt.ReceiveContext) {
 	switch ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *goakt.PostStart:
 		// set the account ID
 		actor.accountID = ctx.Self().Name()
 	case *samplepb.Authenticate:

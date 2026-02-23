@@ -33,10 +33,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/discovery/dnssd"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/discovery/dnssd"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/prometheus"
@@ -199,10 +199,8 @@ var runCmd = &cobra.Command{
 			logger.Panic(err)
 		}
 
-		remoting := remote.NewRemoting()
-
 		// create the account service
-		accountService := service.NewAccountService(actorSystem, remoting, logger, config.Port)
+		accountService := service.NewAccountService(actorSystem, logger, config.Port)
 		// start the account service
 		accountService.Start()
 
@@ -213,8 +211,6 @@ var runCmd = &cobra.Command{
 		// wait for a shutdown signal, and then shutdown
 		go func() {
 			<-sigs
-
-			remoting.Close()
 
 			// stop the actor system
 			if err := actorSystem.Stop(ctx); err != nil {

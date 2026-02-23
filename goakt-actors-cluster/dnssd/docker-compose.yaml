@@ -1,7 +1,7 @@
 services:
   accounts1:
     image: "accounts:dev"
-    command: ["run"]
+    command: [ "run" ]
     depends_on:
       db:
         condition: service_healthy
@@ -43,7 +43,7 @@ services:
 
   accounts2:
     image: "accounts:dev"
-    command: ["run"]
+    command: [ "run" ]
     depends_on:
       db:
         condition: service_healthy
@@ -83,7 +83,7 @@ services:
 
   accounts3:
     image: "accounts:dev"
-    command: ["run"]
+    command: [ "run" ]
     depends_on:
       db:
         condition: service_healthy
@@ -140,7 +140,7 @@ services:
 
   coredns:
     image: coredns/coredns:1.11.1
-    command: ["-conf", "/etc/coredns/Corefile"]
+    command: [ "-conf", "/etc/coredns/Corefile" ]
     volumes:
       - ./coredns.Corefile:/etc/coredns/Corefile:ro
     networks:
@@ -196,7 +196,7 @@ services:
 
   collector:
     image: otel/opentelemetry-collector-contrib:0.52.0
-    command: ["--config=/etc/otel/config.yaml"]
+    command: [ "--config=/etc/otel/config.yaml" ]
     depends_on:
       - tracer
       - prometheus

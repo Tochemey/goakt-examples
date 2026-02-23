@@ -25,7 +25,7 @@ package persistence
 import (
 	"context"
 
-	"github.com/tochemey/goakt/v3/extension"
+	"github.com/tochemey/goakt/v4/extension"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/dnssd/domain"
 )

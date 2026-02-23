@@ -29,11 +29,10 @@ import (
 	"syscall"
 	"time"
 
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
-	"github.com/tochemey/goakt/v3/log"
+	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
 
-	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
 func main() {
@@ -43,25 +42,30 @@ func main() {
 	logger := log.DefaultLogger
 
 	// create the actor system. kindly in real-life application handle the error
-	actorSystem, _ := goakt.NewActorSystem("SampleActorSystem",
-		goakt.WithLogger(logger),
-		goakt.WithActorInitMaxRetries(3))
+	actorSystem, _ := actor.NewActorSystem("SampleActorSystem",
+		actor.WithLogger(logger),
+		actor.WithActorInitMaxRetries(3))
 
 	// start the actor system
-	_ = actorSystem.Start(ctx)
-
-	// wait for system to start properly
-	time.Sleep(1 * time.Second)
+	if err := actorSystem.Start(ctx); err != nil {
+		logger.Fatalf("failed to start actor system: %v", err)
+	}
 
 	// create the actors
-	pong, _ := actorSystem.Spawn(ctx, "Pong", NewPong(), goakt.WithLongLived())
-	ping, _ := actorSystem.Spawn(ctx, "Ping", NewPing(pong), goakt.WithLongLived())
+	pong, err := actorSystem.Spawn(ctx, "Pong", NewPong(), actor.WithLongLived())
+	if err != nil {
+		logger.Fatalf("failed to spawn Pong actor: %v", err)
+	}
 
-	// wait for actors to start properly
-	time.Sleep(1 * time.Second)
+	ping, err := actorSystem.Spawn(ctx, "Ping", NewPing(pong), actor.WithLongLived())
+	if err != nil {
+		logger.Fatalf("failed to spawn Ping actor: %v", err)
+	}
 
 	duration := time.Minute
-	_ = goakt.Tell(ctx, ping, new(samplepb.Begin))
+	if err := actor.Tell(ctx, ping, new(samplepb.Begin)); err != nil {
+		logger.Fatalf("failed to send Begin message to Ping actor: %v", err)
+	}
 
 	// Wait for one minute to pass
 	<-time.After(duration)
@@ -69,6 +73,9 @@ func main() {
 	// wait for the actors to process the messages
 	time.Sleep(1 * time.Second)
 	m1, m2 := ping.Metric(ctx), pong.Metric(ctx)
+	if m1 == nil || m2 == nil {
+		logger.Fatalf("failed to get metrics for Ping or Pong actor")
+	}
 
 	pingCount := m1.ProcessedCount()
 	pongCount := m2.ProcessedCount()
@@ -88,24 +95,24 @@ func main() {
 
 type Ping struct {
 	// pong actor reference
-	pong *goakt.PID
+	pong *actor.PID
 }
 
-var _ goakt.Actor = (*Ping)(nil)
+var _ actor.Actor = (*Ping)(nil)
 
-func NewPing(pong *goakt.PID) *Ping {
+func NewPing(pong *actor.PID) *Ping {
 	return &Ping{
 		pong: pong,
 	}
 }
 
-func (p *Ping) PreStart(*goakt.Context) error {
+func (p *Ping) PreStart(*actor.Context) error {
 	return nil
 }
 
-func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
+func (p *Ping) Receive(ctx *actor.ReceiveContext) {
 	switch ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *actor.PostStart:
 	case *samplepb.Begin:
 		ctx.Tell(p.pong, new(samplepb.Ping))
 	case *samplepb.Pong:
@@ -115,26 +122,26 @@ func (p *Ping) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (p *Ping) PostStop(*goakt.Context) error {
+func (p *Ping) PostStop(*actor.Context) error {
 	return nil
 }
 
 type Pong struct {
 }
 
-var _ goakt.Actor = (*Pong)(nil)
+var _ actor.Actor = (*Pong)(nil)
 
 func NewPong() *Pong {
 	return &Pong{}
 }
 
-func (p *Pong) PreStart(*goakt.Context) error {
+func (p *Pong) PreStart(*actor.Context) error {
 	return nil
 }
 
-func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
+func (p *Pong) Receive(ctx *actor.ReceiveContext) {
 	switch ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *actor.PostStart:
 	case *samplepb.Ping:
 		ctx.Tell(ctx.Sender(), new(samplepb.Pong))
 	default:
@@ -142,6 +149,6 @@ func (p *Pong) Receive(ctx *goakt.ReceiveContext) {
 	}
 }
 
-func (p *Pong) PostStop(*goakt.Context) error {
+func (p *Pong) PostStop(*actor.Context) error {
 	return nil
 }

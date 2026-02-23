@@ -26,8 +26,7 @@ import (
 	"reflect"
 	"time"
 
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/goaktpb"
+	"github.com/tochemey/goakt/v4/actor"
 	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/dnssd/domain"
@@ -44,7 +43,7 @@ type AccountEntity struct {
 }
 
 // enforce compilation error
-var _ goakt.Actor = (*AccountEntity)(nil)
+var _ actor.Actor = (*AccountEntity)(nil)
 
 // NewAccountEntity creates an instance of AccountEntity
 func NewAccountEntity() *AccountEntity {
@@ -52,7 +51,7 @@ func NewAccountEntity() *AccountEntity {
 }
 
 // PreStart is used to pre-set initial values for the actor
-func (x *AccountEntity) PreStart(ctx *goakt.Context) error {
+func (x *AccountEntity) PreStart(ctx *actor.Context) error {
 	accountID := ctx.ActorName()
 	x.storage = ctx.Extension(persistence.PostgresStateStoreID).(persistence.Store)
 	// recover the state
@@ -67,9 +66,9 @@ func (x *AccountEntity) PreStart(ctx *goakt.Context) error {
 }
 
 // Receive handles the messages sent to the actor
-func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
+func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *actor.PostStart:
 		state := x.state.Load()
 		if reflect.DeepEqual(state, new(domain.Account)) {
 			state.SetCreatedAt(zeroTime)
@@ -77,12 +76,12 @@ func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		}
 
 	case *samplepb.CreateAccount:
-		ctx.Self().Logger().Info("creating account by setting the balance...")
+		ctx.Logger().Info("creating account by setting the balance...")
 		state := x.state.Load()
 
 		// check whether the create operation has been done already
 		if !state.CreatedAt().Equal(zeroTime) {
-			ctx.Self().Logger().Infof("account=%s has been created already", state.AccountID())
+			ctx.Logger().Infof("account=%s has been created already", state.AccountID())
 			return
 		}
 
@@ -104,7 +103,7 @@ func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		})
 
 	case *samplepb.CreditAccount:
-		ctx.Self().Logger().Info("crediting balance...")
+		ctx.Logger().Info("crediting balance...")
 		state := x.state.Load()
 
 		// get the data
@@ -122,7 +121,7 @@ func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 		})
 
 	case *samplepb.GetAccount:
-		ctx.Self().Logger().Info("get account...")
+		ctx.Logger().Info("get account...")
 		state := x.state.Load()
 		// get the data
 		ctx.Response(&samplepb.Account{
@@ -135,7 +134,7 @@ func (x *AccountEntity) Receive(ctx *goakt.ReceiveContext) {
 }
 
 // PostStop is used to free-up resources when the actor stops
-func (x *AccountEntity) PostStop(ctx *goakt.Context) error {
+func (x *AccountEntity) PostStop(ctx *actor.Context) error {
 	underlying := x.state.Load()
 	return x.storage.WriteState(ctx.Context(), underlying.AccountID(), underlying)
 }

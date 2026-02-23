@@ -30,9 +30,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/passivation"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/passivation"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"

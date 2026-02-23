@@ -33,12 +33,10 @@ import (
 	"syscall"
 	"time"
 
-	actors "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/address"
-	"github.com/tochemey/goakt/v3/goaktpb"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
-	"github.com/tochemey/goakt/v3/supervisor"
+	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
+	"github.com/tochemey/goakt/v4/supervisor"
 	"github.com/travisjeffery/go-dynaport"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -84,10 +82,10 @@ func main() {
 	ports := dynaport.Get(1)
 	port := ports[0]
 
-	actorSystem, err := actors.NewActorSystem(
+	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
-		actors.WithRemote(remote.NewConfig(host, port)),
-		actors.WithLogger(logger))
+		actor.WithRemote(remote.NewConfig(host, port)),
+		actor.WithLogger(logger))
 
 	if err != nil {
 		logger.Fatal(err)
@@ -101,15 +99,19 @@ func main() {
 
 	time.Sleep(time.Second)
 
-	serverAddress := address.New("ChatServer", actorSystem.Name(), serverHost, serverPort)
+	server, err := actorSystem.NoSender().RemoteLookup(ctx, serverHost, serverPort, "ChatServer")
+	if err != nil {
+		logger.Fatal(err)
+		os.Exit(1)
+	}
 
-	clientActor := NewClient(userName, roomName, serverAddress)
+	clientActor := NewClient(userName, roomName, server)
 
 	client, err := actorSystem.Spawn(
 		ctx,
 		"ChatClient",
 		clientActor,
-		actors.WithSupervisor(
+		actor.WithSupervisor(
 			supervisor.NewSupervisor(
 				supervisor.WithStrategy(supervisor.OneForOneStrategy),
 				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
@@ -118,9 +120,6 @@ func main() {
 		logger.Fatal(err)
 		os.Exit(1)
 	}
-
-	// wait for the client actor to connect to the server
-	time.Sleep(time.Second)
 
 	printHelp()
 	printPrompt(userName, roomName)
@@ -149,14 +148,14 @@ func main() {
 
 				switch cmd {
 				case "/quit":
-					_ = client.RemoteTell(ctx, serverAddress, &chatpb.Disconnect{})
+					_ = client.Tell(ctx, server, &chatpb.Disconnect{})
 					return
 
 				case "/help":
 					fmt.Print("\r" + helpText + "\n")
 
 				case "/users":
-					_ = client.RemoteTell(ctx, serverAddress, &chatpb.ListUsersRequest{
+					_ = client.Tell(ctx, server, &chatpb.ListUsersRequest{
 						Room: clientActor.CurrentRoom(),
 					})
 
@@ -166,13 +165,16 @@ func main() {
 						break
 					}
 					newRoom := parts[1]
-					_ = client.RemoteTell(ctx, serverAddress, &chatpb.Disconnect{})
+					_ = client.Tell(ctx, server, &chatpb.Disconnect{})
+
 					time.Sleep(200 * time.Millisecond)
+
 					clientActor.SetRoom(newRoom)
-					_ = client.RemoteTell(ctx, serverAddress, &chatpb.Connect{
+					_ = client.Tell(ctx, server, &chatpb.Connect{
 						UserName: userName,
 						Room:     newRoom,
 					})
+
 					roomName = newRoom
 					fmt.Printf("\rJoined room: %s\n", newRoom)
 
@@ -183,7 +185,7 @@ func main() {
 					}
 					toUser := parts[1]
 					content := parts[2]
-					_ = client.RemoteTell(ctx, serverAddress, &chatpb.DirectMessage{
+					_ = client.Tell(ctx, server, &chatpb.DirectMessage{
 						FromUser: userName,
 						ToUser:   toUser,
 						Content:  content,
@@ -199,7 +201,7 @@ func main() {
 			}
 
 			// plain message → broadcast to room
-			_ = client.RemoteTell(ctx, serverAddress, &chatpb.Message{
+			_ = client.Tell(ctx, server, &chatpb.Message{
 				UserName: userName,
 				Content:  input,
 				Room:     clientActor.CurrentRoom(),
@@ -215,7 +217,7 @@ func main() {
 	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case <-sig:
-		_ = client.RemoteTell(ctx, serverAddress, &chatpb.Disconnect{})
+		_ = client.Tell(ctx, server, &chatpb.Disconnect{})
 	case <-done:
 	}
 
@@ -235,19 +237,19 @@ func printPrompt(user, room string) {
 
 // Client receives messages pushed by the server and prints them to stdout.
 type Client struct {
-	userName      string
-	serverAddress *address.Address
-	logger        log.Logger
+	userName string
+	server   *actor.PID
+	logger   log.Logger
 
 	room atomic.Value // string — current room name
 }
 
-var _ actors.Actor = (*Client)(nil)
+var _ actor.Actor = (*Client)(nil)
 
-func NewClient(userName, room string, serverAddress *address.Address) *Client {
+func NewClient(userName, room string, server *actor.PID) *Client {
 	c := &Client{
-		userName:      userName,
-		serverAddress: serverAddress,
+		userName: userName,
+		server:   server,
 	}
 	c.room.Store(room)
 	return c
@@ -263,15 +265,15 @@ func (c *Client) SetRoom(room string) {
 	c.room.Store(room)
 }
 
-func (c *Client) PreStart(*actors.Context) error {
+func (c *Client) PreStart(*actor.Context) error {
 	return nil
 }
 
-func (c *Client) Receive(ctx *actors.ReceiveContext) {
+func (c *Client) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
-	case *goaktpb.PostStart:
+	case *actor.PostStart:
 		c.logger = ctx.Logger()
-		ctx.RemoteTell(c.serverAddress, &chatpb.Connect{
+		ctx.Tell(c.server, &chatpb.Connect{
 			UserName: c.userName,
 			Room:     c.CurrentRoom(),
 		})
@@ -300,7 +302,7 @@ func (c *Client) Receive(ctx *actors.ReceiveContext) {
 	}
 }
 
-func (c *Client) PostStop(*actors.Context) error {
+func (c *Client) PostStop(*actor.Context) error {
 	c.logger.Info("Chat Client stopped")
 	return nil
 }

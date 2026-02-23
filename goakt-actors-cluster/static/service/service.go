@@ -31,17 +31,14 @@ import (
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
 	"github.com/pkg/errors"
-	goakt "github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/address"
-	gerrors "github.com/tochemey/goakt/v3/errors"
-	"github.com/tochemey/goakt/v3/log"
-	"github.com/tochemey/goakt/v3/remote"
+	goakt "github.com/tochemey/goakt/v4/actor"
+	gerrors "github.com/tochemey/goakt/v4/errors"
+	"github.com/tochemey/goakt/v4/log"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/static/actors"
-	samplepb "github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
 
@@ -52,18 +49,16 @@ type AccountService struct {
 	logger      log.Logger
 	port        int
 	server      *http.Server
-	remoting    remote.Remoting
 }
 
 var _ samplepbconnect.AccountServiceHandler = &AccountService{}
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system goakt.ActorSystem, remoting remote.Remoting, logger log.Logger, port int) *AccountService {
+func NewAccountService(system goakt.ActorSystem, logger log.Logger, port int) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
 		port:        port,
-		remoting:    remoting,
 	}
 }
 
@@ -98,7 +93,7 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 		return connect.NewResponse(&samplepb.CreateAccountResponse{Account: x}), nil
 	default:
 		// create the error message to send
-		err := fmt.Errorf("invalid reply=%s", reply.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", reply)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
@@ -108,7 +103,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	req := c.Msg
 	accountID := req.GetCreditAccount().GetAccountId()
 
-	addr, pid, err := s.actorSystem.ActorOf(ctx, accountID)
+	pid, err := s.actorSystem.ActorOf(ctx, accountID)
 	if err != nil {
 		// check whether it is not found error
 		if !errors.Is(err, gerrors.ErrActorNotFound) {
@@ -119,7 +114,7 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	var message proto.Message
+	var message any
 	command := &samplepb.CreditAccount{
 		AccountId: accountID,
 		Balance:   req.GetCreditAccount().GetBalance(),
@@ -133,21 +128,11 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 		}
 	}
 
-	if pid == nil {
-		s.logger.Info("actor is not found locally...")
-		reply, err := s.remoting.RemoteAsk(ctx, address.NoSender(), addr, command, askTimeout)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-
-		message, _ = reply.UnmarshalNew()
-	}
-
 	switch x := message.(type) {
 	case *samplepb.Account:
 		return connect.NewResponse(&samplepb.CreditAccountResponse{Account: x}), nil
 	default:
-		err := fmt.Errorf("invalid reply=%s", message.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", message)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
@@ -160,13 +145,13 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 	accountID := req.GetAccountId()
 
 	// locate the given actor
-	addr, pid, err := s.actorSystem.ActorOf(ctx, accountID)
+	pid, err := s.actorSystem.ActorOf(ctx, accountID)
 	// handle the error
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	var message proto.Message
+	var message any
 	command := &samplepb.GetAccount{
 		AccountId: accountID,
 	}
@@ -179,22 +164,12 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 		}
 	}
 
-	if pid == nil {
-		s.logger.Info("actor is not found locally...")
-		reply, err := s.remoting.RemoteAsk(ctx, address.NoSender(), addr, command, askTimeout)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-
-		message, _ = reply.UnmarshalNew()
-	}
-
 	// pattern match on the reply
 	switch x := message.(type) {
 	case *samplepb.Account:
 		return connect.NewResponse(&samplepb.GetAccountResponse{Account: x}), nil
 	default:
-		err := fmt.Errorf("invalid reply=%s", message.ProtoReflect().Descriptor().FullName())
+		err := fmt.Errorf("invalid reply=%T", message)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 }
