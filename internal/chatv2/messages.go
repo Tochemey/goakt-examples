@@ -33,8 +33,8 @@ type ChatMessage interface {
 // Connect is sent by a client to join the chat server in a given room.
 // If room is empty, the client joins the default "general" room.
 type Connect struct {
-	UserName string `cbor:"user_name,omitempty"`
-	Room     string `cbor:"room,omitempty"`
+	UserName string
+	Room     string
 }
 
 func (*Connect) chatMessage() {}
@@ -46,34 +46,34 @@ func (*Disconnect) chatMessage() {}
 
 // Message is sent by a client to post a message to its current room.
 type Message struct {
-	UserName string    `cbor:"user_name,omitempty"`
-	Content  string    `cbor:"content,omitempty"`
-	Room     string    `cbor:"room,omitempty"`
-	SentAt   time.Time `cbor:"sent_at,omitempty"`
+	UserName string
+	Content  string
+	Room     string
+	SentAt   time.Time
 }
 
 func (*Message) chatMessage() {}
 
 // DirectMessage is sent by a client to privately address another user.
 type DirectMessage struct {
-	FromUser string    `cbor:"from_user,omitempty"`
-	ToUser   string    `cbor:"to_user,omitempty"`
-	Content  string    `cbor:"content,omitempty"`
-	SentAt   time.Time `cbor:"sent_at,omitempty"`
+	FromUser string
+	ToUser   string
+	Content  string
+	SentAt   time.Time
 }
 
 func (*DirectMessage) chatMessage() {}
 
 // ListUsersRequest is sent by a client to retrieve online users in a room.
 type ListUsersRequest struct {
-	Room string `cbor:"room,omitempty"`
+	Room string
 }
 
 func (*ListUsersRequest) chatMessage() {}
 
 // ListUsersResponse is sent by the server back to the requesting client.
 type ListUsersResponse struct {
-	UserNames []string `cbor:"user_names,omitempty"`
+	UserNames []string
 }
 
 func (*ListUsersResponse) chatMessage() {}
@@ -81,10 +81,10 @@ func (*ListUsersResponse) chatMessage() {}
 // Broadcast is pushed by the server to every client in a room when a new
 // message arrives.
 type Broadcast struct {
-	FromUser string    `cbor:"from_user,omitempty"`
-	Content  string    `cbor:"content,omitempty"`
-	Room     string    `cbor:"room,omitempty"`
-	SentAt   time.Time `cbor:"sent_at,omitempty"`
+	FromUser string
+	Content  string
+	Room     string
+	SentAt   time.Time
 }
 
 func (*Broadcast) chatMessage() {}
@@ -92,8 +92,8 @@ func (*Broadcast) chatMessage() {}
 // SystemEvent carries join/leave and other server-generated notifications
 // pushed to clients in a room.
 type SystemEvent struct {
-	Text string    `cbor:"text,omitempty"`
-	At   time.Time `cbor:"at,omitempty"`
+	Text string
+	At   time.Time
 }
 
 func (*SystemEvent) chatMessage() {}
