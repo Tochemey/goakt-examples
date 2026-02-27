@@ -75,7 +75,7 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := cmd.Context()
 
-		logger := log.New(log.DebugLevel, os.Stdout)
+		logger := log.NewZap(log.DebugLevel, os.Stdout)
 
 		podLabels := map[string]string{
 			"app.kubernetes.io/part-of":   "Sample",

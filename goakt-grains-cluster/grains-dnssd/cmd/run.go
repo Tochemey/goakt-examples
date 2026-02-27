@@ -126,7 +126,7 @@ var runCmd = &cobra.Command{
 		}
 
 		// use the address default log. real-life implement the log interface`
-		logger := log.New(getLogLevel(config.LogLevel), os.Stdout)
+		logger := log.NewSlog(getLogLevel(config.LogLevel), os.Stdout)
 
 		res, err := resource.New(ctx,
 			resource.WithHost(),
@@ -190,8 +190,6 @@ var runCmd = &cobra.Command{
 			logger.Fatal(err)
 		}
 
-		remoting := remote.NewClient()
-
 		// create the account service
 		accountService := service.NewAccountService(actorSystem, logger, config.Port, tracer.Tracer(""))
 		// start the account service
@@ -204,8 +202,6 @@ var runCmd = &cobra.Command{
 		// wait for a shutdown signal, and then shutdown
 		go func() {
 			<-sigs
-
-			remoting.Close()
 
 			// stop the actor system
 			if err := actorSystem.Stop(ctx); err != nil {

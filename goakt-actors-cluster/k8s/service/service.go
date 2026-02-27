@@ -41,8 +41,6 @@ import (
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
 
-const askTimeout = 5 * time.Second
-
 type AccountService struct {
 	actorSystem goakt.ActorSystem
 	logger      log.Logger

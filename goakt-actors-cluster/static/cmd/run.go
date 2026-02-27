@@ -52,7 +52,7 @@ var runCmd = &cobra.Command{
 			panic(err)
 		}
 		// use the address default log. real-life implement the log interface`
-		logger := log.New(log.DebugLevel, os.Stdout)
+		logger := log.NewZap(log.DebugLevel, os.Stdout)
 
 		// define the discovery options
 		hosts := config.DiscoveryHosts

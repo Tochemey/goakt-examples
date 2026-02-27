@@ -73,13 +73,10 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 	s.logger.Infof("creating actor with id=%s", accountID)
 
 	// create the given actor. This will spawn the actor on the cluster
-	if err := s.actorSystem.SpawnOn(ctx, accountID, account, goakt.WithLongLived(), goakt.WithPlacement(goakt.Random)); err != nil {
+	pid, err := s.actorSystem.SpawnOn(ctx, accountID, account, goakt.WithLongLived(), goakt.WithPlacement(goakt.Random))
+	if err != nil {
 		return nil, err
 	}
-
-	// Wait for the actor to properly start because it is done across cluster of nodes
-	// TODO: Better way to do this is to create the actor first and in a second request credit his account
-	time.Sleep(time.Second)
 
 	s.logger.Infof("actor with id=%s is created", accountID)
 
@@ -88,7 +85,7 @@ func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[s
 		AccountBalance: req.GetCreateAccount().GetAccountBalance(),
 	}
 
-	message, err := s.actorSystem.NoSender().SendSync(ctx, accountID, command, askTimeout)
+	message, err := s.actorSystem.NoSender().Ask(ctx, pid, command, askTimeout)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}

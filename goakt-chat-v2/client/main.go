@@ -38,9 +38,8 @@ import (
 	"github.com/tochemey/goakt/v4/remote"
 	"github.com/tochemey/goakt/v4/supervisor"
 	"github.com/travisjeffery/go-dynaport"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/tochemey/goakt-examples/v2/internal/chatpb"
+	"github.com/tochemey/goakt-examples/v2/internal/chatv2"
 )
 
 const (
@@ -57,8 +56,6 @@ const (
 
 func main() {
 	ctx := context.Background()
-
-	logger := log.NewZap(log.ErrorLevel, os.Stdout)
 
 	// --- interactive startup ---
 	reader := bufio.NewReader(os.Stdin)
@@ -82,24 +79,35 @@ func main() {
 	ports := dynaport.Get(1)
 	port := ports[0]
 
+	cbor := remote.NewCBORSerializer()
 	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
-		actor.WithRemote(remote.NewConfig(host, port)),
-		actor.WithLogger(logger))
+		actor.WithRemote(remote.NewConfig(host, port,
+			remote.WithSerializers((*chatv2.ChatMessage)(nil), cbor),
+			remote.WithSerializers((*chatv2.Connect)(nil), cbor),
+			remote.WithSerializers((*chatv2.Disconnect)(nil), cbor),
+			remote.WithSerializers((*chatv2.Message)(nil), cbor),
+			remote.WithSerializers((*chatv2.DirectMessage)(nil), cbor),
+			remote.WithSerializers((*chatv2.ListUsersRequest)(nil), cbor),
+			remote.WithSerializers((*chatv2.ListUsersResponse)(nil), cbor),
+			remote.WithSerializers((*chatv2.Broadcast)(nil), cbor),
+			remote.WithSerializers((*chatv2.SystemEvent)(nil), cbor),
+		)),
+		actor.WithLogger(log.DiscardLogger))
 
 	if err != nil {
-		logger.Fatal(err)
+		fmt.Fprintln(os.Stderr, "failed to create actor system:", err)
 		os.Exit(1)
 	}
 
 	if err := actorSystem.Start(ctx); err != nil {
-		logger.Fatal(err)
+		fmt.Fprintln(os.Stderr, "failed to start actor system:", err)
 		os.Exit(1)
 	}
 
 	server, err := actorSystem.NoSender().RemoteLookup(ctx, serverHost, serverPort, "ChatServer")
 	if err != nil {
-		logger.Fatal(err)
+		fmt.Fprintln(os.Stderr, "failed to lookup ChatServer:", err)
 		os.Exit(1)
 	}
 
@@ -115,7 +123,7 @@ func main() {
 				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
 			)))
 	if err != nil {
-		logger.Fatal(err)
+		fmt.Fprintln(os.Stderr, "failed to spawn ChatClient:", err)
 		os.Exit(1)
 	}
 
@@ -146,14 +154,14 @@ func main() {
 
 				switch cmd {
 				case "/quit":
-					_ = client.Tell(ctx, server, &chatpb.Disconnect{})
+					_ = client.Tell(ctx, server, &chatv2.Disconnect{})
 					return
 
 				case "/help":
 					fmt.Print("\r" + helpText + "\n")
 
 				case "/users":
-					_ = client.Tell(ctx, server, &chatpb.ListUsersRequest{
+					_ = client.Tell(ctx, server, &chatv2.ListUsersRequest{
 						Room: clientActor.CurrentRoom(),
 					})
 
@@ -163,12 +171,12 @@ func main() {
 						break
 					}
 					newRoom := parts[1]
-					_ = client.Tell(ctx, server, &chatpb.Disconnect{})
+					_ = client.Tell(ctx, server, &chatv2.Disconnect{})
 
 					time.Sleep(200 * time.Millisecond)
 
 					clientActor.SetRoom(newRoom)
-					_ = client.Tell(ctx, server, &chatpb.Connect{
+					_ = client.Tell(ctx, server, &chatv2.Connect{
 						UserName: userName,
 						Room:     newRoom,
 					})
@@ -183,11 +191,11 @@ func main() {
 					}
 					toUser := parts[1]
 					content := parts[2]
-					_ = client.Tell(ctx, server, &chatpb.DirectMessage{
+					_ = client.Tell(ctx, server, &chatv2.DirectMessage{
 						FromUser: userName,
 						ToUser:   toUser,
 						Content:  content,
-						SentAt:   timestamppb.Now(),
+						SentAt:   time.Now(),
 					})
 
 				default:
@@ -199,11 +207,11 @@ func main() {
 			}
 
 			// plain message → broadcast to room
-			_ = client.Tell(ctx, server, &chatpb.Message{
+			_ = client.Tell(ctx, server, &chatv2.Message{
 				UserName: userName,
 				Content:  input,
 				Room:     clientActor.CurrentRoom(),
-				SentAt:   timestamppb.Now(),
+				SentAt:   time.Now(),
 			})
 
 			printPrompt(userName, clientActor.CurrentRoom())
@@ -215,7 +223,7 @@ func main() {
 	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case <-sig:
-		_ = client.Tell(ctx, server, &chatpb.Disconnect{})
+		_ = client.Tell(ctx, server, &chatv2.Disconnect{})
 	case <-done:
 	}
 
@@ -237,7 +245,6 @@ func printPrompt(user, room string) {
 type Client struct {
 	userName string
 	server   *actor.PID
-	logger   log.Logger
 
 	room atomic.Value // string — current room name
 }
@@ -270,29 +277,28 @@ func (c *Client) PreStart(*actor.Context) error {
 func (c *Client) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *actor.PostStart:
-		c.logger = ctx.Logger()
-		ctx.Tell(c.server, &chatpb.Connect{
+		ctx.Tell(c.server, &chatv2.Connect{
 			UserName: c.userName,
 			Room:     c.CurrentRoom(),
 		})
 
-	case *chatpb.Broadcast:
-		ts := formatTime(msg.GetSentAt())
-		fmt.Printf("\r[%s] [%s] %s: %s\n", ts, msg.GetRoom(), msg.GetFromUser(), msg.GetContent())
+	case *chatv2.Broadcast:
+		ts := formatTime(msg.SentAt)
+		fmt.Printf("\r[%s] [%s] %s: %s\n", ts, msg.Room, msg.FromUser, msg.Content)
 		printPrompt(c.userName, c.CurrentRoom())
 
-	case *chatpb.DirectMessage:
-		ts := formatTime(msg.GetSentAt())
-		fmt.Printf("\r[%s] [DM from %s]: %s\n", ts, msg.GetFromUser(), msg.GetContent())
+	case *chatv2.DirectMessage:
+		ts := formatTime(msg.SentAt)
+		fmt.Printf("\r[%s] [DM from %s]: %s\n", ts, msg.FromUser, msg.Content)
 		printPrompt(c.userName, c.CurrentRoom())
 
-	case *chatpb.SystemEvent:
-		ts := formatTime(msg.GetAt())
-		fmt.Printf("\r[%s] *** %s ***\n", ts, msg.GetText())
+	case *chatv2.SystemEvent:
+		ts := formatTime(msg.At)
+		fmt.Printf("\r[%s] *** %s ***\n", ts, msg.Text)
 		printPrompt(c.userName, c.CurrentRoom())
 
-	case *chatpb.ListUsersResponse:
-		fmt.Printf("\rOnline in %s: %s\n", c.CurrentRoom(), strings.Join(msg.GetUserNames(), ", "))
+	case *chatv2.ListUsersResponse:
+		fmt.Printf("\rOnline in %s: %s\n", c.CurrentRoom(), strings.Join(msg.UserNames, ", "))
 		printPrompt(c.userName, c.CurrentRoom())
 
 	default:
@@ -301,14 +307,13 @@ func (c *Client) Receive(ctx *actor.ReceiveContext) {
 }
 
 func (c *Client) PostStop(*actor.Context) error {
-	c.logger.Info("Chat Client stopped")
 	return nil
 }
 
-// formatTime renders a protobuf timestamp as HH:MM:SS, or "?" if nil.
-func formatTime(ts *timestamppb.Timestamp) string {
-	if ts == nil {
+// formatTime renders a time as HH:MM:SS, or "?" if zero.
+func formatTime(t time.Time) string {
+	if t.IsZero() {
 		return "?"
 	}
-	return ts.AsTime().Local().Format("15:04:05")
+	return t.Local().Format("15:04:05")
 }

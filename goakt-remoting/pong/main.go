@@ -41,7 +41,7 @@ func main() {
 	ctx := context.Background()
 
 	// use the address default log. real-life implement the log interface`
-	logger := log.New(log.DebugLevel, os.Stdout)
+	logger := log.NewSlog(log.DebugLevel, os.Stdout)
 
 	// create the actor system. kindly in real-life application handle the error
 	actorSystem, err := actor.NewActorSystem("Remoting",

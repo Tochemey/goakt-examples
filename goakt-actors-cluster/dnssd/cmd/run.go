@@ -126,7 +126,7 @@ var runCmd = &cobra.Command{
 		}
 
 		// use the address default log. real-life implement the log interface`
-		logger := log.New(getLogLevel(config.LogLevel), os.Stdout)
+		logger := log.NewZap(getLogLevel(config.LogLevel), os.Stdout)
 
 		res, err := resource.New(ctx,
 			resource.WithHost(),
