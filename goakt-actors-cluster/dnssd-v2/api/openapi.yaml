@@ -1,0 +1,124 @@
+openapi: 3.0.3
+info:
+  title: Account Service API
+  description: HTTP API for the GoAkt account service (selfmanaged discovery)
+  version: 1.0.0
+
+paths:
+  /accounts:
+    post:
+      operationId: createAccount
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+      responses:
+        '200':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '500':
+          description: Internal server error
+
+  /accounts/{accountId}/credit:
+    post:
+      operationId: creditAccount
+      summary: Credit an account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditAccountRequest'
+      responses:
+        '200':
+          description: Account credited successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '404':
+          description: Account not found
+        '500':
+          description: Internal server error
+
+  /accounts/{accountId}:
+    get:
+      operationId: getAccount
+      summary: Get an account by ID
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    Account:
+      type: object
+      required:
+        - account_id
+        - account_balance
+      properties:
+        account_id:
+          type: string
+          description: Unique account identifier
+        account_balance:
+          type: number
+          format: double
+          description: Current account balance
+
+    CreateAccountRequest:
+      type: object
+      required:
+        - create_account
+      properties:
+        create_account:
+          type: object
+          required:
+            - account_id
+            - account_balance
+          properties:
+            account_id:
+              type: string
+            account_balance:
+              type: number
+              format: double
+
+    CreditAccountRequest:
+      type: object
+      required:
+        - balance
+      properties:
+        balance:
+          type: number
+          format: double
+
+    AccountResponse:
+      type: object
+      required:
+        - account
+      properties:
+        account:
+          $ref: '#/components/schemas/Account'

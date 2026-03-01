@@ -4,7 +4,7 @@
 2. clone the repository
 3. run at the root of the cloned repository `earthly +dnssd-image`
 4. run `docker compose up -d tracer prometheus collector db`
-5. run `docker compose up -d lb coredns lb acounts1 accounts2 accounts3` to start the cluster.
+5. run `docker compose up -d lb coredns lb accounts1 accounts2 accounts3` to start the cluster.
 6. run `docker-compose ps` to list the running instances and their exposed ports to use by any grpc client. With any
    gRPC client you can access the service. The service
    definitions is [here](../../../protos/sample/pb/v1)

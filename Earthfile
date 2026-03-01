@@ -17,12 +17,16 @@ RUN export PATH="$PATH:$(go env GOPATH)/bin"
 # install buf from source
 RUN GO111MODULE=on GOBIN=/usr/local/bin go install github.com/bufbuild/buf/cmd/buf@v1.59.0
 
+# install oapi to generate swagger
+RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
+
 # install the various tools to generate connect-go
 RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 RUN go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
 
 all:
 	BUILD +protogen
+	BUILD +opengen
 
 code:
     WORKDIR /app
@@ -57,6 +61,14 @@ protogen:
     SAVE ARTIFACT gen/sample AS LOCAL internal/samplepb
     SAVE ARTIFACT gen/chat AS LOCAL internal/chatpb
     SAVE ARTIFACT gen/helloworld AS LOCAL internal/helloworldpb
+
+opengen:
+    WORKDIR /app
+
+    COPY goakt-actors-cluster/dnssd-v2/api/openapi.yaml goakt-actors-cluster/dnssd-v2/api/cfg.yaml goakt-actors-cluster/dnssd-v2/api/
+    RUN cd goakt-actors-cluster/dnssd-v2/api && oapi-codegen -config cfg.yaml openapi.yaml
+
+    SAVE ARTIFACT goakt-actors-cluster/dnssd-v2/api/api.gen.go AS LOCAL goakt-actors-cluster/dnssd-v2/api/
 
 compile-k8s:
     COPY +vendor/files ./
@@ -150,6 +162,29 @@ dnssd-grains-image:
     ENTRYPOINT ["./accounts"]
     SAVE IMAGE accounts-grains:dev
 
+
+compile-dnssd-v2:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/dnssd-v2
+    SAVE ARTIFACT bin/accounts /accounts
+
+dnssd-v2-image:
+    FROM alpine:3.17
+
+    WORKDIR /app
+    COPY +compile-dnssd-v2/accounts ./accounts
+    RUN chmod +x ./accounts
+
+    # expose the various ports in the container
+    EXPOSE 50051
+    EXPOSE 50052
+    EXPOSE 3322
+    EXPOSE 3320
+    EXPOSE 9092
+
+    ENTRYPOINT ["./accounts"]
+    SAVE IMAGE accounts:dev
 
 compile-dynalloc:
     COPY +vendor/files ./

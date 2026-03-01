@@ -25,7 +25,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"connectrpc.com/connect"
@@ -41,8 +43,6 @@ import (
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
 )
-
-const askTimeout = 5 * time.Second
 
 type AccountService struct {
 	actorSystem goakt.ActorSystem
@@ -121,7 +121,14 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	}
 
 	if pid != nil {
-		s.logger.Info("actor is found locally...")
+		if pid.IsLocal() {
+			s.logger.Info("actor is found locally...")
+		}
+
+		if pid.IsRemote() {
+			s.logger.Infof("actor is found on remote node=%s...", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
+		}
+
 		message, err = goakt.Ask(ctx, pid, command, time.Second)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
@@ -157,7 +164,14 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 	}
 
 	if pid != nil {
-		s.logger.Info("actor is found locally...")
+		if pid.IsLocal() {
+			s.logger.Info("actor is found locally...")
+		}
+
+		if pid.IsRemote() {
+			s.logger.Infof("actor is found on remote node=%s...", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
+		}
+
 		message, err = goakt.Ask(ctx, pid, command, time.Second)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)

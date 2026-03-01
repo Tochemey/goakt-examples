@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/tochemey/goakt/v4/actor"
-	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/dnssd/domain"
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/dnssd/persistence"
@@ -38,7 +37,7 @@ var zeroTime = time.Time{}
 
 // AccountEntity represents the immutable implementation of Actor
 type AccountEntity struct {
-	state   *atomic.Pointer[domain.Account]
+	state   *domain.Account
 	storage persistence.Store
 }
 
@@ -60,8 +59,8 @@ func (x *AccountEntity) PreStart(ctx *actor.Context) error {
 		return err
 	}
 	recoveredState := latestState
-	x.state = atomic.NewPointer(domain.NewAccount(accountID, 0, zeroTime))
-	x.state.Store(recoveredState)
+	x.state = domain.NewAccount(accountID, 0, zeroTime)
+	x.state = recoveredState
 	return nil
 }
 
@@ -69,7 +68,7 @@ func (x *AccountEntity) PreStart(ctx *actor.Context) error {
 func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *actor.PostStart:
-		state := x.state.Load()
+		state := x.state
 		if reflect.DeepEqual(state, new(domain.Account)) {
 			state.SetCreatedAt(zeroTime)
 			state.SetBalance(0)
@@ -77,11 +76,15 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 
 	case *samplepb.CreateAccount:
 		ctx.Logger().Info("creating account by setting the balance...")
-		state := x.state.Load()
+		state := x.state
 
 		// check whether the create operation has been done already
 		if !state.CreatedAt().Equal(zeroTime) {
 			ctx.Logger().Infof("account=%s has been created already", state.AccountID())
+			ctx.Response(&samplepb.Account{
+				AccountId:      state.AccountID(),
+				AccountBalance: state.Balance(),
+			})
 			return
 		}
 
@@ -94,7 +97,7 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 		state.SetCreatedAt(time.Now())
 
 		// update the in-memory state
-		x.state.Store(state)
+		x.state = state
 
 		// here we are handling just an ask
 		ctx.Response(&samplepb.Account{
@@ -104,7 +107,7 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 
 	case *samplepb.CreditAccount:
 		ctx.Logger().Info("crediting balance...")
-		state := x.state.Load()
+		state := x.state
 
 		// get the data
 		accountID := msg.GetAccountId()
@@ -114,7 +117,7 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 		state.SetBalance(newBalance)
 
 		// update the in-memory state
-		x.state.Store(state)
+		x.state = state
 		ctx.Response(&samplepb.Account{
 			AccountId:      accountID,
 			AccountBalance: state.Balance(),
@@ -122,7 +125,7 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 
 	case *samplepb.GetAccount:
 		ctx.Logger().Info("get account...")
-		state := x.state.Load()
+		state := x.state
 		// get the data
 		ctx.Response(&samplepb.Account{
 			AccountId:      msg.GetAccountId(),
@@ -135,6 +138,6 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 
 // PostStop is used to free-up resources when the actor stops
 func (x *AccountEntity) PostStop(ctx *actor.Context) error {
-	underlying := x.state.Load()
+	underlying := x.state
 	return x.storage.WriteState(ctx.Context(), underlying.AccountID(), underlying)
 }

@@ -25,7 +25,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"connectrpc.com/connect"
@@ -121,7 +123,14 @@ func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[s
 	}
 
 	if pid != nil {
-		s.logger.Info("actor is found locally...")
+		if pid.IsLocal() {
+			s.logger.Info("actor is found locally...")
+		}
+
+		if pid.IsRemote() {
+			s.logger.Infof("actor is found on remote node=%s...", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
+		}
+
 		message, err = actors.Ask(ctx, pid, command, time.Second)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
@@ -157,7 +166,14 @@ func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samp
 	}
 
 	if pid != nil {
-		s.logger.Info("actor is found locally...")
+		if pid.IsLocal() {
+			s.logger.Info("actor is found locally...")
+		}
+
+		if pid.IsRemote() {
+			s.logger.Infof("actor is found on remote node=%s...", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
+		}
+
 		message, err = actors.Ask(ctx, pid, command, askTimeout)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
