@@ -27,6 +27,7 @@ RUN go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
 all:
 	BUILD +protogen
 	BUILD +opengen
+	BUILD +opengen-k8s-v2
 
 code:
     WORKDIR /app
@@ -70,6 +71,14 @@ opengen:
 
     SAVE ARTIFACT goakt-actors-cluster/dnssd-v2/api/api.gen.go AS LOCAL goakt-actors-cluster/dnssd-v2/api/
 
+opengen-k8s-v2:
+    WORKDIR /app
+
+    COPY goakt-actors-cluster/k8s-v2/api/openapi.yaml goakt-actors-cluster/k8s-v2/api/cfg.yaml goakt-actors-cluster/k8s-v2/api/
+    RUN cd goakt-actors-cluster/k8s-v2/api && oapi-codegen -config cfg.yaml openapi.yaml
+
+    SAVE ARTIFACT goakt-actors-cluster/k8s-v2/api/api.gen.go AS LOCAL goakt-actors-cluster/k8s-v2/api/
+
 compile-k8s:
     COPY +vendor/files ./
 
@@ -91,6 +100,28 @@ k8s-image:
 
     ENTRYPOINT ["./accounts"]
     SAVE IMAGE accounts:dev-k8s
+
+compile-k8s-v2:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor -o bin/accounts ./goakt-actors-cluster/k8s-v2
+    SAVE ARTIFACT bin/accounts /accounts
+
+k8s-v2-image:
+    FROM alpine:3.17
+
+    WORKDIR /app
+    COPY +compile-k8s-v2/accounts ./accounts
+    RUN chmod +x ./accounts
+
+    # expose the various ports in the container
+    EXPOSE 50051
+    EXPOSE 50052
+    EXPOSE 3322
+    EXPOSE 3320
+
+    ENTRYPOINT ["./accounts"]
+    SAVE IMAGE accounts:dev-k8s-v2
 
 
 compile-dnssd:

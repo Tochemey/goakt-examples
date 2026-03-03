@@ -1,43 +1,43 @@
-# Makefile for k8s example using Kind (Kubernetes in Docker)
+# Makefile for k8s-v2 example using Kind (Kubernetes in Docker)
 #
 # Prerequisites:
 #   - Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 #   - kubectl: https://kubernetes.io/docs/tasks/tools/
-#   - Earthly: https://earthly.dev/get-earthly
-#   - grpcurl: go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest (for make test)
+#   - Earthly: https://earthly.dev/get-earthly (for building the image)
 #
 # Quick start:
 #   make cluster-create    # Create Kind cluster (one-time)
-#   make deploy            # Build and deploy
-#   make port-forward      # Expose API (in another terminal)
-#   make test              # Run gRPC tests
+#   make image             # Build and load image into Kind
+#   make cluster-up        # Deploy all components
+#   make test              # Run API tests
+#   make cluster-down      # Tear down deployments
 #
-# Run from: goakt-actors-cluster/k8s/
+# Run from: goakt-actors-cluster/k8s-v2/
 
 .DEFAULT_GOAL := help
 
-CLUSTER_NAME ?= goakt-k8s
-IMAGE_NAME ?= accounts:dev-k8s
+CLUSTER_NAME ?= goakt-k8s-v2
+IMAGE_NAME ?= accounts:dev-k8s-v2
 K8S_DIR := ./k8s
 REPO_ROOT := ../..
 
 .PHONY: help
 help:
-	@echo "k8s GoAkt Example - Kind (Kubernetes in Docker)"
+	@echo "k8s-v2 GoAkt Example - Kind (Kubernetes in Docker)"
 	@echo ""
 	@echo "Targets:"
-	@echo "  deploy            Build image, load into Kind, and deploy"
-	@echo "  cluster-create    Create a new Kind cluster"
-	@echo "  cluster-delete    Delete the Kind cluster"
-	@echo "  image             Build Docker image and load into Kind"
-	@echo "  cluster-up        Deploy accounts and nginx"
-	@echo "  cluster-down      Remove all deployments"
-	@echo "  status            Show cluster and pod status"
-	@echo "  port-forward      Forward nginx to localhost:8080 (gRPC)"
-	@echo "  dashboard         Access Kubernetes dashboard"
+	@echo "  deploy           Build image, load into Kind, and deploy (recommended)"
+	@echo "  cluster-create   Create a new Kind cluster"
+	@echo "  cluster-delete   Delete the Kind cluster"
+	@echo "  image            Build the Docker image and load into Kind"
+	@echo "  cluster-up       Deploy PostgreSQL, accounts, and nginx"
+	@echo "  cluster-down     Remove all deployments"
+	@echo "  status           Show cluster and pod status"
+	@echo "  test             Run API integration tests"
+	@echo "  logs             Tail logs from accounts pods"
+	@echo "  port-forward     Forward nginx service to localhost:8080"
+	@echo "  dashboard        Access Kubernetes dashboard (workloads, pods)"
 	@echo "  dashboard-install Install Kubernetes dashboard (one-time)"
-	@echo "  logs              Tail logs from accounts pods"
-	@echo "  test              Run gRPC integration tests"
 
 .PHONY: cluster-create
 cluster-create:
@@ -54,7 +54,7 @@ cluster-delete:
 .PHONY: image
 image:
 	@echo "Building Docker image..."
-	cd $(REPO_ROOT) && earthly +k8s-image
+	cd $(REPO_ROOT) && earthly +k8s-v2-image
 	@echo "Loading image into Kind cluster..."
 	kind load docker-image $(IMAGE_NAME) --name $(CLUSTER_NAME)
 	@echo "Image loaded successfully."
@@ -64,15 +64,21 @@ deploy: image cluster-up
 
 .PHONY: cluster-up
 cluster-up:
+	@echo "Deploying PostgreSQL..."
+	kubectl apply -f $(K8S_DIR)/postgres-secret.yaml
+	kubectl apply -f $(K8S_DIR)/postgres-configmap.yaml
+	kubectl apply -f $(K8S_DIR)/postgres-deployment.yaml
+	@echo "Waiting for PostgreSQL to be ready..."
+	kubectl wait --for=condition=available --timeout=120s deployment/postgres
 	@echo "Deploying accounts service..."
 	kubectl apply -f $(K8S_DIR)/k8s.yaml
 	@echo "Waiting for accounts StatefulSet to be ready..."
 	kubectl wait --for=condition=ready --timeout=120s pod -l app.kubernetes.io/name=accounts
-	@echo "Deploying nginx..."
+	@echo "Deploying nginx ingress..."
 	kubectl apply -f $(K8S_DIR)/nginx-config.yaml
 	kubectl apply -f $(K8S_DIR)/nginx-deployment.yaml
 	kubectl apply -f $(K8S_DIR)/nginx-service.yaml
-	@echo "Deployed. Run 'make port-forward' to access the gRPC API."
+	@echo "All components deployed. Run 'make port-forward' to access the API."
 
 .PHONY: cluster-down
 cluster-down:
@@ -81,6 +87,9 @@ cluster-down:
 	kubectl delete -f $(K8S_DIR)/nginx-deployment.yaml --ignore-not-found
 	kubectl delete -f $(K8S_DIR)/nginx-config.yaml --ignore-not-found
 	kubectl delete -f $(K8S_DIR)/k8s.yaml --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/postgres-deployment.yaml --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/postgres-configmap.yaml --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/postgres-secret.yaml --ignore-not-found
 	@echo "Deployments removed."
 
 .PHONY: status
@@ -101,14 +110,15 @@ logs:
 .PHONY: port-forward
 port-forward:
 	@echo "Forwarding nginx (port 80) to localhost:8080..."
-	@echo "gRPC API available at localhost:8080"
-	@echo "Use grpcurl: grpcurl -plaintext -import-path ../../protos -proto sample/service.proto localhost:8080 list"
+	@echo "API available at http://localhost:8080"
+	@echo "Swagger UI at http://localhost:8080/docs"
 	kubectl port-forward service/nginx 8080:80
 
 .PHONY: test
 test:
-	@echo "Running gRPC API tests..."
-	@REPO_ROOT="$(REPO_ROOT)" sh ./scripts/test-api.sh || true
+	@echo "Running API tests..."
+	@chmod +x scripts/test-api.sh 2>/dev/null || true
+	@sh ./scripts/test-api.sh || true
 
 .PHONY: dashboard-install
 dashboard-install:
