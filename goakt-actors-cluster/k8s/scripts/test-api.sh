@@ -11,6 +11,9 @@ REPO_ROOT="${REPO_ROOT:-../..}"
 PROTO_PATH="$REPO_ROOT/protos"
 NUM_ACCOUNTS="${NUM_ACCOUNTS:-100}"
 VERIFY_SAMPLE="${VERIFY_SAMPLE:-10}"
+# Unique prefix per run so re-runs never collide with long-lived actors from
+# previous test runs.
+RUN_ID="${RUN_ID:-$(date +%s)}"
 
 grpc_call() {
   grpcurl -plaintext -import-path "$PROTO_PATH" -proto sample/service.proto "$@"
@@ -20,6 +23,7 @@ echo "=========================================="
 echo "k8s Account Service - gRPC Load Test"
 echo "=========================================="
 echo "API: $BASE_URL"
+echo "Run ID: $RUN_ID"
 echo "Accounts: $NUM_ACCOUNTS (create + credit)"
 echo "Verification sample: $VERIFY_SAMPLE accounts"
 echo ""
@@ -43,7 +47,7 @@ START_TIME=$(date +%s)
 echo "Phase 1: Creating $NUM_ACCOUNTS accounts (initial balance: 100)..."
 CREATE_FAIL=0
 for i in $(seq 1 "$NUM_ACCOUNTS"); do
-  acc_id=$(printf "acc-%04d" "$i")
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
   if ! grpc_call -d "{\"create_account\":{\"account_id\":\"$acc_id\",\"account_balance\":100}}" \
     "$BASE_URL" samplepb.AccountService/CreateAccount 2>/dev/null | grep -q account_balance; then
     echo "  FAIL: $acc_id"
@@ -65,7 +69,7 @@ echo ""
 echo "Phase 2: Crediting $NUM_ACCOUNTS accounts (+50 each)..."
 CREDIT_FAIL=0
 for i in $(seq 1 "$NUM_ACCOUNTS"); do
-  acc_id=$(printf "acc-%04d" "$i")
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
   if ! grpc_call -d "{\"credit_account\":{\"account_id\":\"$acc_id\",\"balance\":50}}" \
     "$BASE_URL" samplepb.AccountService/CreditAccount 2>/dev/null | grep -q account_balance; then
     echo "  FAIL: $acc_id"
@@ -91,7 +95,7 @@ step=$((NUM_ACCOUNTS / VERIFY_SAMPLE))
 [ "$step" -lt 1 ] && step=1
 
 for i in $(seq 1 "$step" "$NUM_ACCOUNTS" | head -n "$VERIFY_SAMPLE"); do
-  acc_id=$(printf "acc-%04d" "$i")
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
   resp=$(grpc_call -d "{\"account_id\":\"$acc_id\"}" "$BASE_URL" samplepb.AccountService/GetAccount 2>/dev/null || true)
   if echo "$resp" | grep -q '"account_balance":150'; then
     ((VERIFY_PASS++)) || true

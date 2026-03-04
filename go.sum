@@ -438,12 +438,12 @@ github.com/tklauser/go-sysconf v0.3.16 h1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYI
 github.com/tklauser/go-sysconf v0.3.16/go.mod h1:/qNL9xxDhc7tx3HSRsLWNnuzbVfh3e7gh/BmM179nYI=
 github.com/tklauser/numcpus v0.11.0 h1:nSTwhKH5e1dMNsCdVBukSZrURJRoHbSEQjdEbY+9RXw=
 github.com/tklauser/numcpus v0.11.0/go.mod h1:z+LwcLq54uWZTX0u/bGobaV34u6V7KNlTZejzM6/3MQ=
-github.com/tochemey/goakt/v4 v4.0.0-20260301222555-be714707606b h1:NeiIixtW5u0cVaUe9XDDkIoGRiuhfGljuvWJu3T8gxg=
-github.com/tochemey/goakt/v4 v4.0.0-20260301222555-be714707606b/go.mod h1:DVZFD4krLcYGZBbEhhTVJ5mrtk83BAzp/Ajq8fY4mko=
+github.com/tochemey/goakt/v4 v4.0.0-20260304120627-2c1b6969e327 h1:pgYf5qSeggYR+TnznB37AseDPHJ3U71J1J1Tz0E7rjU=
+github.com/tochemey/goakt/v4 v4.0.0-20260304120627-2c1b6969e327/go.mod h1:0lyUm16yq2rc7b3NxPSmkk+wUD4FFF0/YlTDIefaVKs=
 github.com/tochemey/gopack v0.2.1 h1:WWXVwAE53Wt4yzY51fk0t+BrLn5ihnKCriG3zhmgYQ8=
 github.com/tochemey/gopack v0.2.1/go.mod h1:jqSr6gmih+Ne4PSbStMoeRkzsIQh58bt2JujufBXdms=
-github.com/tochemey/olric v0.3.7 h1:zFnHcZfGVkBKWUKqP5vWag51J7WKcLiItRBN/FfChUw=
-github.com/tochemey/olric v0.3.7/go.mod h1:cu4WmorSezD45j8d1fFagrtsGFROE2O6h/kz2aOIwKA=
+github.com/tochemey/olric v0.3.8 h1:t9LMoyAcoeCfn8n9NRY6fCIJlfok06mzoagDHgICM48=
+github.com/tochemey/olric v0.3.8/go.mod h1:bWN6wnNHaVFqz1KGWbvORsC6sfSLtncFEM19dUJHMdQ=
 github.com/travisjeffery/go-dynaport v1.0.0 h1:m/qqf5AHgB96CMMSworIPyo1i7NZueRsnwdzdCJ8Ajw=
 github.com/travisjeffery/go-dynaport v1.0.0/go.mod h1:0LHuDS4QAx+mAc4ri3WkQdavgVoBIZ7cE9ob17KIAJk=
 github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31/go.mod h1:onvgF043R+lC5RZ8IT9rBXDaEDnpnw/Cl+HFiw+v/7Q=

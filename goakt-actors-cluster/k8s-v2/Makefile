@@ -34,6 +34,7 @@ help:
 	@echo "  cluster-down     Remove all deployments"
 	@echo "  status           Show cluster and pod status"
 	@echo "  test             Run API integration tests"
+	@echo "  test-resilience  Create accounts, verify, kill a random node, re-verify"
 	@echo "  logs             Tail logs from accounts pods"
 	@echo "  port-forward     Forward nginx service to localhost:8080"
 	@echo "  dashboard        Access Kubernetes dashboard (workloads, pods)"
@@ -43,7 +44,7 @@ help:
 cluster-create:
 	@echo "Creating Kind cluster '$(CLUSTER_NAME)'..."
 	kind create cluster --name $(CLUSTER_NAME) --wait 2m
-	@echo "Kind cluster created. Use 'make cluster-up' to deploy."
+	@echo "Kind cluster created. Use 'make build and deploy' to deploy."
 
 .PHONY: cluster-delete
 cluster-delete:
@@ -119,6 +120,12 @@ test:
 	@echo "Running API tests..."
 	@chmod +x scripts/test-api.sh 2>/dev/null || true
 	@sh ./scripts/test-api.sh || true
+
+.PHONY: test-resilience
+test-resilience:
+	@echo "Running resilience test (create → verify → kill node → re-verify)..."
+	@chmod +x scripts/test-resilience.sh 2>/dev/null || true
+	@bash ./scripts/test-resilience.sh || true
 
 .PHONY: dashboard-install
 dashboard-install:

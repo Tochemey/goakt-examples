@@ -38,12 +38,13 @@ help:
 	@echo "  dashboard-install Install Kubernetes dashboard (one-time)"
 	@echo "  logs              Tail logs from accounts pods"
 	@echo "  test              Run gRPC integration tests"
+	@echo "  test-resilience   Create accounts, verify, kill a random node, re-verify"
 
 .PHONY: cluster-create
 cluster-create:
 	@echo "Creating Kind cluster '$(CLUSTER_NAME)'..."
 	kind create cluster --name $(CLUSTER_NAME) --wait 2m
-	@echo "Kind cluster created. Use 'make cluster-up' to deploy."
+	@echo "Kind cluster created. Use 'make deploy' to deploy."
 
 .PHONY: cluster-delete
 cluster-delete:
@@ -109,6 +110,12 @@ port-forward:
 test:
 	@echo "Running gRPC API tests..."
 	@REPO_ROOT="$(REPO_ROOT)" sh ./scripts/test-api.sh || true
+
+.PHONY: test-resilience
+test-resilience:
+	@echo "Running resilience test (create → verify → kill node → re-verify)..."
+	@chmod +x scripts/test-resilience.sh 2>/dev/null || true
+	@REPO_ROOT="$(REPO_ROOT)" bash ./scripts/test-resilience.sh || true
 
 .PHONY: dashboard-install
 dashboard-install:

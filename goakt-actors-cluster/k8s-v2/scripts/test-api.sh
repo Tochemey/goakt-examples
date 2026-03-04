@@ -11,12 +11,16 @@ NUM_ACCOUNTS="${NUM_ACCOUNTS:-1000}"
 INITIAL_BALANCE="${INITIAL_BALANCE:-100}"
 CREDIT_AMOUNT="${CREDIT_AMOUNT:-50}"
 VERIFY_SAMPLE="${VERIFY_SAMPLE:-100}"
+# Unique prefix per run so re-runs never collide with long-lived actors from
+# previous test runs.
+RUN_ID="${RUN_ID:-$(date +%s)}"
 
 # Extract balance from JSON response (handles "100", "100.00", 100, etc.)
 get_balance() {
   local json="$1"
+  [ -z "$json" ] && return 0
   if command -v jq &>/dev/null; then
-    echo "$json" | jq -r '.account.account_balance // empty'
+    echo "$json" | jq -r '.account.account_balance // empty' 2>/dev/null || true
   else
     echo "$json" | grep -o '"account_balance":[0-9.]*' | cut -d':' -f2
   fi
@@ -26,6 +30,7 @@ echo "=========================================="
 echo "k8s-v2 Account Service - Load Test"
 echo "=========================================="
 echo "API: $BASE_URL"
+echo "Run ID: $RUN_ID"
 echo "Accounts: $NUM_ACCOUNTS (create + credit)"
 echo "Verification sample: $VERIFY_SAMPLE accounts"
 echo ""
@@ -48,7 +53,7 @@ START_TIME=$(date +%s)
 echo "Phase 1: Creating $NUM_ACCOUNTS accounts (initial balance: $INITIAL_BALANCE)..."
 CREATE_FAIL=0
 for i in $(seq 1 "$NUM_ACCOUNTS"); do
-  acc_id=$(printf "acc-%04d" "$i")
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
   resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 -X POST "$BASE_URL/accounts" \
     -H "Content-Type: application/json" \
     -d "{\"create_account\":{\"account_id\":\"$acc_id\",\"account_balance\":$INITIAL_BALANCE}}")
@@ -77,7 +82,7 @@ echo ""
 echo "Phase 2: Crediting $NUM_ACCOUNTS accounts (+$CREDIT_AMOUNT each)..."
 CREDIT_FAIL=0
 for i in $(seq 1 "$NUM_ACCOUNTS"); do
-  acc_id=$(printf "acc-%04d" "$i")
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
   resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 -X POST "$BASE_URL/accounts/$acc_id/credit" \
     -H "Content-Type: application/json" \
     -d "{\"balance\":$CREDIT_AMOUNT}")
@@ -114,7 +119,7 @@ step=$((NUM_ACCOUNTS / VERIFY_SAMPLE))
 [ "$step" -lt 1 ] && step=1
 
 for i in $(seq 1 "$step" "$NUM_ACCOUNTS" | head -n "$VERIFY_SAMPLE"); do
-  acc_id=$(printf "acc-%04d" "$i")
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
   resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 "$BASE_URL/accounts/$acc_id")
   http_code=$(echo "$resp" | tail -n1)
   body=$(echo "$resp" | sed '$d')

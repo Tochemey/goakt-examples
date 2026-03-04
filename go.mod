@@ -1,6 +1,6 @@
 module github.com/tochemey/goakt-examples/v2
 
-go 1.26
+go 1.26.0
 
 require (
 	connectrpc.com/connect v1.19.1
@@ -14,7 +14,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
-	github.com/tochemey/goakt/v4 v4.0.0-20260301222555-be714707606b
+	github.com/tochemey/goakt/v4 v4.0.0-20260304120627-2c1b6969e327
 	github.com/tochemey/gopack v0.2.1
 	github.com/travisjeffery/go-dynaport v1.0.0
 	go.opentelemetry.io/otel v1.41.0
@@ -135,7 +135,7 @@ require (
 	github.com/tidwall/redcon v1.6.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
-	github.com/tochemey/olric v0.3.7 // indirect
+	github.com/tochemey/olric v0.3.8 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+# Resilience test for k8s-v2 account service
+#
+# Flow:
+#   Phase 1 – Create NUM_ACCOUNTS accounts
+#   Phase 2 – Credit each account
+#   Phase 3 – Verify a sample via GET (baseline)
+#   Phase 4 – Randomly pick one accounts pod and delete it gracefully
+#   Phase 5 – Wait WAIT_AFTER_KILL seconds, then wait for all pods to be Ready again
+#   Phase 6 – Re-verify the same sample to confirm data survived the node loss
+#
+# Run with:   ./scripts/test-resilience.sh
+# Requires:   make port-forward (in another terminal)
+
+set -e
+
+BASE_URL="${BASE_URL:-http://localhost:8080}"
+NUM_ACCOUNTS="${NUM_ACCOUNTS:-1000}"
+INITIAL_BALANCE="${INITIAL_BALANCE:-100}"
+CREDIT_AMOUNT="${CREDIT_AMOUNT:-50}"
+VERIFY_SAMPLE="${VERIFY_SAMPLE:-100}"
+WAIT_AFTER_KILL="${WAIT_AFTER_KILL:-30}"
+# Unique prefix per run so re-runs never collide with long-lived actors from
+# previous test runs.
+RUN_ID="${RUN_ID:-$(date +%s)}"
+
+get_balance() {
+  local json="$1"
+  [ -z "$json" ] && return 0
+  if command -v jq &>/dev/null; then
+    echo "$json" | jq -r '.account.account_balance // empty' 2>/dev/null || true
+  else
+    echo "$json" | grep -o '"account_balance":[0-9.]*' | cut -d':' -f2
+  fi
+}
+
+echo "=========================================="
+echo "k8s-v2 Account Service - Resilience Test"
+echo "=========================================="
+echo "API:              $BASE_URL"
+echo "Run ID:           $RUN_ID"
+echo "Accounts:         $NUM_ACCOUNTS"
+echo "Verify sample:    $VERIFY_SAMPLE accounts"
+echo "Wait after kill:  ${WAIT_AFTER_KILL}s"
+echo ""
+
+# Pre-flight: verify API is reachable
+echo "Checking API connectivity..."
+if ! curl -sf --connect-timeout 5 -o /dev/null "$BASE_URL/openapi.yaml"; then
+  echo ""
+  echo "ERROR: Cannot connect to API at $BASE_URL"
+  echo "       Is 'make port-forward' running in another terminal?"
+  echo ""
+  exit 1
+fi
+echo "API reachable."
+echo ""
+
+START_TIME=$(date +%s)
+EXPECTED_BALANCE=$((INITIAL_BALANCE + CREDIT_AMOUNT))
+
+# ---------------------------------------------------------------------------
+# Phase 1: Create accounts
+# ---------------------------------------------------------------------------
+echo "Phase 1: Creating $NUM_ACCOUNTS accounts (initial balance: $INITIAL_BALANCE)..."
+CREATE_FAIL=0
+for i in $(seq 1 "$NUM_ACCOUNTS"); do
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
+  resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 -X POST "$BASE_URL/accounts" \
+    -H "Content-Type: application/json" \
+    -d "{\"create_account\":{\"account_id\":\"$acc_id\",\"account_balance\":$INITIAL_BALANCE}}")
+  http_code=$(echo "$resp" | tail -n1)
+  body=$(echo "$resp" | sed '$d')
+  balance=$(get_balance "$body")
+
+  if [ "$http_code" != "200" ] || [ -z "$balance" ]; then
+    echo "  FAIL: $acc_id (HTTP $http_code)"
+    ((CREATE_FAIL++)) || true
+  fi
+
+  if [ $((i % 100)) -eq 0 ]; then
+    echo "  Progress: $i/$NUM_ACCOUNTS"
+  fi
+done
+
+if [ "$CREATE_FAIL" -gt 0 ]; then
+  echo "  Create phase: $CREATE_FAIL failures"
+  exit 1
+fi
+echo "  Done: $NUM_ACCOUNTS accounts created"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Phase 2: Credit accounts
+# ---------------------------------------------------------------------------
+echo "Phase 2: Crediting $NUM_ACCOUNTS accounts (+$CREDIT_AMOUNT each)..."
+CREDIT_FAIL=0
+for i in $(seq 1 "$NUM_ACCOUNTS"); do
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
+  resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 -X POST "$BASE_URL/accounts/$acc_id/credit" \
+    -H "Content-Type: application/json" \
+    -d "{\"balance\":$CREDIT_AMOUNT}")
+  http_code=$(echo "$resp" | tail -n1)
+  body=$(echo "$resp" | sed '$d')
+  balance=$(get_balance "$body")
+
+  if [ "$http_code" != "200" ] || [ -z "$balance" ]; then
+    echo "  FAIL: $acc_id (HTTP $http_code)"
+    ((CREDIT_FAIL++)) || true
+  fi
+
+  if [ $((i % 100)) -eq 0 ]; then
+    echo "  Progress: $i/$NUM_ACCOUNTS"
+  fi
+done
+
+if [ "$CREDIT_FAIL" -gt 0 ]; then
+  echo "  Credit phase: $CREDIT_FAIL failures"
+  exit 1
+fi
+echo "  Done: $NUM_ACCOUNTS accounts credited"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Phase 3: Baseline verification (before any node shutdown)
+# ---------------------------------------------------------------------------
+echo "Phase 3: Verifying $VERIFY_SAMPLE accounts before node shutdown (expected balance: $EXPECTED_BALANCE)..."
+VERIFY_FAIL=0
+VERIFY_PASS=0
+
+step=$((NUM_ACCOUNTS / VERIFY_SAMPLE))
+[ "$step" -lt 1 ] && step=1
+
+SAMPLED_IDS=()
+for i in $(seq 1 "$step" "$NUM_ACCOUNTS" | head -n "$VERIFY_SAMPLE"); do
+  SAMPLED_IDS+=("$i")
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
+  resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 "$BASE_URL/accounts/$acc_id")
+  http_code=$(echo "$resp" | tail -n1)
+  body=$(echo "$resp" | sed '$d')
+  balance=$(get_balance "$body")
+
+  if [ "$http_code" != "200" ]; then
+    echo "  FAIL: $acc_id - HTTP $http_code"
+    ((VERIFY_FAIL++)) || true
+  elif [ -z "$balance" ]; then
+    echo "  FAIL: $acc_id - no balance in response"
+    ((VERIFY_FAIL++)) || true
+  else
+    balance_int=$(echo "$balance" | cut -d. -f1)
+    if [ "$balance_int" != "$EXPECTED_BALANCE" ]; then
+      echo "  FAIL: $acc_id - expected $EXPECTED_BALANCE, got $balance"
+      ((VERIFY_FAIL++)) || true
+    else
+      ((VERIFY_PASS++)) || true
+    fi
+  fi
+done
+
+if [ "$VERIFY_FAIL" -gt 0 ]; then
+  echo "  Baseline verification: $VERIFY_FAIL failure(s) — aborting before node kill"
+  exit 1
+fi
+echo "  Baseline passed: $VERIFY_PASS/$VERIFY_SAMPLE accounts verified"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Phase 4: Randomly select and gracefully terminate one accounts pod
+# ---------------------------------------------------------------------------
+echo "Phase 4: Randomly selecting an accounts pod to terminate gracefully..."
+PODS=(accounts-0 accounts-1 accounts-2)
+RANDOM_IDX=$(( RANDOM % 3 ))
+TARGET_POD="${PODS[$RANDOM_IDX]}"
+
+echo "  Selected pod: $TARGET_POD"
+if ! kubectl get pod "$TARGET_POD" &>/dev/null; then
+  echo "  ERROR: Pod $TARGET_POD not found — is the cluster running?"
+  exit 1
+fi
+
+kubectl delete pod "$TARGET_POD"
+echo "  Pod $TARGET_POD deletion requested (graceful termination)."
+echo ""
+
+# ---------------------------------------------------------------------------
+# Phase 5: Wait, then confirm the cluster is healthy again
+# ---------------------------------------------------------------------------
+echo "Phase 5: Waiting ${WAIT_AFTER_KILL}s for the cluster to stabilize..."
+sleep "$WAIT_AFTER_KILL"
+
+echo "  Waiting for all accounts pods to be Ready (timeout 120s)..."
+kubectl wait --for=condition=ready --timeout=120s pod -l app.kubernetes.io/name=accounts
+echo "  All accounts pods are Ready."
+echo ""
+
+# ---------------------------------------------------------------------------
+# Phase 6: Re-verify the same sampled accounts after recovery
+# ---------------------------------------------------------------------------
+echo "Phase 6: Re-verifying the same $VERIFY_SAMPLE accounts after node recovery (expected balance: $EXPECTED_BALANCE)..."
+REVERIFY_FAIL=0
+REVERIFY_PASS=0
+
+for i in "${SAMPLED_IDS[@]}"; do
+  acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
+  resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 "$BASE_URL/accounts/$acc_id")
+  http_code=$(echo "$resp" | tail -n1)
+  body=$(echo "$resp" | sed '$d')
+  balance=$(get_balance "$body")
+
+  if [ "$http_code" != "200" ]; then
+    echo "  FAIL: $acc_id - HTTP $http_code"
+    ((REVERIFY_FAIL++)) || true
+  elif [ -z "$balance" ]; then
+    echo "  FAIL: $acc_id - no balance in response"
+    ((REVERIFY_FAIL++)) || true
+  else
+    balance_int=$(echo "$balance" | cut -d. -f1)
+    if [ "$balance_int" != "$EXPECTED_BALANCE" ]; then
+      echo "  FAIL: $acc_id - expected $EXPECTED_BALANCE, got $balance"
+      ((REVERIFY_FAIL++)) || true
+    else
+      ((REVERIFY_PASS++)) || true
+    fi
+  fi
+done
+
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+echo ""
+echo "=========================================="
+echo "Results"
+echo "=========================================="
+echo "Created:         $NUM_ACCOUNTS accounts"
+echo "Credited:        $NUM_ACCOUNTS accounts"
+echo "Pod terminated:  $TARGET_POD (graceful, ${WAIT_AFTER_KILL}s wait)"
+echo "Re-verified:     $REVERIFY_PASS passed, $REVERIFY_FAIL failed (sample of $VERIFY_SAMPLE)"
+echo "Duration:        ${DURATION}s"
+echo ""
+
+if [ "$REVERIFY_FAIL" -gt 0 ]; then
+  echo "FAIL: $REVERIFY_FAIL re-verification(s) failed after node recovery"
+  exit 1
+fi
+
+echo "All resilience tests passed!"
