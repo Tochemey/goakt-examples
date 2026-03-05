@@ -35,6 +35,9 @@ import (
 	goakt "github.com/tochemey/goakt/v4/actor"
 	gerrors "github.com/tochemey/goakt/v4/errors"
 	"github.com/tochemey/goakt/v4/log"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/k8s-v2/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/k8s-v2/api"
@@ -43,23 +46,46 @@ import (
 
 const askTimeout = 5 * time.Second
 
+// spanNameFromRequest returns a clean span name for HTTP requests.
+// Uses r.Pattern when set (Go 1.22+ method-specific routes like "POST /accounts"
+// already include the method, so we avoid duplication). Otherwise "METHOD /path".
+func spanNameFromRequest(_ string, r *http.Request) string {
+	if r.Pattern != "" {
+		return r.Pattern
+	}
+	return r.Method + " " + r.URL.Path
+}
+
 // AccountService implements api.ServerInterface and backs it with the actor system.
 type AccountService struct {
-	actorSystem goakt.ActorSystem
-	logger      log.Logger
-	port        int
-	server      *http.Server
+	actorSystem    goakt.ActorSystem
+	logger         log.Logger
+	port           int
+	server         *http.Server
+	tracerProvider trace.TracerProvider
 }
 
 var _ api.ServerInterface = (*AccountService)(nil)
 
-// NewAccountService creates an instance of AccountService
-func NewAccountService(system goakt.ActorSystem, port int, logger log.Logger) *AccountService {
+// NewAccountService creates an instance of AccountService.
+// tracerProvider is used for HTTP and actor span instrumentation; pass nil to use the global provider.
+func NewAccountService(system goakt.ActorSystem, port int, logger log.Logger, tracerProvider trace.TracerProvider) *AccountService {
 	return &AccountService{
-		actorSystem: system,
-		logger:      logger,
-		port:        port,
+		actorSystem:    system,
+		logger:         logger,
+		port:           port,
+		tracerProvider: tracerProvider,
 	}
+}
+
+// startSpan starts a child span when tracing is enabled. Returns ctx and a no-op end if disabled.
+func (s *AccountService) startSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func()) {
+	if s.tracerProvider == nil {
+		return ctx, func() {}
+	}
+	tracer := s.tracerProvider.Tracer("accounts")
+	ctx, span := tracer.Start(ctx, name, trace.WithAttributes(attrs...))
+	return ctx, func() { span.End() }
 }
 
 // CreateAccount implements api.ServerInterface.
@@ -74,18 +100,22 @@ func (s *AccountService) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	balance := req.CreateAccount.AccountBalance
 
 	ctx := r.Context()
+	ctx, endSpawn := s.startSpan(ctx, "actor.Spawn", attribute.String("actor.id", accountID))
 	accountEntity := actors.NewAccountEntity()
 	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity, goakt.WithLongLived())
+	endSpawn()
 	if err != nil {
 		s.logger.Errorf("error spawning actor: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	ctx, endAsk := s.startSpan(ctx, "actor.Ask", attribute.String("actor.id", accountID))
 	reply, err := goakt.Ask(ctx, pid, &messages.CreateAccount{
 		AccountID:      accountID,
 		AccountBalance: balance,
 	}, time.Second)
+	endAsk()
 	if err != nil {
 		s.logger.Errorf("error creating account: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -115,7 +145,9 @@ func (s *AccountService) CreditAccount(w http.ResponseWriter, r *http.Request, a
 	}
 
 	ctx := r.Context()
+	ctx, endLookup := s.startSpan(ctx, "actor.ActorOf", attribute.String("actor.id", accountId))
 	pid, err := s.actorSystem.ActorOf(ctx, accountId)
+	endLookup()
 	if err != nil {
 		if errors.Is(err, gerrors.ErrActorNotFound) {
 			http.Error(w, "account not found", http.StatusNotFound)
@@ -133,10 +165,12 @@ func (s *AccountService) CreditAccount(w http.ResponseWriter, r *http.Request, a
 		s.logger.Infof("actor is found on remote node=%s", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
 	}
 
+	ctx, endAsk := s.startSpan(ctx, "actor.Ask", attribute.String("actor.id", accountId))
 	reply, err := goakt.Ask(ctx, pid, &messages.CreditAccount{
 		AccountID: accountId,
 		Balance:   req.Balance,
 	}, time.Second)
+	endAsk()
 	if err != nil {
 		s.logger.Errorf("error crediting account: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -160,7 +194,9 @@ func (s *AccountService) CreditAccount(w http.ResponseWriter, r *http.Request, a
 // GetAccount implements api.ServerInterface.
 func (s *AccountService) GetAccount(w http.ResponseWriter, r *http.Request, accountId string) {
 	ctx := r.Context()
+	ctx, endLookup := s.startSpan(ctx, "actor.ActorOf", attribute.String("actor.id", accountId))
 	pid, err := s.actorSystem.ActorOf(ctx, accountId)
+	endLookup()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -173,7 +209,9 @@ func (s *AccountService) GetAccount(w http.ResponseWriter, r *http.Request, acco
 		s.logger.Infof("actor is found on remote node=%s", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
 	}
 
+	ctx, endAsk := s.startSpan(ctx, "actor.Ask", attribute.String("actor.id", accountId))
 	reply, err := goakt.Ask(ctx, pid, &messages.GetAccount{AccountID: accountId}, askTimeout)
+	endAsk()
 	if err != nil {
 		s.logger.Errorf("error getting account: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -213,6 +251,13 @@ func (s *AccountService) listenAndServe() {
 	mux.HandleFunc("GET /swagger", serveSwaggerUI)
 
 	handler := api.HandlerWithOptions(s, api.StdHTTPServerOptions{BaseRouter: mux})
+	opts := []otelhttp.Option{
+		otelhttp.WithSpanNameFormatter(spanNameFromRequest),
+	}
+	if s.tracerProvider != nil {
+		opts = append(opts, otelhttp.WithTracerProvider(s.tracerProvider))
+	}
+	wrappedHandler := otelhttp.NewHandler(handler, "accounts", opts...)
 	serverAddr := fmt.Sprintf(":%d", s.port)
 	s.server = &http.Server{
 		Addr:              serverAddr,
@@ -220,7 +265,7 @@ func (s *AccountService) listenAndServe() {
 		ReadHeaderTimeout: time.Second,
 		WriteTimeout:      time.Second,
 		IdleTimeout:       1200 * time.Second,
-		Handler:           handler,
+		Handler:           wrappedHandler,
 	}
 
 	s.logger.Infof("Account service listening on %s", serverAddr)

@@ -24,13 +24,22 @@ This example demonstrates a GoAkt actor cluster running on **Kubernetes** with:
 │ Actor + HTTP   │  │ Actor + HTTP   │  │ Actor + HTTP   │
 └───────┬────────┘  └───────┬────────┘  └───────┬────────┘
         │                   │                   │
+        │ OTLP traces       │ OTLP traces       │ OTLP traces
         └───────────────────┼───────────────────┘
                             │
-                            ▼
-                 ┌──────────────────┐
-                 │    PostgreSQL    │
-                 │  (Persistence)   │
-                 └──────────────────┘
+         ┌──────────────────┼──────────────────┐
+         │                  │                  │
+         ▼                  ▼                  ▼
+┌────────────────┐  ┌──────────────────┐
+│ OTEL Collector │  │    PostgreSQL     │
+│ (OTLP → Jaeger)│  │   (Persistence)  │
+└───────┬────────┘  └──────────────────┘
+        │
+        ▼
+┌────────────────┐
+│     Jaeger     │
+│ (Trace UI)     │
+└────────────────┘
 ```
 
 ## Prerequisites
@@ -168,6 +177,17 @@ Tail logs from the accounts pods:
 make logs
 ```
 
+### Step 6: View Traces (Optional)
+
+The accounts service emits OpenTelemetry traces (HTTP spans and custom actor spans) to the OTEL Collector. To view traces in Jaeger:
+
+```bash
+# In a separate terminal
+make port-forward-jaeger
+```
+
+Then open [http://localhost:16686](http://localhost:16686), select the `accounts` service, and click "Find Traces". You'll see HTTP request spans with child spans for actor.Spawn, actor.ActorOf, and actor.Ask.
+
 ## Makefile Reference
 
 | Target                   | Description                                            |
@@ -176,10 +196,11 @@ make logs
 | `make cluster-create`    | Create a new Kind cluster                              |
 | `make cluster-delete`    | Delete the Kind cluster                                |
 | `make image`             | Build Docker image and load into Kind                  |
-| `make cluster-up`        | Deploy PostgreSQL, accounts, and nginx                 |
+| `make cluster-up`        | Deploy PostgreSQL, accounts, nginx, and tracing stack  |
 | `make cluster-down`      | Remove all deployments                                 |
 | `make status`            | Show cluster and pod status                            |
 | `make port-forward`      | Forward nginx to localhost:8080                        |
+| `make port-forward-jaeger` | Forward Jaeger UI to localhost:16686 (view traces)    |
 | `make dashboard`         | Access Kubernetes dashboard (workloads, pods)          |
 | `make dashboard-install` | Install Kubernetes dashboard (one-time)                |
 | `make logs`              | Tail logs from accounts pods                           |
@@ -257,6 +278,7 @@ For production, use a proper secrets management solution.
 | Persistence    | None             | PostgreSQL          |
 | Serialization  | Protobuf         | CBOR (for remoting) |
 | Nginx          | gRPC proxy       | HTTP proxy          |
+| Tracing        | None             | OpenTelemetry (HTTP + custom actor spans → Jaeger) |
 
 ## Troubleshooting
 
@@ -322,6 +344,11 @@ make cluster-create
 make deploy
 ```
 
+### No traces in Jaeger
+
+- **Check OTEL Collector** — `kubectl logs deployment/otel-collector` should show trace batches being received.
+- **Verify OTEL env vars** — Accounts pods use `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME`; ensure the collector is reachable.
+
 ## Project Structure
 
 ```
@@ -335,6 +362,8 @@ k8s-v2/
 ├── k8s/             # Kubernetes manifests
 │   ├── k8s.yaml            # StatefulSet, Service, RBAC
 │   ├── postgres-*.yaml     # PostgreSQL deployment
+│   ├── otel-collector-deployment.yaml  # OTEL Collector (OTLP → Jaeger)
+│   ├── jaeger-deployment.yaml         # Jaeger (trace backend)
 │   └── nginx-*.yaml        # Load balancer
 ├── messages/        # Go structs for actor messages
 ├── persistence/     # PostgreSQL store interface and implementation

@@ -33,6 +33,7 @@ metadata:
 spec:
   serviceName: accounts
   replicas: 3
+  podManagementPolicy: OrderedReady
   selector:
     matchLabels:
       app.kubernetes.io/name: accounts
@@ -112,6 +113,10 @@ spec:
                 secretKeyRef:
                   name: postgres-credentials
                   key: POSTGRES_PASSWORD
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "accounts"
           resources:
             requests:
               memory: "256Mi"
@@ -129,6 +134,27 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
+---
+# ClusterIP service for nginx load balancing — K8s routes only to ready pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: accounts-http
+  labels:
+    app.kubernetes.io/name: accounts
+    app.kubernetes.io/component: AccountsSystem
+    app.kubernetes.io/part-of: Sample
+spec:
+  selector:
+    app.kubernetes.io/name: accounts
+    app.kubernetes.io/component: AccountsSystem
+    app.kubernetes.io/part-of: Sample
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 50051
+      targetPort: http
+      name: http
 ---
 # Headless service for StatefulSet
 apiVersion: v1

@@ -18,9 +18,7 @@ data:
       error_log /var/log/nginx/error.log warn;
 
       upstream http_servers {
-        server accounts-0.accounts:50051;
-        server accounts-1.accounts:50051;
-        server accounts-2.accounts:50051;
+        server accounts-http:50051;
       }
 
       server {

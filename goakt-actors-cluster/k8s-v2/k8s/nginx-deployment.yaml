@@ -28,6 +28,11 @@ spec:
               cpu: "100m"
           ports:
             - containerPort: 80
+          readinessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5
       volumes:
         - name: config-volume
           configMap:

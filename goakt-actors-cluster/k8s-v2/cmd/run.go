@@ -25,6 +25,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	nethttp "net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,12 +36,38 @@ import (
 	"github.com/tochemey/goakt/v4/discovery/kubernetes"
 	"github.com/tochemey/goakt/v4/log"
 	"github.com/tochemey/goakt/v4/remote"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/k8s-v2/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/k8s-v2/messages"
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/k8s-v2/persistence"
 	"github.com/tochemey/goakt-examples/v2/goakt-actors-cluster/k8s-v2/service"
 )
+
+// otelErrorHandler surfaces OTEL SDK export errors in the application logs.
+type otelErrorHandler struct{ logger log.Logger }
+
+func (h otelErrorHandler) Handle(err error) { h.logger.Errorf("otel SDK error: %v", err) }
+
+// otelRemoteContextPropagator adapts OTEL TextMap propagation to GoAkt remoting.
+// Stateless and reusable to keep per-request overhead minimal.
+type otelRemoteContextPropagator struct {
+	propagator propagation.TextMapPropagator
+}
+
+func (p otelRemoteContextPropagator) Inject(ctx context.Context, headers nethttp.Header) error {
+	p.propagator.Inject(ctx, propagation.HeaderCarrier(headers))
+	return nil
+}
+
+func (p otelRemoteContextPropagator) Extract(ctx context.Context, headers nethttp.Header) (context.Context, error) {
+	return p.propagator.Extract(ctx, propagation.HeaderCarrier(headers)), nil
+}
 
 const (
 	namespace         = "default"
@@ -50,6 +77,58 @@ const (
 	peersPortName     = "peers-port"
 	remotingPortName  = "remoting-port"
 )
+
+// initTracer sets up the standard OTEL SDK TracerProvider for HTTP and custom
+// actor spans. HTTP spans (from otelhttp) and actor spans (from service.go)
+// share the same trace via r.Context() propagation.
+//
+// SimpleSpanProcessor is used instead of BatchSpanProcessor so that every span
+// is exported synchronously when it ends, avoiding silent drops that occur when
+// the batch queue is not flushed in time.
+func initTracer(ctx context.Context, logger log.Logger) *sdktrace.TracerProvider {
+	// Route OTEL SDK internal errors (e.g. export failures) to the app logger
+	// so they are visible in pod logs rather than silently discarded.
+	otel.SetErrorHandler(otelErrorHandler{logger: logger})
+
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "http://otel-collector:4318"
+	}
+
+	exporter, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(endpoint))
+	if err != nil {
+		logger.Warnf("failed to create OTLP trace exporter: %v (tracing disabled)", err)
+		return nil
+	}
+
+	svcName := os.Getenv("OTEL_SERVICE_NAME")
+	if svcName == "" {
+		svcName = "accounts"
+	}
+
+	res, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName(svcName),
+		),
+	)
+	if err != nil {
+		logger.Warnf("failed to create resource: %v", err)
+		res = resource.Default()
+	}
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSpanProcessor(sdktrace.NewSimpleSpanProcessor(exporter)),
+		sdktrace.WithResource(res),
+	)
+
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	logger.Info("OpenTelemetry tracing initialized (HTTP + custom actor spans)")
+	return tp
+}
 
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -115,6 +194,12 @@ var runCmd = &cobra.Command{
 			goakt.WithExtensions(persistenceStore),
 			goakt.WithActorInitMaxRetries(3),
 			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort,
+				remote.WithContextPropagator(otelRemoteContextPropagator{
+					propagator: propagation.NewCompositeTextMapPropagator(
+						propagation.TraceContext{},
+						propagation.Baggage{},
+					),
+				}),
 				remote.WithSerializables(
 					(*messages.CreateAccount)(nil),
 					(*messages.CreditAccount)(nil),
@@ -134,7 +219,14 @@ var runCmd = &cobra.Command{
 
 		logger.Info("Actor system started with Kubernetes discovery and persistence")
 
-		accountService := service.NewAccountService(actorSystem, config.Port, logger)
+		tp := initTracer(ctx, logger)
+		if tp != nil {
+			defer func() {
+				_ = tp.Shutdown(context.Background())
+			}()
+		}
+
+		accountService := service.NewAccountService(actorSystem, config.Port, logger, tp)
 		accountService.Start()
 
 		sigs := make(chan os.Signal, 1)

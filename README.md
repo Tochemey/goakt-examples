@@ -4,6 +4,8 @@
 
 Examples for [GoAkt](https://github.com/Tochemey/goakt) v4. For the stable v3.14 examples, see the [v3 branch](https://github.com/Tochemey/goakt-examples/tree/release/v3.14).
 
+---
+
 ## Getting Started
 
 ```bash
@@ -23,79 +25,139 @@ earthly +all
 
 ### Core Concepts
 
-| Example                                                  | Demonstrates                                                                                    |
-|----------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| [**goakt-actor-hello-world**](./goakt-actor-hello-world) | Minimal actor system: spawn an actor, send messages, graceful shutdown                          |
-| [**goakt-ping-pong**](./goakt-ping-pong)                 | Actor-to-actor messaging: two actors exchanging messages (Tell pattern)                         |
-| [**goakt-actor-behaviors**](./goakt-actor-behaviors)     | Stateful behaviors: actor with multiple states (authenticated, logged-in) and state transitions |
+- **[goakt-actor-hello-world](./goakt-actor-hello-world)** — Minimal actor system: spawn an actor, send messages, graceful shutdown
+- **[goakt-ping-pong](./goakt-ping-pong)** — Actor-to-actor messaging: two actors exchanging messages (Tell pattern)
+- **[goakt-actor-behaviors](./goakt-actor-behaviors)** — Stateful behaviors: actor with multiple states (authenticated, logged-in) and state transitions
 
 ### Remoting & Location Transparency
 
-| Example                                                              | Demonstrates                                                                               |
-|----------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| [**goakt-remoting**](./goakt-remoting)                               | Actor remoting: Ping and Pong actors on separate processes, communicating over the network |
-| [**goakt-actors-cluster/dynalloc**](./goakt-actors-cluster/dynalloc) | Location transparency: actors can live on any node; cluster routes messages automatically  |
+- **[goakt-remoting](./goakt-remoting)** — Actor remoting: Ping and Pong actors on separate processes, communicating over the network
+- **[goakt-actors-cluster/dynalloc](./goakt-actors-cluster/dynalloc)** — Location transparency: actors can live on any node; cluster routes messages automatically
 
 ### Clustering & Discovery
 
-| Example                                                              | Demonstrates                                                                             |
-|----------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| [**goakt-actors-cluster/static**](./goakt-actors-cluster/static)     | Static peer discovery: cluster nodes configured via fixed addresses                      |
-| [**goakt-actors-cluster/dnssd**](./goakt-actors-cluster/dnssd)       | DNS-SD discovery: nodes discover each other via mDNS/DNS (protobuf messages)             |
-| [**goakt-actors-cluster/dnssd-v2**](./goakt-actors-cluster/dnssd-v2) | DNS-SD + Go types: same as dnssd but with standard Go structs and PostgreSQL persistence |
-| [**goakt-actors-cluster/k8s**](./goakt-actors-cluster/k8s)           | Kubernetes discovery: cluster on K8s using the API to discover pods (gRPC, protobuf)     |
-| [**goakt-actors-cluster/k8s-v2**](./goakt-actors-cluster/k8s-v2)     | Kubernetes + persistence: K8s discovery with Go types, HTTP/JSON API, and PostgreSQL     |
+- **[goakt-actors-cluster/static](./goakt-actors-cluster/static)** — Static peer discovery: cluster nodes configured via fixed addresses
+- **[goakt-actors-cluster/dnssd](./goakt-actors-cluster/dnssd)** — DNS-SD discovery: nodes discover each other via mDNS/DNS (protobuf messages)
+- **[goakt-actors-cluster/dnssd-v2](./goakt-actors-cluster/dnssd-v2)** — DNS-SD + Go types: same as dnssd but with standard Go structs and PostgreSQL persistence
+- **[goakt-actors-cluster/k8s](./goakt-actors-cluster/k8s)** — Kubernetes discovery: cluster on K8s using the API to discover pods (gRPC, protobuf)
+- **[goakt-actors-cluster/k8s-v2](./goakt-actors-cluster/k8s-v2)** — **Production-ready K8s cluster**: Go types, HTTP/JSON API, PostgreSQL persistence, OpenTelemetry tracing
 
 ### Persistence & Extensions
 
-| Example                                                  | Demonstrates                                                                          |
-|----------------------------------------------------------|---------------------------------------------------------------------------------------|
-| [**goakt-actor-persistence**](./goakt-actor-persistence) | Persistence extension: actor state snapshots to a pluggable store (in-memory example) |
+- **[goakt-actor-persistence](./goakt-actor-persistence)** — Persistence extension: actor state snapshots to a pluggable store (in-memory example)
 
 ### Grains (Virtual Actors)
 
-| Example                                                                      | Demonstrates                                                           |
-|------------------------------------------------------------------------------|------------------------------------------------------------------------|
-| [**goakt-grains**](./goakt-grains)                                           | Grains model: virtual actors with automatic activation and passivation |
-| [**goakt-grains-cluster/grains-dnssd**](./goakt-grains-cluster/grains-dnssd) | Grains clustering: grains across multiple nodes with DNS-SD discovery  |
+- **[goakt-grains](./goakt-grains)** — Grains model: virtual actors with automatic activation and passivation
+- **[goakt-grains-cluster/grains-dnssd](./goakt-grains-cluster/grains-dnssd)** — Grains clustering: grains across multiple nodes with DNS-SD discovery
 
 ### Applications
 
-| Example                              | Demonstrates                                                                    |
-|--------------------------------------|---------------------------------------------------------------------------------|
-| [**goakt-chat**](./goakt-chat)       | Multi-room chat: remoting, room-based messaging, message history (protobuf)     |
-| [**goakt-chat-v2**](./goakt-chat-v2) | Chat with Go types: same chat app using standard Go structs instead of protobuf |
+- **[goakt-chat](./goakt-chat)** — Multi-room chat: remoting, room-based messaging, message history (protobuf)
+- **[goakt-chat-v2](./goakt-chat-v2)** — Chat with Go types: same chat app using standard Go structs instead of protobuf
+
+---
+
+## Kubernetes Cluster (k8s-v2)
+
+The **k8s-v2** example is the most comprehensive cluster setup. It demonstrates a production-style GoAkt actor cluster on Kubernetes with:
+
+- **Standard Go types** for actor messages (no protocol buffers)
+- **PostgreSQL persistence** for actor state
+- **HTTP/JSON REST API** with Swagger UI
+- **OpenTelemetry tracing** (HTTP spans + custom actor spans → Jaeger)
+- **Kind** (Kubernetes in Docker) for local development
+
+### Architecture
+
+```
+                    ┌─────────────────┐
+                    │ Nginx (NodePort)│
+                    │ Load Balancer   │
+                    └────────┬────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         │                   │                   │
+         ▼                   ▼                   ▼
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│ accounts-0     │  │ accounts-1     │  │ accounts-2     │
+│ (StatefulSet)  │  │ (StatefulSet)  │  │ (StatefulSet)  │
+│ Actor + HTTP   │  │ Actor + HTTP   │  │ Actor + HTTP   │
+└───────┬────────┘  └───────┬────────┘  └───────┬────────┘
+        │                   │                   │
+        │ OTLP traces       │ OTLP traces       │ OTLP traces
+        └───────────────────┼───────────────────┘
+                            │
+         ┌──────────────────┼──────────────────┐
+         │                  │                  │
+         ▼                  ▼                  ▼
+┌────────────────┐  ┌──────────────────┐
+│ OTEL Collector │  │    PostgreSQL    │
+│ (OTLP → Jaeger)│  │   (Persistence)  │
+└───────┬────────┘  └──────────────────┘
+        │
+        ▼
+┌────────────────┐
+│     Jaeger     │
+│ (Trace UI)     │
+└────────────────┘
+```
+
+### Quick Start
+
+```bash
+cd goakt-actors-cluster/k8s-v2
+make cluster-create    # Create Kind cluster (one-time)
+make deploy            # Build, load image, deploy all components
+make port-forward      # Expose API at http://localhost:8080
+```
+
+**Prerequisites:** Kind, kubectl, Earthly, Docker. See [k8s-v2/doc.md](./goakt-actors-cluster/k8s-v2/doc.md) for installation.
+
+### Testing the API
+
+With `make port-forward` running:
+
+- **API base:** http://localhost:8080
+- **Swagger UI:** http://localhost:8080/docs
+- **Jaeger traces:** `make port-forward-jaeger` → http://localhost:16686
+
+```bash
+# Create an account
+curl -X POST http://localhost:8080/accounts \
+  -H "Content-Type: application/json" \
+  -d '{"create_account":{"account_id":"acc-001","account_balance":100.00}}'
+
+# Run integration tests (1000 accounts)
+make test
+```
+
+### Key Make Targets
+
+- **`make deploy`** — Build image, load into Kind, deploy all components
+- **`make cluster-create`** — Create Kind cluster
+- **`make cluster-delete`** — Delete Kind cluster
+- **`make port-forward`** — Forward API to localhost:8080
+- **`make port-forward-jaeger`** — Forward Jaeger UI to localhost:16686
+- **`make test`** — Run API integration tests
+- **`make logs`** — Tail accounts pod logs
+
+For full documentation, troubleshooting, and configuration, see **[goakt-actors-cluster/k8s-v2/doc.md](./goakt-actors-cluster/k8s-v2/doc.md)**.
 
 ---
 
 ## Quick Reference
 
-| Example           | API       | Messages | Discovery  | Persistence |
-|-------------------|-----------|----------|------------|-------------|
-| hello-world       | —         | —        | —          | —           |
-| ping-pong         | —         | protobuf | —          | —           |
-| actor-behaviors   | —         | protobuf | —          | —           |
-| remoting          | —         | protobuf | —          | —           |
-| dynalloc          | gRPC      | protobuf | static     | —           |
-| static            | gRPC      | protobuf | static     | —           |
-| dnssd             | gRPC      | protobuf | DNS-SD     | —           |
-| dnssd-v2          | HTTP/JSON | Go types | DNS-SD     | PostgreSQL  |
-| k8s               | gRPC      | protobuf | Kubernetes | —           |
-| k8s-v2            | HTTP/JSON | Go types | Kubernetes | PostgreSQL  |
-| actor-persistence | —         | protobuf | —          | extension   |
-| grains            | —         | protobuf | —          | —           |
-| grains-dnssd      | gRPC      | protobuf | DNS-SD     | —           |
-| chat              | gRPC      | protobuf | —          | —           |
-| chat-v2           | gRPC      | Go types | —          | —           |
+**Single-process** — `go run .` or run the built binary (hello-world, ping-pong, actor-behaviors, remoting, actor-persistence, grains)
 
----
+**Docker Compose** — `docker-compose up` (static, dnssd, dynalloc, grains-dnssd)
 
-## Running the Examples
+**Kubernetes (Kind)** — `make cluster-create && make deploy` (k8s, k8s-v2)
 
-Each example has its own run instructions. Common patterns:
+**API & discovery by example:**
 
-- **Single-process**: `go run .` or run the built binary
-- **Docker Compose**: `docker-compose up` (static, dnssd, dynalloc, grains-dnssd)
-- **Kubernetes (Kind)**: `make cluster-create && make deploy` (k8s, k8s-v2)
+- **gRPC + protobuf** — dynalloc, static, dnssd, k8s, grains-dnssd, chat
+- **HTTP/JSON + Go types** — dnssd-v2, k8s-v2
+- **PostgreSQL persistence** — dnssd-v2, k8s-v2
 
-See the `doc.md` in each example directory for detailed steps.
+See the `doc.md` in each example directory for detailed run instructions.
