@@ -123,6 +123,26 @@ k8s-v2-image:
     ENTRYPOINT ["./accounts"]
     SAVE IMAGE accounts:dev-k8s-v2
 
+compile-k8s-ebpf:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor -o bin/accounts ./goakt-actors-cluster/k8s-ebpf
+    SAVE ARTIFACT bin/accounts /accounts
+
+k8s-ebpf-image:
+    FROM alpine:3.17
+
+    WORKDIR /app
+    COPY +compile-k8s-ebpf/accounts ./accounts
+    RUN chmod +x ./accounts
+
+    EXPOSE 50051
+    EXPOSE 50052
+    EXPOSE 3322
+    EXPOSE 3320
+
+    ENTRYPOINT ["./accounts"]
+    SAVE IMAGE accounts:dev-k8s-ebpf
 
 compile-dnssd:
     COPY +vendor/files ./

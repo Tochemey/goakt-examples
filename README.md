@@ -37,6 +37,7 @@ earthly +all
 - [goakt-actors-cluster/dnssd-v2](./goakt-actors-cluster/dnssd-v2) — DNS-SD + Go types: same as dnssd but with standard Go structs and PostgreSQL persistence
 - [goakt-actors-cluster/k8s](./goakt-actors-cluster/k8s) — Kubernetes discovery: cluster on K8s using the API to discover pods (gRPC, protobuf)
 - [goakt-actors-cluster/k8s-v2](./goakt-actors-cluster/k8s-v2) — **Production-ready K8s cluster**: Go types, HTTP/JSON API, PostgreSQL persistence, OpenTelemetry tracing
+- [goakt-actors-cluster/k8s-ebpf](./goakt-actors-cluster/k8s-ebpf) — **k8s-v2 + eBPF**: zero-instrumentation actor-level tracing via goakt-ebpf sidecar
 
 ### Persistence & Extensions
 
@@ -138,18 +139,110 @@ make test
 
 For full documentation, troubleshooting, and configuration, see **[goakt-actors-cluster/k8s-v2/doc.md](./goakt-actors-cluster/k8s-v2/doc.md)**.
 
+## Kubernetes Cluster with eBPF (k8s-ebpf)
+
+The **k8s-ebpf** example extends k8s-v2 with **goakt-ebpf** as a sidecar for zero-instrumentation eBPF tracing. Each pod runs the accounts app plus an eBPF agent that captures actor-level spans (`doReceive`, `process`, remote messaging) via uprobes.
+
+- **goakt-ebpf sidecar** in each pod for automatic actor-level tracing
+- **Shared PID namespace** so the eBPF agent can attach to the accounts process
+- **Standard Go types**, PostgreSQL persistence, HTTP/JSON API (same as k8s-v2)
+
+### Architecture
+
+```
+                    ┌─────────────────┐
+                    │ Nginx (NodePort)│
+                    │ Load Balancer   │
+                    └────────┬────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         │                   │                   │
+         ▼                   ▼                   ▼
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│ accounts-0     │  │ accounts-1     │  │ accounts-2     │
+│ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌────────────┐ │
+│ │  accounts  │ │  │ │  accounts  │ │  │ │  accounts  │ │
+│ │ (GoAkt app)│ │  │ │ (GoAkt app)│ │  │ │ (GoAkt app)│ │
+│ └─────┬──────┘ │  │ └─────┬──────┘ │  │ └─────┬──────┘ │
+│       │ uprobe │  │       │ uprobe │  │       │ uprobe │
+│ ┌─────┴──────┐ │  │ ┌─────┴──────┐ │  │ ┌─────┴──────┐ │
+│ │ goakt-ebpf │ │  │ │ goakt-ebpf │ │  │ │ goakt-ebpf │ │
+│ │ (sidecar)  │ │  │ │ (sidecar)  │ │  │ │ (sidecar)  │ │
+│ └────────────┘ │  │ └────────────┘ │  │ └────────────┘ │
+└───────┬────────┘  └───────┬────────┘  └───────┬────────┘
+        │                   │                   │
+        │ OTLP traces       │ OTLP traces       │ OTLP traces
+        └───────────────────┼───────────────────┘
+                            │
+         ┌──────────────────┼──────────────────┐
+         │                  │                  │
+         ▼                  ▼                  ▼
+┌────────────────┐  ┌──────────────────┐
+│ OTEL Collector │  │    PostgreSQL     │
+│ (OTLP → Jaeger)│  │   (Persistence)   │
+└───────┬────────┘  └──────────────────┘
+        │
+        ▼
+┌────────────────┐
+│     Jaeger     │
+│ (Trace UI)     │
+└────────────────┘
+```
+
+### Quick Start
+
+**Prerequisites:** Kind, kubectl, Earthly, Docker, and the sibling **goakt-ebpf** repository.
+
+```bash
+cd goakt-actors-cluster/k8s-ebpf
+make cluster-create    # Create Kind cluster (one-time)
+make deploy           # Build accounts + goakt-ebpf images, load, deploy
+make port-forward     # Expose API at http://localhost:8080
+```
+
+### Testing the API
+
+With `make port-forward` running:
+
+- **API base:** http://localhost:8080
+- **Swagger UI:** http://localhost:8080/docs
+- **Jaeger traces:** `make port-forward-jaeger` → http://localhost:16686 (select `goakt-ebpf` for actor spans, `accounts` for HTTP spans)
+
+```bash
+# Create an account
+curl -X POST http://localhost:8080/accounts \
+  -H "Content-Type: application/json" \
+  -d '{"create_account":{"account_id":"acc-001","account_balance":100.00}}'
+
+# Run integration tests
+make test
+```
+
+### Key Make Targets
+
+- **`make deploy`** — Build both images (accounts + goakt-ebpf), load into Kind, deploy all components
+- **`make cluster-create`** — Create Kind cluster
+- **`make cluster-delete`** — Delete Kind cluster
+- **`make port-forward`** — Forward API to localhost:8080
+- **`make port-forward-jaeger`** — Forward Jaeger UI to localhost:16686
+- **`make logs-ebpf`** — Tail goakt-ebpf sidecar logs
+- **`make test`** — Run API integration tests
+
+For full documentation, prerequisites, and troubleshooting, see **[goakt-actors-cluster/k8s-ebpf/doc.md](./goakt-actors-cluster/k8s-ebpf/doc.md)**.
+
 ## Quick Reference
 
 **Single-process** — `go run .` or run the built binary (hello-world, ping-pong, actor-behaviors, remoting, actor-persistence, grains)
 
 **Docker Compose** — `docker-compose up` (static, dnssd, dynalloc, grains-dnssd)
 
-**Kubernetes (Kind)** — `make cluster-create && make deploy` (k8s, k8s-v2)
+**Kubernetes (Kind)** — `make cluster-create && make deploy` (k8s, k8s-v2, k8s-ebpf)
 
 **API & discovery by example:**
 
 - **gRPC + protobuf** — dynalloc, static, dnssd, k8s, grains-dnssd, chat
-- **HTTP/JSON + Go types** — dnssd-v2, k8s-v2
-- **PostgreSQL persistence** — dnssd-v2, k8s-v2
+- **HTTP/JSON + Go types** — dnssd-v2, k8s-v2, k8s-ebpf
+- **PostgreSQL persistence** — dnssd-v2, k8s-v2, k8s-ebpf
+- **eBPF actor tracing** — k8s-ebpf
 
 See the `doc.md` in each example directory for detailed run instructions.
