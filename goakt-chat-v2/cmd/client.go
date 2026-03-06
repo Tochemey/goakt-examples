@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package main
+package cmd
 
 import (
 	"bufio"
@@ -33,6 +33,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/log"
 	"github.com/tochemey/goakt/v4/remote"
@@ -42,47 +43,75 @@ import (
 	"github.com/tochemey/goakt-examples/v2/internal/chatv2"
 )
 
-const (
-	serverHost = "127.0.0.1"
-	serverPort = 4000
-
-	helpText = `Commands:
+const clientHelpText = `Commands:
   /help              show this help
   /users             list online users in the current room
   /join <room>       switch to a different room
   /dm <user> <msg>   send a private message to a user
   /quit              disconnect and exit`
+
+var (
+	clientServerHost string
+	clientServerPort int
+	clientUser       string
+	clientRoom       string
 )
 
-func main() {
-	ctx := context.Background()
+var clientCmd = &cobra.Command{
+	Use:   "client",
+	Short: "Connect to the chat server as a client",
+	Long: `Connect to the chat server as a chat client.
 
-	// --- interactive startup ---
+Interactive mode (default): omit --user and --room to be prompted for username and room.
+Non-interactive mode: use --user and --room for scripting or automation.
+
+After connecting, use slash commands: /help, /users, /join <room>, /dm <user> <msg>, /quit`,
+	Example: `  chatv2 client
+  chatv2 client --user alice --room general
+  chatv2 client --host 192.168.1.10 --port 4000`,
+	RunE: runClient,
+}
+
+func init() {
+	rootCmd.AddCommand(clientCmd)
+	clientCmd.Flags().StringVar(&clientServerHost, "host", "127.0.0.1", "Server host to connect to")
+	clientCmd.Flags().IntVar(&clientServerPort, "port", 4000, "Server port to connect to")
+	clientCmd.Flags().StringVar(&clientUser, "user", "", "Username (optional; prompts if not set)")
+	clientCmd.Flags().StringVar(&clientRoom, "room", "", "Room name (optional; defaults to 'general')")
+}
+
+func runClient(c *cobra.Command, args []string) error {
+	ctx := context.Background()
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Enter your username: ")
-	userName, _ := reader.ReadString('\n')
-	userName = strings.TrimSpace(userName)
+	userName := clientUser
+	roomName := clientRoom
+
 	if userName == "" {
-		userName = fmt.Sprintf("guest-%d", time.Now().Unix())
+		fmt.Print("Enter your username: ")
+		line, _ := reader.ReadString('\n')
+		userName = strings.TrimSpace(line)
+		if userName == "" {
+			userName = fmt.Sprintf("guest-%d", time.Now().Unix())
+		}
 	}
 
-	fmt.Print("Enter room name (leave blank for 'general'): ")
-	roomName, _ := reader.ReadString('\n')
-	roomName = strings.TrimSpace(roomName)
 	if roomName == "" {
-		roomName = "general"
+		fmt.Print("Enter room name (leave blank for 'general'): ")
+		line, _ := reader.ReadString('\n')
+		roomName = strings.TrimSpace(line)
+		if roomName == "" {
+			roomName = "general"
+		}
 	}
 
-	// --- actor system ---
-	host := serverHost
 	ports := dynaport.Get(1)
 	port := ports[0]
 
 	cbor := remote.NewCBORSerializer()
 	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
-		actor.WithRemote(remote.NewConfig(host, port,
+		actor.WithRemote(remote.NewConfig("127.0.0.1", port,
 			remote.WithSerializers((*chatv2.ChatMessage)(nil), cbor),
 			remote.WithSerializers((*chatv2.Connect)(nil), cbor),
 			remote.WithSerializers((*chatv2.Disconnect)(nil), cbor),
@@ -96,22 +125,19 @@ func main() {
 		actor.WithLogger(log.DiscardLogger))
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "failed to create actor system:", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create actor system: %w", err)
 	}
 
 	if err := actorSystem.Start(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, "failed to start actor system:", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to start actor system: %w", err)
 	}
 
-	server, err := actorSystem.NoSender().RemoteLookup(ctx, serverHost, serverPort, "ChatServer")
+	server, err := actorSystem.NoSender().RemoteLookup(ctx, clientServerHost, clientServerPort, "ChatServer")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "failed to lookup ChatServer:", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to lookup ChatServer: %w", err)
 	}
 
-	clientActor := NewClient(userName, roomName, server)
+	clientActor := newChatClient(userName, roomName, server)
 
 	client, err := actorSystem.Spawn(
 		ctx,
@@ -123,16 +149,14 @@ func main() {
 				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
 			)))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "failed to spawn ChatClient:", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to spawn ChatClient: %w", err)
 	}
 
-	printHelp()
-	printPrompt(userName, roomName)
+	fmt.Println(clientHelpText)
+	printClientPrompt(userName, roomName)
 
 	done := make(chan struct{})
 
-	// input loop
 	go func() {
 		defer close(done)
 		for {
@@ -143,11 +167,10 @@ func main() {
 
 			input = strings.TrimSpace(input)
 			if input == "" {
-				printPrompt(userName, clientActor.CurrentRoom())
+				printClientPrompt(userName, clientActor.currentRoom())
 				continue
 			}
 
-			// slash-command dispatch
 			if strings.HasPrefix(input, "/") {
 				parts := strings.SplitN(input, " ", 3)
 				cmd := strings.ToLower(parts[0])
@@ -158,11 +181,11 @@ func main() {
 					return
 
 				case "/help":
-					fmt.Print("\r" + helpText + "\n")
+					fmt.Print("\r" + clientHelpText + "\n")
 
 				case "/users":
 					_ = client.Tell(ctx, server, &chatv2.ListUsersRequest{
-						Room: clientActor.CurrentRoom(),
+						Room: clientActor.currentRoom(),
 					})
 
 				case "/join":
@@ -175,7 +198,7 @@ func main() {
 
 					time.Sleep(200 * time.Millisecond)
 
-					clientActor.SetRoom(newRoom)
+					clientActor.setRoom(newRoom)
 					_ = client.Tell(ctx, server, &chatv2.Connect{
 						UserName: userName,
 						Room:     newRoom,
@@ -202,23 +225,21 @@ func main() {
 					fmt.Printf("\rUnknown command: %s  (type /help)\n", cmd)
 				}
 
-				printPrompt(userName, clientActor.CurrentRoom())
+				printClientPrompt(userName, clientActor.currentRoom())
 				continue
 			}
 
-			// plain message → broadcast to room
 			_ = client.Tell(ctx, server, &chatv2.Message{
 				UserName: userName,
 				Content:  input,
-				Room:     clientActor.CurrentRoom(),
+				Room:     clientActor.currentRoom(),
 				SentAt:   time.Now(),
 			})
 
-			printPrompt(userName, clientActor.CurrentRoom())
+			printClientPrompt(userName, clientActor.currentRoom())
 		}
 	}()
 
-	// wait for Ctrl-C or the input loop to finish
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	select {
@@ -228,31 +249,23 @@ func main() {
 	}
 
 	_ = actorSystem.Stop(ctx)
-	os.Exit(0)
+	return nil
 }
 
-// printHelp prints the command reference once at startup.
-func printHelp() {
-	fmt.Println(helpText)
-}
-
-// printPrompt re-prints the prompt after output is written.
-func printPrompt(user, room string) {
+func printClientPrompt(user, room string) {
 	fmt.Printf("[%s @ %s] > ", user, room)
 }
 
-// Client receives messages pushed by the server and prints them to stdout.
-type Client struct {
+type chatClient struct {
 	userName string
 	server   *actor.PID
-
-	room atomic.Value // string — current room name
+	room     atomic.Value
 }
 
-var _ actor.Actor = (*Client)(nil)
+var _ actor.Actor = (*chatClient)(nil)
 
-func NewClient(userName, room string, server *actor.PID) *Client {
-	c := &Client{
+func newChatClient(userName, room string, server *actor.PID) *chatClient {
+	c := &chatClient{
 		userName: userName,
 		server:   server,
 	}
@@ -260,57 +273,54 @@ func NewClient(userName, room string, server *actor.PID) *Client {
 	return c
 }
 
-// CurrentRoom returns the client's active room, safe for concurrent access.
-func (c *Client) CurrentRoom() string {
+func (c *chatClient) currentRoom() string {
 	return c.room.Load().(string)
 }
 
-// SetRoom updates the active room.
-func (c *Client) SetRoom(room string) {
+func (c *chatClient) setRoom(room string) {
 	c.room.Store(room)
 }
 
-func (c *Client) PreStart(*actor.Context) error {
+func (c *chatClient) PreStart(*actor.Context) error {
 	return nil
 }
 
-func (c *Client) Receive(ctx *actor.ReceiveContext) {
+func (c *chatClient) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *actor.PostStart:
 		ctx.Tell(c.server, &chatv2.Connect{
 			UserName: c.userName,
-			Room:     c.CurrentRoom(),
+			Room:     c.currentRoom(),
 		})
 
 	case *chatv2.Broadcast:
 		ts := formatTime(msg.SentAt)
 		fmt.Printf("\r[%s] [%s] %s: %s\n", ts, msg.Room, msg.FromUser, msg.Content)
-		printPrompt(c.userName, c.CurrentRoom())
+		printClientPrompt(c.userName, c.currentRoom())
 
 	case *chatv2.DirectMessage:
 		ts := formatTime(msg.SentAt)
 		fmt.Printf("\r[%s] [DM from %s]: %s\n", ts, msg.FromUser, msg.Content)
-		printPrompt(c.userName, c.CurrentRoom())
+		printClientPrompt(c.userName, c.currentRoom())
 
 	case *chatv2.SystemEvent:
 		ts := formatTime(msg.At)
 		fmt.Printf("\r[%s] *** %s ***\n", ts, msg.Text)
-		printPrompt(c.userName, c.CurrentRoom())
+		printClientPrompt(c.userName, c.currentRoom())
 
 	case *chatv2.ListUsersResponse:
-		fmt.Printf("\rOnline in %s: %s\n", c.CurrentRoom(), strings.Join(msg.UserNames, ", "))
-		printPrompt(c.userName, c.CurrentRoom())
+		fmt.Printf("\rOnline in %s: %s\n", c.currentRoom(), strings.Join(msg.UserNames, ", "))
+		printClientPrompt(c.userName, c.currentRoom())
 
 	default:
 		ctx.Unhandled()
 	}
 }
 
-func (c *Client) PostStop(*actor.Context) error {
+func (c *chatClient) PostStop(*actor.Context) error {
 	return nil
 }
 
-// formatTime renders a time as HH:MM:SS, or "?" if zero.
 func formatTime(t time.Time) string {
 	if t.IsZero() {
 		return "?"

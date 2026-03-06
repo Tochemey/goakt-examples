@@ -4,8 +4,6 @@
 
 Examples for [GoAkt](https://github.com/Tochemey/goakt) v4. For the stable v3.14 examples, see the [v3 branch](https://github.com/Tochemey/goakt-examples/tree/release/v3.14).
 
----
-
 ## Getting Started
 
 ```bash
@@ -19,44 +17,40 @@ cd goakt-examples
 earthly +all
 ```
 
----
-
 ## Examples Overview
 
 ### Core Concepts
 
-- **[goakt-actor-hello-world](./goakt-actor-hello-world)** — Minimal actor system: spawn an actor, send messages, graceful shutdown
-- **[goakt-ping-pong](./goakt-ping-pong)** — Actor-to-actor messaging: two actors exchanging messages (Tell pattern)
-- **[goakt-actor-behaviors](./goakt-actor-behaviors)** — Stateful behaviors: actor with multiple states (authenticated, logged-in) and state transitions
+- [goakt-actor-hello-world](./goakt-actor-hello-world) — Minimal actor system: spawn an actor, send messages, graceful shutdown
+- [goakt-ping-pong](./goakt-ping-pong) — Actor-to-actor messaging: two actors exchanging messages (Tell pattern)
+- [goakt-actor-behaviors](./goakt-actor-behaviors) — Stateful behaviors: actor with multiple states (authenticated, logged-in) and state transitions
 
 ### Remoting & Location Transparency
 
-- **[goakt-remoting](./goakt-remoting)** — Actor remoting: Ping and Pong actors on separate processes, communicating over the network
-- **[goakt-actors-cluster/dynalloc](./goakt-actors-cluster/dynalloc)** — Location transparency: actors can live on any node; cluster routes messages automatically
+- [goakt-remoting](./goakt-remoting) — Actor remoting: Ping and Pong actors on separate processes, communicating over the network
+- [goakt-actors-cluster/dynalloc](./goakt-actors-cluster/dynalloc) — Location transparency: actors can live on any node; cluster routes messages automatically
 
 ### Clustering & Discovery
 
-- **[goakt-actors-cluster/static](./goakt-actors-cluster/static)** — Static peer discovery: cluster nodes configured via fixed addresses
-- **[goakt-actors-cluster/dnssd](./goakt-actors-cluster/dnssd)** — DNS-SD discovery: nodes discover each other via mDNS/DNS (protobuf messages)
-- **[goakt-actors-cluster/dnssd-v2](./goakt-actors-cluster/dnssd-v2)** — DNS-SD + Go types: same as dnssd but with standard Go structs and PostgreSQL persistence
-- **[goakt-actors-cluster/k8s](./goakt-actors-cluster/k8s)** — Kubernetes discovery: cluster on K8s using the API to discover pods (gRPC, protobuf)
-- **[goakt-actors-cluster/k8s-v2](./goakt-actors-cluster/k8s-v2)** — **Production-ready K8s cluster**: Go types, HTTP/JSON API, PostgreSQL persistence, OpenTelemetry tracing
+- [goakt-actors-cluster/static](./goakt-actors-cluster/static) — Static peer discovery: cluster nodes configured via fixed addresses
+- [goakt-actors-cluster/dnssd](./goakt-actors-cluster/dnssd) — DNS-SD discovery: nodes discover each other via mDNS/DNS (protobuf messages)
+- [goakt-actors-cluster/dnssd-v2](./goakt-actors-cluster/dnssd-v2) — DNS-SD + Go types: same as dnssd but with standard Go structs and PostgreSQL persistence
+- [goakt-actors-cluster/k8s](./goakt-actors-cluster/k8s) — Kubernetes discovery: cluster on K8s using the API to discover pods (gRPC, protobuf)
+- [goakt-actors-cluster/k8s-v2](./goakt-actors-cluster/k8s-v2) — **Production-ready K8s cluster**: Go types, HTTP/JSON API, PostgreSQL persistence, OpenTelemetry tracing
 
 ### Persistence & Extensions
 
-- **[goakt-actor-persistence](./goakt-actor-persistence)** — Persistence extension: actor state snapshots to a pluggable store (in-memory example)
+- [goakt-actor-persistence](./goakt-actor-persistence) — Persistence extension: actor state snapshots to a pluggable store (in-memory example)
 
 ### Grains (Virtual Actors)
 
-- **[goakt-grains](./goakt-grains)** — Grains model: virtual actors with automatic activation and passivation
-- **[goakt-grains-cluster/grains-dnssd](./goakt-grains-cluster/grains-dnssd)** — Grains clustering: grains across multiple nodes with DNS-SD discovery
+- [goakt-grains](./goakt-grains) — Grains model: virtual actors with automatic activation and passivation
+- [goakt-grains-cluster/grains-dnssd](./goakt-grains-cluster/grains-dnssd) — Grains clustering: grains across multiple nodes with DNS-SD discovery
 
 ### Applications
 
-- **[goakt-chat](./goakt-chat)** — Multi-room chat: remoting, room-based messaging, message history (protobuf)
-- **[goakt-chat-v2](./goakt-chat-v2)** — Chat with Go types: same chat app using standard Go structs instead of protobuf
-
----
+- [goakt-chat](./goakt-chat) — Multi-room chat: remoting, room-based messaging, message history (protobuf)
+- **[goakt-chat-v2](./goakt-chat-v2) — Chat with Go types: same chat app using standard Go structs instead of protobuf.
 
 ## Kubernetes Cluster (k8s-v2)
 
@@ -143,8 +137,6 @@ make test
 - **`make logs`** — Tail accounts pod logs
 
 For full documentation, troubleshooting, and configuration, see **[goakt-actors-cluster/k8s-v2/doc.md](./goakt-actors-cluster/k8s-v2/doc.md)**.
-
----
 
 ## Quick Reference
 

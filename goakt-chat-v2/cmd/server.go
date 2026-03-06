@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package main
+package cmd
 
 import (
 	"context"
@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/remote"
 	"github.com/tochemey/goakt/v4/supervisor"
@@ -42,16 +43,36 @@ const (
 	maxHistorySize = 20
 )
 
-func main() {
-	ctx := context.Background()
-	host := "127.0.0.1"
-	port := 4000
+var (
+	serverHost string
+	serverPort int
+)
 
-	// Use DiscardLogger to disable GoAkt logging
+var serverCmd = &cobra.Command{
+	Use:   "server",
+	Short: "Start the chat server",
+	Long: `Start the chat server. Clients connect to this server to chat in rooms.
+
+The server binds to the specified host and port. Start the server before
+connecting any clients. Use --host 0.0.0.0 to accept connections from other machines.`,
+	Example: `  chatv2 server
+  chatv2 server --host 0.0.0.0 --port 5000`,
+	RunE: runServer,
+}
+
+func init() {
+	rootCmd.AddCommand(serverCmd)
+	serverCmd.Flags().StringVar(&serverHost, "host", "127.0.0.1", "Host to bind the server to")
+	serverCmd.Flags().IntVar(&serverPort, "port", 4000, "Port to listen on")
+}
+
+func runServer(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
 	cbor := remote.NewCBORSerializer()
 	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
-		actor.WithRemote(remote.NewConfig(host, port,
+		actor.WithRemote(remote.NewConfig(serverHost, serverPort,
 			remote.WithSerializers((*chatv2.ChatMessage)(nil), cbor),
 			remote.WithSerializers((*chatv2.Connect)(nil), cbor),
 			remote.WithSerializers((*chatv2.Disconnect)(nil), cbor),
@@ -65,36 +86,33 @@ func main() {
 		actor.WithLoggingDisabled())
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "failed to create actor system:", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create actor system: %w", err)
 	}
 
 	if err := actorSystem.Start(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, "failed to start actor system:", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to start actor system: %w", err)
 	}
 
 	if _, err := actorSystem.Spawn(
 		ctx,
 		"ChatServer",
-		NewServer(),
+		newChatServer(),
 		actor.WithSupervisor(
 			supervisor.NewSupervisor(
 				supervisor.WithStrategy(supervisor.OneForOneStrategy),
 				supervisor.WithAnyErrorDirective(supervisor.ResumeDirective),
 			))); err != nil {
-		fmt.Fprintln(os.Stderr, "failed to spawn ChatServer:", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to spawn ChatServer: %w", err)
 	}
 
-	fmt.Println("Chat Server is running on", host, "port", port)
+	fmt.Println("Chat Server is running on", serverHost, "port", serverPort)
 
 	interruptSignal := make(chan os.Signal, 1)
 	signal.Notify(interruptSignal, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	<-interruptSignal
 
 	_ = actorSystem.Stop(ctx)
-	os.Exit(0)
+	return nil
 }
 
 // clientInfo holds the remote address and room for a connected client.
@@ -104,27 +122,27 @@ type clientInfo struct {
 	room     string
 }
 
-// Server is the central chat hub. It maintains a registry of connected clients
+// chatServer is the central chat hub. It maintains a registry of connected clients
 // grouped by room, broadcasts room messages, routes direct messages, replays
 // history to new joiners, and notifies peers of join/leave events.
-type Server struct {
+type chatServer struct {
 	clients map[string]*clientInfo
 	history map[string][]*chatv2.Broadcast
 }
 
-var _ actor.Actor = (*Server)(nil)
+var _ actor.Actor = (*chatServer)(nil)
 
-func NewServer() *Server {
-	return &Server{}
+func newChatServer() *chatServer {
+	return &chatServer{}
 }
 
-func (s *Server) PreStart(ctx *actor.Context) error {
+func (s *chatServer) PreStart(ctx *actor.Context) error {
 	s.clients = make(map[string]*clientInfo)
 	s.history = make(map[string][]*chatv2.Broadcast)
 	return nil
 }
 
-func (s *Server) Receive(ctx *actor.ReceiveContext) {
+func (s *chatServer) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *actor.PostStart:
 		s.handlePostStart(ctx)
@@ -149,19 +167,18 @@ func (s *Server) Receive(ctx *actor.ReceiveContext) {
 	}
 }
 
-func (s *Server) handlePostStart(ctx *actor.ReceiveContext) {
+func (s *chatServer) handlePostStart(ctx *actor.ReceiveContext) {
 	fmt.Println("Chat Server started — waiting for clients")
 }
 
-func (s *Server) PostStop(*actor.Context) error {
+func (s *chatServer) PostStop(*actor.Context) error {
 	s.clients = make(map[string]*clientInfo)
 	s.history = make(map[string][]*chatv2.Broadcast)
 	fmt.Println("Chat Server stopped")
 	return nil
 }
 
-// handleConnect registers a client, replays recent history, then notifies peers.
-func (s *Server) handleConnect(ctx *actor.ReceiveContext, msg *chatv2.Connect) {
+func (s *chatServer) handleConnect(ctx *actor.ReceiveContext, msg *chatv2.Connect) {
 	sender := ctx.Sender()
 	key := sender.ID()
 
@@ -180,12 +197,10 @@ func (s *Server) handleConnect(ctx *actor.ReceiveContext, msg *chatv2.Connect) {
 
 	fmt.Printf("user=%q joined room=%q from %s\n", msg.UserName, room, key)
 
-	// replay recent history to the newcomer
 	for _, b := range history {
 		ctx.Tell(sender, b)
 	}
 
-	// notify everyone else in the room
 	event := &chatv2.SystemEvent{
 		Text: msg.UserName + " joined " + room,
 		At:   time.Now(),
@@ -193,8 +208,7 @@ func (s *Server) handleConnect(ctx *actor.ReceiveContext, msg *chatv2.Connect) {
 	s.broadcastToRoom(ctx, room, key, event)
 }
 
-// handleDisconnect removes a client and notifies peers.
-func (s *Server) handleDisconnect(ctx *actor.ReceiveContext) {
+func (s *chatServer) handleDisconnect(ctx *actor.ReceiveContext) {
 	sender := ctx.Sender()
 	key := sender.ID()
 
@@ -214,8 +228,7 @@ func (s *Server) handleDisconnect(ctx *actor.ReceiveContext) {
 	s.broadcastToRoom(ctx, info.room, key, event)
 }
 
-// handleMessage fans out a room message to all peers and appends to history.
-func (s *Server) handleMessage(ctx *actor.ReceiveContext, msg *chatv2.Message) {
+func (s *chatServer) handleMessage(ctx *actor.ReceiveContext, msg *chatv2.Message) {
 	sender := ctx.Sender()
 	key := sender.ID()
 
@@ -241,8 +254,7 @@ func (s *Server) handleMessage(ctx *actor.ReceiveContext, msg *chatv2.Message) {
 	s.broadcastToRoom(ctx, room, key, broadcast)
 }
 
-// handleDirectMessage routes a private message to the target user only.
-func (s *Server) handleDirectMessage(ctx *actor.ReceiveContext, msg *chatv2.DirectMessage) {
+func (s *chatServer) handleDirectMessage(ctx *actor.ReceiveContext, msg *chatv2.DirectMessage) {
 	target := msg.ToUser
 
 	var targetPID *actor.PID
@@ -267,8 +279,7 @@ func (s *Server) handleDirectMessage(ctx *actor.ReceiveContext, msg *chatv2.Dire
 	ctx.Tell(targetPID, dm)
 }
 
-// handleListUsers replies with the list of users in the requested room.
-func (s *Server) handleListUsers(ctx *actor.ReceiveContext, msg *chatv2.ListUsersRequest) {
+func (s *chatServer) handleListUsers(ctx *actor.ReceiveContext, msg *chatv2.ListUsersRequest) {
 	room := msg.Room
 	if room == "" {
 		room = defaultRoom
@@ -284,8 +295,7 @@ func (s *Server) handleListUsers(ctx *actor.ReceiveContext, msg *chatv2.ListUser
 	ctx.Tell(ctx.Sender(), &chatv2.ListUsersResponse{UserNames: names})
 }
 
-// broadcastToRoom sends msg to every client in room except the one identified by excludeKey.
-func (s *Server) broadcastToRoom(ctx *actor.ReceiveContext, room, excludeKey string, msg any) {
+func (s *chatServer) broadcastToRoom(ctx *actor.ReceiveContext, room, excludeKey string, msg any) {
 	for key, info := range s.clients {
 		if key == excludeKey || info.room != room {
 			continue
@@ -294,8 +304,7 @@ func (s *Server) broadcastToRoom(ctx *actor.ReceiveContext, room, excludeKey str
 	}
 }
 
-// appendHistory adds a broadcast to the room's rolling history, capped at maxHistorySize.
-func (s *Server) appendHistory(room string, b *chatv2.Broadcast) {
+func (s *chatServer) appendHistory(room string, b *chatv2.Broadcast) {
 	buf := s.history[room]
 	buf = append(buf, b)
 	if len(buf) > maxHistorySize {
