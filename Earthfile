@@ -28,6 +28,7 @@ all:
 	BUILD +protogen
 	BUILD +opengen
 	BUILD +opengen-k8s-v2
+	BUILD +opengen-saga
 
 code:
     WORKDIR /app
@@ -79,6 +80,35 @@ opengen-k8s-v2:
 
     SAVE ARTIFACT goakt-actors-cluster/k8s-v2/api/api.gen.go AS LOCAL goakt-actors-cluster/k8s-v2/api/
 
+opengen-saga:
+    WORKDIR /app
+
+    COPY goakt-saga/api/openapi.yaml goakt-saga/api/cfg.yaml goakt-saga/api/
+    RUN cd goakt-saga/api && oapi-codegen -config cfg.yaml openapi.yaml
+
+    SAVE ARTIFACT goakt-saga/api/api.gen.go AS LOCAL goakt-saga/api/
+
+compile-goakt-ai:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor -o bin/goakt-ai ./goakt-ai
+    SAVE ARTIFACT bin/goakt-ai /goakt-ai
+
+goakt-ai-image:
+    FROM alpine:3.17
+
+    WORKDIR /app
+    COPY +compile-goakt-ai/goakt-ai ./goakt-ai
+    RUN chmod +x ./goakt-ai
+
+    EXPOSE 50051
+    EXPOSE 50052
+    EXPOSE 3322
+    EXPOSE 3320
+
+    ENTRYPOINT ["./goakt-ai"]
+    SAVE IMAGE goakt-ai:dev
+
 compile-k8s:
     COPY +vendor/files ./
 
@@ -122,6 +152,27 @@ k8s-v2-image:
 
     ENTRYPOINT ["./accounts"]
     SAVE IMAGE accounts:dev-k8s-v2
+
+compile-saga:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor -o bin/saga-transfer ./goakt-saga
+    SAVE ARTIFACT bin/saga-transfer /saga-transfer
+
+saga-image:
+    FROM alpine:3.17
+
+    WORKDIR /app
+    COPY +compile-saga/saga-transfer ./saga-transfer
+    RUN chmod +x ./saga-transfer
+
+    EXPOSE 50051
+    EXPOSE 50052
+    EXPOSE 3322
+    EXPOSE 3320
+
+    ENTRYPOINT ["./saga-transfer"]
+    SAVE IMAGE saga-transfer:dev
 
 compile-k8s-ebpf:
     COPY +vendor/files ./

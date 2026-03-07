@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  labels:
+    app: postgres
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS accounts (
+        actor_id   VARCHAR(255) NOT NULL PRIMARY KEY,
+        balance    NUMERIC(19, 2) NOT NULL,
+        created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS transfers (
+        transfer_id     VARCHAR(255) NOT NULL PRIMARY KEY,
+        from_account_id VARCHAR(255) NOT NULL,
+        to_account_id   VARCHAR(255) NOT NULL,
+        amount          NUMERIC(19, 2) NOT NULL,
+        status          VARCHAR(50) NOT NULL,
+        reason          TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );

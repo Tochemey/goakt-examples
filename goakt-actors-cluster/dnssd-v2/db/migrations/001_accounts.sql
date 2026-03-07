@@ -20,18 +20,9 @@
 --  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 --  SOFTWARE.
 
-CREATE TABLE IF NOT EXISTS accounts
-(
-	actor_id
-	VARCHAR
-(
-	255
-) NOT NULL PRIMARY KEY,
-	balance NUMERIC
-(19,
- 2
-) NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(
-)
-	);
+CREATE TABLE IF NOT EXISTS accounts(
+   actor_id varchar(255) NOT NULL PRIMARY KEY,
+   balance numeric(19, 2) NOT NULL,
+   created_at timestamptz NOT NULL DEFAULT NOW()
+);
+

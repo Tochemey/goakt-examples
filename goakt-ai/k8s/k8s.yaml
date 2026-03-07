@@ -1,0 +1,219 @@
+# RBAC for Kubernetes discovery
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: goakt-ai
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "pods" ]
+    verbs: [ "get", "watch", "list" ]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: goakt-ai
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: goakt-ai
+  apiGroup: rbac.authorization.k8s.io
+---
+# StatefulSet for goakt-ai pods
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: goakt-ai
+  labels:
+    app.kubernetes.io/name: goakt-ai
+    app.kubernetes.io/component: GoAktAI
+    app.kubernetes.io/part-of: GoAktAI
+spec:
+  serviceName: goakt-ai
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: goakt-ai
+      app.kubernetes.io/component: GoAktAI
+      app.kubernetes.io/part-of: GoAktAI
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: goakt-ai
+        app.kubernetes.io/component: GoAktAI
+        app.kubernetes.io/part-of: GoAktAI
+    spec:
+      restartPolicy: Always
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready"
+      containers:
+        - name: goakt-ai
+          image: "goakt-ai:dev"
+          imagePullPolicy: IfNotPresent
+          command: [ "./goakt-ai", "run" ]
+          ports:
+            - containerPort: 50051
+              name: http
+              protocol: TCP
+            - containerPort: 50052
+              name: remoting-port
+              protocol: TCP
+            - containerPort: 3322
+              name: discovery-port
+              protocol: TCP
+            - containerPort: 3320
+              name: peers-port
+              protocol: TCP
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PORT
+              value: "50051"
+            - name: DISCOVERY_PORT
+              value: "3322"
+            - name: PEERS_PORT
+              value: "3320"
+            - name: REMOTING_PORT
+              value: "50052"
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_DB
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "goakt-ai"
+            - name: LLM_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-keys
+                  key: LLM_PROVIDER
+                  optional: true
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-keys
+                  key: OPENAI_API_KEY
+                  optional: true
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-keys
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-keys
+                  key: GOOGLE_API_KEY
+                  optional: true
+            - name: MISTRAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-keys
+                  key: MISTRAL_API_KEY
+                  optional: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: goakt-ai-http
+  labels:
+    app.kubernetes.io/name: goakt-ai
+    app.kubernetes.io/component: GoAktAI
+    app.kubernetes.io/part-of: GoAktAI
+spec:
+  selector:
+    app.kubernetes.io/name: goakt-ai
+    app.kubernetes.io/component: GoAktAI
+    app.kubernetes.io/part-of: GoAktAI
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 50051
+      targetPort: http
+      name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: goakt-ai
+  labels:
+    app.kubernetes.io/name: goakt-ai
+    app.kubernetes.io/component: GoAktAI
+    app.kubernetes.io/part-of: GoAktAI
+spec:
+  selector:
+    app.kubernetes.io/name: goakt-ai
+    app.kubernetes.io/component: GoAktAI
+    app.kubernetes.io/part-of: GoAktAI
+  clusterIP: None
+  ports:
+    - protocol: TCP
+      port: 50051
+      targetPort: http
+      name: http
+    - protocol: TCP
+      port: 50052
+      targetPort: remoting-port
+      name: remoting-port
+    - protocol: TCP
+      port: 3322
+      targetPort: discovery-port
+      name: discovery-port
+    - protocol: TCP
+      port: 3320
+      targetPort: peers-port
+      name: peers-port

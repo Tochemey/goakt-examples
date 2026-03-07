@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  labels:
+    app: postgres
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS sessions (
+        id VARCHAR(255) NOT NULL PRIMARY KEY,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS tasks (
+        id VARCHAR(255) NOT NULL PRIMARY KEY,
+        session_id VARCHAR(255) NOT NULL,
+        query TEXT NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        result TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );

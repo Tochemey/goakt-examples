@@ -10,10 +10,10 @@ This example demonstrates a GoAkt actor cluster running on **Kubernetes** with:
 ## Architecture
 
 ```
-                    ┌─────────────────┐
-                    │ Nginx (NodePort)│
-                    │ Load Balancer   │
-                    └────────┬────────┘
+                    ┌──────────────────┐
+                    │ Nginx (NodePort) │
+                    │ Load Balancer    │
+                    └────────┬─────────┘
                              │
          ┌───────────────────┼───────────────────┐
          │                   │                   │
@@ -27,19 +27,18 @@ This example demonstrates a GoAkt actor cluster running on **Kubernetes** with:
         │ OTLP traces       │ OTLP traces       │ OTLP traces
         └───────────────────┼───────────────────┘
                             │
-         ┌──────────────────┼──────────────────┐
-         │                  │                  │
-         ▼                  ▼                  ▼
-┌────────────────┐  ┌──────────────────┐
-│ OTEL Collector │  │    PostgreSQL     │
-│ (OTLP → Jaeger)│  │   (Persistence)  │
-└───────┬────────┘  └──────────────────┘
-        │
-        ▼
-┌────────────────┐
-│     Jaeger     │
-│ (Trace UI)     │
-└────────────────┘
+               ┌────────────┴────────────┐
+               ▼                         ▼
+┌──────────────────┐  ┌──────────────────┐
+│  OTEL Collector  │  │    PostgreSQL    │
+│ (OTLP → Jaeger)  │  │  (Persistence)   │
+└────────┬─────────┘  └──────────────────┘
+         │
+         ▼
+┌──────────────────┐
+│      Jaeger      │
+│    (Trace UI)    │
+└──────────────────┘
 ```
 
 ## Prerequisites
