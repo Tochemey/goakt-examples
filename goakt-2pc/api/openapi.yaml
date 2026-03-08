@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: Saga Money Transfer Service API
-  description: HTTP API for the GoAkt saga-based money transfer service (Kubernetes discovery with persistence)
+  title: 2pc Money Transfer Service API
+  description: HTTP API for the GoAkt 2pc-based money transfer service (Kubernetes discovery with persistence)
   version: 1.0.0
 
 paths:
@@ -78,7 +78,7 @@ paths:
   /transfers:
     post:
       operationId: createTransfer
-      summary: Initiate a saga-based money transfer
+      summary: Initiate a 2pc-based money transfer
       requestBody:
         required: true
         content:

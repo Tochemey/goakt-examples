@@ -69,7 +69,7 @@ func (p otelRemoteContextPropagator) Extract(ctx context.Context, headers nethtt
 const (
 	namespace         = "default"
 	serviceName       = "2pc-transfer"
-	actorSystemName   = "SagaTransferSystem"
+	actorSystemName   = "2pcTransferSystem"
 	discoveryPortName = "discovery-port"
 	peersPortName     = "peers-port"
 	remotingPortName  = "remoting-port"
@@ -132,7 +132,7 @@ var runCmd = &cobra.Command{
 		}
 
 		podLabels := map[string]string{
-			"app.kubernetes.io/part-of":   "Saga",
+			"app.kubernetes.io/part-of":   "2pc",
 			"app.kubernetes.io/component": actorSystemName,
 			"app.kubernetes.io/name":      serviceName,
 		}

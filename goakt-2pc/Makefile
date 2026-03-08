@@ -17,13 +17,13 @@
 .DEFAULT_GOAL := help
 
 CLUSTER_NAME ?= goakt-2pc
-IMAGE_NAME ?= saga-transfer:dev
+IMAGE_NAME ?= 2pc-transfer:dev
 K8S_DIR := ./k8s
 REPO_ROOT := ..
 
 .PHONY: help
 help:
-	@echo "goakt-2pc - Saga-based Money Transfer (Kind/Kubernetes)"
+	@echo "goakt-2pc - 2pc-based Money Transfer (Kind/Kubernetes)"
 	@echo ""
 	@echo "Targets:"
 	@echo "  deploy           Build image, load into Kind, and deploy (recommended)"
@@ -31,11 +31,11 @@ help:
 	@echo "  cluster-recreate Delete and recreate the cluster"
 	@echo "  cluster-delete   Delete the Kind cluster"
 	@echo "  image            Build the Docker image and load into Kind"
-	@echo "  cluster-up       Deploy PostgreSQL, saga-transfer, and nginx"
+	@echo "  cluster-up       Deploy PostgreSQL, 2pc-transfer, and nginx"
 	@echo "  cluster-down     Remove all deployments"
 	@echo "  status           Show cluster and pod status"
 	@echo "  test             Run API integration tests"
-	@echo "  logs             Tail logs from saga-transfer pods"
+	@echo "  logs             Tail logs from 2pc-transfer pods"
 	@echo "  port-forward     Forward nginx service to localhost:8080"
 	@echo "  port-forward-jaeger  Forward Jaeger UI to localhost:16686"
 
@@ -58,7 +58,7 @@ cluster-recreate: cluster-delete cluster-create
 .PHONY: image
 image:
 	@echo "Building Docker image..."
-	cd $(REPO_ROOT) && earthly +saga-image
+	cd $(REPO_ROOT) && earthly +2pc-image
 	@echo "Loading image into Kind cluster..."
 	kind load docker-image $(IMAGE_NAME) --name $(CLUSTER_NAME)
 	@echo "Image loaded successfully."
@@ -80,21 +80,21 @@ cluster-up:
 	kubectl apply -f $(K8S_DIR)/otel-collector-deployment.yaml
 	@echo "Waiting for OTEL Collector to be ready..."
 	kubectl wait --for=condition=available --timeout=60s deployment/otel-collector
-	@echo "Deploying saga-transfer service..."
+	@echo "Deploying 2pc-transfer service..."
 	kubectl apply -f $(K8S_DIR)/k8s.yaml
-	@echo "Waiting for saga-transfer pods to be ready..."
+	@echo "Waiting for 2pc-transfer pods to be ready..."
 	@for i in 0 1 2; do \
-		echo "  Waiting for saga-transfer-$$i..."; \
+		echo "  Waiting for 2pc-transfer-$$i..."; \
 		elapsed=0; \
-		until [ "$$(kubectl get pod saga-transfer-$$i -o jsonpath='{.status.containerStatuses[?(@.name=="saga-transfer")].ready}' 2>/dev/null)" = "true" ]; do \
+		until [ "$$(kubectl get pod 2pc-transfer-$$i -o jsonpath='{.status.containerStatuses[?(@.name=="2pc-transfer")].ready}' 2>/dev/null)" = "true" ]; do \
 			sleep 5; elapsed=$$((elapsed+5)); \
 			if [ $$elapsed -ge 300 ]; then \
-				echo "  Timeout waiting for saga-transfer-$$i."; \
-				kubectl get pod saga-transfer-$$i -o wide 2>/dev/null; \
+				echo "  Timeout waiting for 2pc-transfer-$$i."; \
+				kubectl get pod 2pc-transfer-$$i -o wide 2>/dev/null; \
 				exit 1; \
 			fi; \
 		done; \
-		echo "  saga-transfer-$$i is ready"; \
+		echo "  2pc-transfer-$$i is ready"; \
 	done
 	@echo "Deploying nginx ingress..."
 	kubectl apply -f $(K8S_DIR)/nginx-config.yaml
@@ -130,7 +130,7 @@ status:
 
 .PHONY: logs
 logs:
-	kubectl logs -l app.kubernetes.io/name=saga-transfer -f --tail=100
+	kubectl logs -l app.kubernetes.io/name=2pc-transfer -f --tail=100
 
 .PHONY: port-forward
 port-forward:

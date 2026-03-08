@@ -17,7 +17,7 @@ data:
       error_log /var/log/nginx/error.log warn;
 
       upstream http_servers {
-        server saga-transfer-http:50051;
+        server 2pc-transfer-http:50051;
       }
 
       server {

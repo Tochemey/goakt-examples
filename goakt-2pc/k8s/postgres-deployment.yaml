@@ -38,7 +38,7 @@ spec:
               command:
                 - pg_isready
                 - -U
-                - saga
+                - 2pc
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:

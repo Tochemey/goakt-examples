@@ -2,7 +2,7 @@
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: saga-transfer
+  name: 2pc-transfer
 rules:
   - apiGroups: [ "" ]
     resources: [ "pods" ]
@@ -11,40 +11,40 @@ rules:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: saga-transfer
+  name: 2pc-transfer
 subjects:
   - kind: ServiceAccount
     name: default
     namespace: default
 roleRef:
   kind: ClusterRole
-  name: saga-transfer
+  name: 2pc-transfer
   apiGroup: rbac.authorization.k8s.io
 ---
-# StatefulSet for saga transfer service pods
+# StatefulSet for 2pc transfer service pods
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: saga-transfer
+  name: 2pc-transfer
   labels:
-    app.kubernetes.io/name: saga-transfer
-    app.kubernetes.io/component: SagaTransferSystem
-    app.kubernetes.io/part-of: Saga
+    app.kubernetes.io/name: 2pc-transfer
+    app.kubernetes.io/component: 2pcTransferSystem
+    app.kubernetes.io/part-of: 2pc
 spec:
-  serviceName: saga-transfer
+  serviceName: 2pc-transfer
   replicas: 3
   podManagementPolicy: OrderedReady
   selector:
     matchLabels:
-      app.kubernetes.io/name: saga-transfer
-      app.kubernetes.io/component: SagaTransferSystem
-      app.kubernetes.io/part-of: Saga
+      app.kubernetes.io/name: 2pc-transfer
+      app.kubernetes.io/component: 2pcTransferSystem
+      app.kubernetes.io/part-of: 2pc
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: saga-transfer
-        app.kubernetes.io/component: SagaTransferSystem
-        app.kubernetes.io/part-of: Saga
+        app.kubernetes.io/name: 2pc-transfer
+        app.kubernetes.io/component: 2pcTransferSystem
+        app.kubernetes.io/part-of: 2pc
     spec:
       restartPolicy: Always
       initContainers:
@@ -60,10 +60,10 @@ spec:
               done
               echo "PostgreSQL is ready"
       containers:
-        - name: saga-transfer
-          image: "saga-transfer:dev"
+        - name: 2pc-transfer
+          image: "2pc-transfer:dev"
           imagePullPolicy: IfNotPresent
-          command: [ "./saga-transfer", "run" ]
+          command: [ "./2pc-transfer", "run" ]
           ports:
             - containerPort: 50051
               name: http
@@ -116,7 +116,7 @@ spec:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-collector:4318"
             - name: OTEL_SERVICE_NAME
-              value: "saga-transfer"
+              value: "2pc-transfer"
           resources:
             requests:
               memory: "256Mi"
@@ -138,16 +138,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: saga-transfer-http
+  name: 2pc-transfer-http
   labels:
-    app.kubernetes.io/name: saga-transfer
-    app.kubernetes.io/component: SagaTransferSystem
-    app.kubernetes.io/part-of: Saga
+    app.kubernetes.io/name: 2pc-transfer
+    app.kubernetes.io/component: 2pcTransferSystem
+    app.kubernetes.io/part-of: 2pc
 spec:
   selector:
-    app.kubernetes.io/name: saga-transfer
-    app.kubernetes.io/component: SagaTransferSystem
-    app.kubernetes.io/part-of: Saga
+    app.kubernetes.io/name: 2pc-transfer
+    app.kubernetes.io/component: 2pcTransferSystem
+    app.kubernetes.io/part-of: 2pc
   type: ClusterIP
   ports:
     - protocol: TCP
@@ -158,16 +158,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: saga-transfer
+  name: 2pc-transfer
   labels:
-    app.kubernetes.io/name: saga-transfer
-    app.kubernetes.io/component: SagaTransferSystem
-    app.kubernetes.io/part-of: Saga
+    app.kubernetes.io/name: 2pc-transfer
+    app.kubernetes.io/component: 2pcTransferSystem
+    app.kubernetes.io/part-of: 2pc
 spec:
   selector:
-    app.kubernetes.io/name: saga-transfer
-    app.kubernetes.io/component: SagaTransferSystem
-    app.kubernetes.io/part-of: Saga
+    app.kubernetes.io/name: 2pc-transfer
+    app.kubernetes.io/component: 2pcTransferSystem
+    app.kubernetes.io/part-of: 2pc
   clusterIP: None
   ports:
     - protocol: TCP
