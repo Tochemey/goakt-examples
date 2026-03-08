@@ -51,7 +51,7 @@ type GetAccount struct {
 	AccountID string
 }
 
-// StartTransfer initiates a saga-based money transfer
+// StartTransfer initiates a 2PC-based money transfer
 type StartTransfer struct {
 	TransferID    string
 	FromAccountID string
@@ -59,18 +59,18 @@ type StartTransfer struct {
 	Amount        float64
 }
 
-// TransferCompleted is sent when the saga completes successfully
+// TransferCompleted is sent when the 2PC completes successfully
 type TransferCompleted struct {
 	TransferID string
 }
 
-// TransferFailed is sent when the saga fails (after compensation)
+// TransferFailed is sent when the 2PC fails (after abort)
 type TransferFailed struct {
 	TransferID string
 	Reason     string
 }
 
-// GetTransferStatus queries the saga orchestrator for transfer status
+// GetTransferStatus queries the coordinator for transfer status
 type GetTransferStatus struct {
 	TransferID string
 }
@@ -78,6 +78,37 @@ type GetTransferStatus struct {
 // TransferStatus is the response for GetTransferStatus
 type TransferStatus struct {
 	TransferID string
-	Status     string // "pending", "completed", "failed", "compensating"
+	Status     string // "preparing", "prepared", "committed", "aborted"
 	Reason     string // error message when failed
+}
+
+// PrepareTransfer is Phase 1: ask participants to prepare
+type PrepareTransfer struct {
+	TransferID string
+	AccountID  string
+	Amount     float64
+	IsDebit    bool // true for source (debit), false for destination (credit)
+}
+
+// CommitTransfer is Phase 2: tell participants to commit
+type CommitTransfer struct {
+	TransferID string
+}
+
+// AbortTransfer is Phase 2: tell participants to abort
+type AbortTransfer struct {
+	TransferID string
+}
+
+// VoteYes is sent by participants when they can commit
+type VoteYes struct {
+	TransferID string
+	AccountID  string
+}
+
+// VoteNo is sent by participants when they cannot commit
+type VoteNo struct {
+	TransferID string
+	AccountID  string
+	Reason     string
 }

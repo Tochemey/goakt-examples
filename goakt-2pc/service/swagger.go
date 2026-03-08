@@ -25,7 +25,7 @@ package service
 import (
 	"net/http"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/api"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/api"
 )
 
 const swaggerUIHTML = `<!DOCTYPE html>

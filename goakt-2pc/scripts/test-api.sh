@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# API integration tests for goakt-saga money transfer service
+# API integration tests for goakt-2pc money transfer service
 # Creates accounts, performs transfers, and verifies balances
 # Run with: ./scripts/test-api.sh
 # Ensure port-forward is running: make port-forward (in another terminal)
@@ -41,7 +41,7 @@ get_balance() {
 }
 
 echo "=========================================="
-echo "goakt-saga Money Transfer - Integration Test"
+echo "goakt-2pc Money Transfer - Integration Test"
 echo "=========================================="
 echo "API: $BASE_URL"
 echo ""

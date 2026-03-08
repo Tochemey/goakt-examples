@@ -40,9 +40,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/actors"
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/api"
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/actors"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/api"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/messages"
 )
 
 const askTimeout = 10 * time.Second
@@ -54,7 +54,7 @@ func spanNameFromRequest(_ string, r *http.Request) string {
 	return r.Method + " " + r.URL.Path
 }
 
-// TransferService implements api.ServerInterface for the saga money transfer service.
+// TransferService implements api.ServerInterface for the 2PC money transfer service.
 type TransferService struct {
 	actorSystem    goakt.ActorSystem
 	logger         log.Logger
@@ -78,7 +78,7 @@ func (s *TransferService) startSpan(ctx context.Context, name string, attrs ...a
 	if s.tracerProvider == nil {
 		return ctx, func() {}
 	}
-	tracer := s.tracerProvider.Tracer("saga-transfer")
+	tracer := s.tracerProvider.Tracer("2pc-transfer")
 	ctx, span := tracer.Start(ctx, name, trace.WithAttributes(attrs...))
 	return ctx, func() { span.End() }
 }
@@ -242,17 +242,17 @@ func (s *TransferService) CreateTransfer(w http.ResponseWriter, r *http.Request)
 	}
 
 	ctx := r.Context()
-	ctx, endSpawn := s.startSpan(ctx, "actor.Spawn", attribute.String("saga.id", transferID))
-	sagaOrchestrator := actors.NewSagaOrchestrator()
-	pid, err := s.actorSystem.Spawn(ctx, transferID, sagaOrchestrator, goakt.WithLongLived())
+	ctx, endSpawn := s.startSpan(ctx, "actor.Spawn", attribute.String("2pc.transfer_id", transferID))
+	coordinator := actors.NewCoordinator()
+	pid, err := s.actorSystem.Spawn(ctx, transferID, coordinator, goakt.WithLongLived())
 	endSpawn()
 	if err != nil {
-		s.logger.Errorf("error spawning saga orchestrator: %v", err)
+		s.logger.Errorf("error spawning coordinator: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	ctx, endAsk := s.startSpan(ctx, "actor.Ask", attribute.String("saga.id", transferID))
+	ctx, endAsk := s.startSpan(ctx, "actor.Ask", attribute.String("2pc.transfer_id", transferID))
 	reply, err := goakt.Ask(ctx, pid, &messages.StartTransfer{
 		TransferID:    transferID,
 		FromAccountID: from,
@@ -302,7 +302,7 @@ func (s *TransferService) CreateTransfer(w http.ResponseWriter, r *http.Request)
 
 func (s *TransferService) GetTransfer(w http.ResponseWriter, r *http.Request, transferId string) {
 	ctx := r.Context()
-	ctx, endLookup := s.startSpan(ctx, "actor.ActorOf", attribute.String("saga.id", transferId))
+	ctx, endLookup := s.startSpan(ctx, "actor.ActorOf", attribute.String("2pc.transfer_id", transferId))
 	pid, err := s.actorSystem.ActorOf(ctx, transferId)
 	endLookup()
 	if err != nil {
@@ -323,12 +323,12 @@ func (s *TransferService) GetTransfer(w http.ResponseWriter, r *http.Request, tr
 			})
 			return
 		}
-		s.logger.Errorf("error locating saga: %v", err)
+		s.logger.Errorf("error locating coordinator: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	ctx, endAsk := s.startSpan(ctx, "actor.Ask", attribute.String("saga.id", transferId))
+	ctx, endAsk := s.startSpan(ctx, "actor.Ask", attribute.String("2pc.transfer_id", transferId))
 	reply, err := goakt.Ask(ctx, pid, &messages.GetTransferStatus{TransferID: transferId}, askTimeout)
 	endAsk()
 	if err != nil {
@@ -385,7 +385,7 @@ func (s *TransferService) listenAndServe() {
 	if s.tracerProvider != nil {
 		opts = append(opts, otelhttp.WithTracerProvider(s.tracerProvider))
 	}
-	wrappedHandler := otelhttp.NewHandler(handler, "saga-transfer", opts...)
+	wrappedHandler := otelhttp.NewHandler(handler, "2pc-transfer", opts...)
 	serverAddr := fmt.Sprintf(":%d", s.port)
 	s.server = &http.Server{
 		Addr:              serverAddr,
@@ -396,7 +396,7 @@ func (s *TransferService) listenAndServe() {
 		Handler:           wrappedHandler,
 	}
 
-	s.logger.Infof("Saga transfer service listening on %s", serverAddr)
+	s.logger.Infof("2PC transfer service listening on %s", serverAddr)
 	if err := s.server.ListenAndServe(); err != nil {
 		if !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Errorf("failed to start service: %v", errors.Wrap(err, "listen error"))

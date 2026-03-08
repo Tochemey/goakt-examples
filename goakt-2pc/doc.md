@@ -1,4 +1,4 @@
-# goakt-saga: Saga-based Money Transfer
+# goakt-2pc: Saga-based Money Transfer
 
 A production-like example implementing a money transfer application using the **saga pattern** with GoAkt actors. The
 example runs on Kubernetes using Kind and uses only Go types for actor messages (no protobuf).
@@ -37,7 +37,7 @@ flow and persists transfer state to PostgreSQL.
 ## Running on Kind
 
 ```bash
-# From goakt-saga/
+# From goakt-2pc/
 make cluster-create   # One-time: create Kind cluster
 make deploy          # Build image, load, deploy
 make port-forward    # Access API at http://localhost:8080

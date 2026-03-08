@@ -25,10 +25,10 @@ package domain
 import "time"
 
 const (
-	TransferStatusPending      = "pending"
-	TransferStatusCompleted    = "completed"
-	TransferStatusFailed       = "failed"
-	TransferStatusCompensating = "compensating"
+	TransferStatusPreparing = "preparing"
+	TransferStatusPrepared  = "prepared"
+	TransferStatusCommitted = "committed"
+	TransferStatusAborted   = "aborted"
 )
 
 type Transfer struct {
@@ -49,7 +49,7 @@ func NewTransfer(transferID, fromAccountID, toAccountID string, amount float64) 
 		fromAccountID: fromAccountID,
 		toAccountID:   toAccountID,
 		amount:        amount,
-		status:        TransferStatusPending,
+		status:        TransferStatusPreparing,
 		createdAt:     now,
 		updatedAt:     now,
 	}

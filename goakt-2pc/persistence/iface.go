@@ -27,7 +27,7 @@ import (
 
 	"github.com/tochemey/goakt/v4/extension"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/domain"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/domain"
 )
 
 type Store interface {

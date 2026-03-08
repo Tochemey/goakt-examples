@@ -31,8 +31,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "goakt-saga",
-	Short: "GoAkt saga-based money transfer service with Kubernetes discovery",
+	Use:   "goakt-2pc",
+	Short: "GoAkt 2pc-based money transfer service with Kubernetes discovery",
 }
 
 func Execute() {

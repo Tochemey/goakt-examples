@@ -43,10 +43,10 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/actors"
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/messages"
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/persistence"
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/service"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/actors"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/persistence"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/service"
 )
 
 type otelErrorHandler struct{ logger log.Logger }
@@ -68,7 +68,7 @@ func (p otelRemoteContextPropagator) Extract(ctx context.Context, headers nethtt
 
 const (
 	namespace         = "default"
-	serviceName       = "saga-transfer"
+	serviceName       = "2pc-transfer"
 	actorSystemName   = "SagaTransferSystem"
 	discoveryPortName = "discovery-port"
 	peersPortName     = "peers-port"
@@ -91,7 +91,7 @@ func initTracer(ctx context.Context, logger log.Logger) *sdktrace.TracerProvider
 
 	svcName := os.Getenv("OTEL_SERVICE_NAME")
 	if svcName == "" {
-		svcName = "saga-transfer"
+		svcName = "2pc-transfer"
 	}
 
 	res, err := resource.Merge(
@@ -120,7 +120,7 @@ func initTracer(ctx context.Context, logger log.Logger) *sdktrace.TracerProvider
 
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "Run the saga transfer service with Kubernetes discovery",
+	Short: "Run the 2PC transfer service with Kubernetes discovery",
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := cmd.Context()
 
@@ -179,7 +179,7 @@ var runCmd = &cobra.Command{
 			WithDiscoveryPort(config.DiscoveryPort).
 			WithPeersPort(config.PeersPort).
 			WithClusterBalancerInterval(time.Second).
-			WithKinds(new(actors.AccountEntity), new(actors.SagaOrchestrator))
+			WithKinds(new(actors.AccountEntity), new(actors.Coordinator))
 
 		actorSystem, err := goakt.NewActorSystem(
 			config.ActorSystemName,
@@ -213,7 +213,7 @@ var runCmd = &cobra.Command{
 			logger.Fatal(err)
 		}
 
-		logger.Info("Actor system started with Kubernetes discovery and saga pattern")
+		logger.Info("Actor system started with Kubernetes discovery and 2PC pattern")
 
 		transferService := service.NewTransferService(actorSystem, config.Port, logger, tp)
 		transferService.Start()

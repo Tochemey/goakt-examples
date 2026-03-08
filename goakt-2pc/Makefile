@@ -1,4 +1,4 @@
-# Makefile for goakt-saga example using Kind (Kubernetes in Docker)
+# Makefile for goakt-2pc example using Kind (Kubernetes in Docker)
 #
 # Prerequisites:
 #   - Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
@@ -12,18 +12,18 @@
 #   make test             # Run API tests
 #   make cluster-down     # Tear down deployments
 #
-# Run from: goakt-saga/
+# Run from: goakt-2pc/
 
 .DEFAULT_GOAL := help
 
-CLUSTER_NAME ?= goakt-saga
+CLUSTER_NAME ?= goakt-2pc
 IMAGE_NAME ?= saga-transfer:dev
 K8S_DIR := ./k8s
 REPO_ROOT := ..
 
 .PHONY: help
 help:
-	@echo "goakt-saga - Saga-based Money Transfer (Kind/Kubernetes)"
+	@echo "goakt-2pc - Saga-based Money Transfer (Kind/Kubernetes)"
 	@echo ""
 	@echo "Targets:"
 	@echo "  deploy           Build image, load into Kind, and deploy (recommended)"

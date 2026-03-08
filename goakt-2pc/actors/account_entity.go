@@ -29,9 +29,9 @@ import (
 
 	"github.com/tochemey/goakt/v4/actor"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/domain"
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/messages"
-	"github.com/tochemey/goakt-examples/v2/goakt-saga/persistence"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/domain"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-2pc/persistence"
 )
 
 var zeroTime = time.Time{}
@@ -39,17 +39,27 @@ var zeroTime = time.Time{}
 // ErrInsufficientFunds is returned when debit would result in negative balance
 var ErrInsufficientFunds = errors.New("insufficient funds")
 
+// preparedTransfer holds the state of a prepared transaction
+type preparedTransfer struct {
+	transferID string
+	amount     float64
+	isDebit    bool
+}
+
 // AccountEntity represents the actor implementation for account operations
 type AccountEntity struct {
-	state   *domain.Account
-	storage persistence.Store
+	state    *domain.Account
+	storage  persistence.Store
+	prepared map[string]*preparedTransfer // transferID -> prepared state
 }
 
 var _ actor.Actor = (*AccountEntity)(nil)
 
 // NewAccountEntity creates an instance of AccountEntity
 func NewAccountEntity() *AccountEntity {
-	return &AccountEntity{}
+	return &AccountEntity{
+		prepared: make(map[string]*preparedTransfer),
+	}
 }
 
 // PreStart is used to pre-set initial values for the actor
@@ -97,36 +107,17 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 			AccountBalance: state.Balance(),
 		})
 
-	case *messages.DebitAccount:
-		ctx.Logger().Info("debiting account...")
-		state := x.state
+	case *messages.PrepareTransfer:
+		ctx.Logger().Infof("preparing transfer %s...", msg.TransferID)
+		x.handlePrepareTransfer(ctx, msg)
 
-		if state.Balance() < msg.Amount {
-			ctx.Response(ErrInsufficientFunds)
-			return
-		}
+	case *messages.CommitTransfer:
+		ctx.Logger().Infof("committing transfer %s...", msg.TransferID)
+		x.handleCommitTransfer(ctx, msg)
 
-		newBalance := state.Balance() - msg.Amount
-		state.SetBalance(newBalance)
-		x.state = state
-
-		ctx.Response(&messages.Account{
-			AccountID:      msg.AccountID,
-			AccountBalance: state.Balance(),
-		})
-
-	case *messages.CreditAccount:
-		ctx.Logger().Info("crediting account...")
-		state := x.state
-
-		newBalance := state.Balance() + msg.Amount
-		state.SetBalance(newBalance)
-		x.state = state
-
-		ctx.Response(&messages.Account{
-			AccountID:      msg.AccountID,
-			AccountBalance: state.Balance(),
-		})
+	case *messages.AbortTransfer:
+		ctx.Logger().Infof("aborting transfer %s...", msg.TransferID)
+		x.handleAbortTransfer(ctx, msg)
 
 	case *messages.GetAccount:
 		ctx.Logger().Info("get account...")
@@ -138,6 +129,86 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 	default:
 		ctx.Unhandled()
 	}
+}
+
+func (x *AccountEntity) handlePrepareTransfer(ctx *actor.ReceiveContext, msg *messages.PrepareTransfer) {
+	state := x.state
+
+	// Check if already prepared this transfer
+	if _, exists := x.prepared[msg.TransferID]; exists {
+		ctx.Response(&messages.VoteYes{TransferID: msg.TransferID, AccountID: state.AccountID()})
+		return
+	}
+
+	// Validate the operation
+	if msg.IsDebit {
+		// Debit (source account)
+		if state.Balance() < msg.Amount {
+			ctx.Response(&messages.VoteNo{
+				TransferID: msg.TransferID,
+				AccountID:  state.AccountID(),
+				Reason:     "insufficient funds",
+			})
+			return
+		}
+	}
+
+	// Prepare: lock the resources
+	x.prepared[msg.TransferID] = &preparedTransfer{
+		transferID: msg.TransferID,
+		amount:     msg.Amount,
+		isDebit:    msg.IsDebit,
+	}
+
+	ctx.Logger().Infof("account %s voted YES for transfer %s", state.AccountID(), msg.TransferID)
+	ctx.Response(&messages.VoteYes{TransferID: msg.TransferID, AccountID: state.AccountID()})
+}
+
+func (x *AccountEntity) handleCommitTransfer(ctx *actor.ReceiveContext, msg *messages.CommitTransfer) {
+	prepared, exists := x.prepared[msg.TransferID]
+	if !exists {
+		// Already committed or never prepared - idempotent
+		ctx.Response(&messages.Account{
+			AccountID:      x.state.AccountID(),
+			AccountBalance: x.state.Balance(),
+		})
+		return
+	}
+
+	state := x.state
+
+	// Apply the change
+	if prepared.isDebit {
+		newBalance := state.Balance() - prepared.amount
+		state.SetBalance(newBalance)
+	} else {
+		newBalance := state.Balance() + prepared.amount
+		state.SetBalance(newBalance)
+	}
+
+	x.state = state
+
+	// Release the lock
+	delete(x.prepared, msg.TransferID)
+
+	ctx.Logger().Infof("account %s committed transfer %s, new balance: %f", state.AccountID(), msg.TransferID, state.Balance())
+	ctx.Response(&messages.Account{
+		AccountID:      state.AccountID(),
+		AccountBalance: state.Balance(),
+	})
+}
+
+func (x *AccountEntity) handleAbortTransfer(ctx *actor.ReceiveContext, msg *messages.AbortTransfer) {
+	// Release any lock for this transfer
+	if _, exists := x.prepared[msg.TransferID]; exists {
+		delete(x.prepared, msg.TransferID)
+		ctx.Logger().Infof("account %s aborted transfer %s", x.state.AccountID(), msg.TransferID)
+	}
+
+	ctx.Response(&messages.Account{
+		AccountID:      x.state.AccountID(),
+		AccountBalance: x.state.Balance(),
+	})
 }
 
 // PostStop is used to free-up resources when the actor stops
