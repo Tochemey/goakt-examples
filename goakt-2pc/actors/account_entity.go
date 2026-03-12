@@ -57,14 +57,13 @@ var _ actor.Actor = (*AccountEntity)(nil)
 
 // NewAccountEntity creates an instance of AccountEntity
 func NewAccountEntity() *AccountEntity {
-	return &AccountEntity{
-		prepared: make(map[string]*preparedTransfer),
-	}
+	return &AccountEntity{}
 }
 
 // PreStart is used to pre-set initial values for the actor
 func (x *AccountEntity) PreStart(ctx *actor.Context) error {
 	accountID := ctx.ActorName()
+	x.prepared = make(map[string]*preparedTransfer)
 	x.storage = ctx.Extension(persistence.PostgresStateStoreID).(persistence.Store)
 	latestState, err := x.storage.GetAccountState(ctx.Context(), accountID)
 	if err != nil {
@@ -97,6 +96,8 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 			})
 			return
 		}
+		
+		ctx.Logger().Infof("Balance: %f", msg.AccountBalance)
 
 		state.SetBalance(msg.AccountBalance)
 		state.SetCreatedAt(time.Now())
@@ -139,6 +140,8 @@ func (x *AccountEntity) handlePrepareTransfer(ctx *actor.ReceiveContext, msg *me
 		ctx.Response(&messages.VoteYes{TransferID: msg.TransferID, AccountID: state.AccountID()})
 		return
 	}
+	
+	ctx.Logger().Infof("Balance: %f", state.Balance())
 
 	// Validate the operation
 	if msg.IsDebit {

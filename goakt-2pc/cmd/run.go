@@ -68,7 +68,7 @@ func (p otelRemoteContextPropagator) Extract(ctx context.Context, headers nethtt
 
 const (
 	namespace         = "default"
-	serviceName       = "2pc-transfer"
+	serviceName       = "two-pc-transfer"
 	actorSystemName   = "2pcTransferSystem"
 	discoveryPortName = "discovery-port"
 	peersPortName     = "peers-port"
@@ -91,7 +91,7 @@ func initTracer(ctx context.Context, logger log.Logger) *sdktrace.TracerProvider
 
 	svcName := os.Getenv("OTEL_SERVICE_NAME")
 	if svcName == "" {
-		svcName = "2pc-transfer"
+		svcName = "two-pc-transfer"
 	}
 
 	res, err := resource.Merge(
@@ -132,7 +132,7 @@ var runCmd = &cobra.Command{
 		}
 
 		podLabels := map[string]string{
-			"app.kubernetes.io/part-of":   "2pc",
+			"app.kubernetes.io/part-of":   "two-pc",
 			"app.kubernetes.io/component": actorSystemName,
 			"app.kubernetes.io/name":      serviceName,
 		}

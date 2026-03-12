@@ -91,6 +91,7 @@ func (x *PostgresStore) Stop() error {
 }
 
 func (x *PostgresStore) WriteAccountState(ctx context.Context, actorID string, state *domain.Account) error {
+	fmt.Printf("Persisting data in Postgres for account actor %s", actorID)
 	insertQuery := `INSERT INTO accounts (actor_id, balance, created_at) VALUES ($1, $2, $3)
 	ON CONFLICT (actor_id) DO UPDATE SET balance = EXCLUDED.balance;`
 	_, err := x.pool.Exec(ctx, insertQuery, actorID, state.Balance(), state.CreatedAt())
@@ -117,6 +118,7 @@ func (x *PostgresStore) GetAccountState(ctx context.Context, actorID string) (*d
 }
 
 func (x *PostgresStore) WriteTransferState(ctx context.Context, transferID string, state *domain.Transfer) error {
+	fmt.Printf("Persisting data in Postgres for transfer actor %s", transferID)
 	insertQuery := `INSERT INTO transfers (transfer_id, from_account_id, to_account_id, amount, status, reason, created_at, updated_at)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	ON CONFLICT (transfer_id) DO UPDATE SET status = EXCLUDED.status, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at;`

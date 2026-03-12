@@ -17,7 +17,7 @@
 .DEFAULT_GOAL := help
 
 CLUSTER_NAME ?= goakt-2pc
-IMAGE_NAME ?= 2pc-transfer:dev
+IMAGE_NAME ?= two-pc-transfer:dev
 K8S_DIR := ./k8s
 REPO_ROOT := ..
 
@@ -58,7 +58,7 @@ cluster-recreate: cluster-delete cluster-create
 .PHONY: image
 image:
 	@echo "Building Docker image..."
-	cd $(REPO_ROOT) && earthly +2pc-image
+	cd $(REPO_ROOT) && earthly +two-pc-image
 	@echo "Loading image into Kind cluster..."
 	kind load docker-image $(IMAGE_NAME) --name $(CLUSTER_NAME)
 	@echo "Image loaded successfully."
@@ -82,15 +82,15 @@ cluster-up:
 	kubectl wait --for=condition=available --timeout=60s deployment/otel-collector
 	@echo "Deploying 2pc-transfer service..."
 	kubectl apply -f $(K8S_DIR)/k8s.yaml
-	@echo "Waiting for 2pc-transfer pods to be ready..."
+	@echo "Waiting for two-pc-transfer pods to be ready..."
 	@for i in 0 1 2; do \
-		echo "  Waiting for 2pc-transfer-$$i..."; \
+		echo "  Waiting for two-pc-transfer-$$i..."; \
 		elapsed=0; \
-		until [ "$$(kubectl get pod 2pc-transfer-$$i -o jsonpath='{.status.containerStatuses[?(@.name=="2pc-transfer")].ready}' 2>/dev/null)" = "true" ]; do \
+		until [ "$$(kubectl get pod two-pc-transfer-$$i -o jsonpath='{.status.containerStatuses[?(@.name=="two-pc-transfer")].ready}' 2>/dev/null)" = "true" ]; do \
 			sleep 5; elapsed=$$((elapsed+5)); \
 			if [ $$elapsed -ge 300 ]; then \
 				echo "  Timeout waiting for 2pc-transfer-$$i."; \
-				kubectl get pod 2pc-transfer-$$i -o wide 2>/dev/null; \
+				kubectl get pod two-pc-transfer-$$i -o wide 2>/dev/null; \
 				exit 1; \
 			fi; \
 		done; \
@@ -130,7 +130,7 @@ status:
 
 .PHONY: logs
 logs:
-	kubectl logs -l app.kubernetes.io/name=2pc-transfer -f --tail=100
+	kubectl logs -l app.kubernetes.io/name=two-pc-transfer -f --tail=100
 
 .PHONY: port-forward
 port-forward:

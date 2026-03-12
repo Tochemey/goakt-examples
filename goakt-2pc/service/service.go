@@ -91,17 +91,14 @@ func (s *TransferService) CreateAccount(w http.ResponseWriter, r *http.Request) 
 	}
 	accountID := req.CreateAccount.AccountId
 	balance := req.CreateAccount.AccountBalance
+	
+	s.logger.Info("Balance: %f", balance)
 
 	ctx := r.Context()
 	ctx, endSpawn := s.startSpan(ctx, "actor.Spawn", attribute.String("actor.id", accountID))
 	accountEntity := actors.NewAccountEntity()
 	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity, goakt.WithLongLived())
 	endSpawn()
-	if err != nil {
-		s.logger.Errorf("error spawning actor: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 
 	ctx, endAsk := s.startSpan(ctx, "actor.Ask", attribute.String("actor.id", accountID))
 	reply, err := goakt.Ask(ctx, pid, &messages.CreateAccount{

@@ -174,6 +174,27 @@ saga-image:
     ENTRYPOINT ["./saga-transfer"]
     SAVE IMAGE saga-transfer:dev
 
+compile-2pc:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor -o bin/2pc-transfer ./goakt-2pc
+    SAVE ARTIFACT bin/2pc-transfer /2pc-transfer
+
+two-pc-image:
+    FROM alpine:3.17
+
+    WORKDIR /app
+    COPY +compile-2pc/2pc-transfer ./2pc-transfer
+    RUN chmod +x ./2pc-transfer
+
+    EXPOSE 50051
+    EXPOSE 50052
+    EXPOSE 3322
+    EXPOSE 3320
+
+    ENTRYPOINT ["./2pc-transfer"]
+    SAVE IMAGE two-pc-transfer:dev
+
 compile-k8s-ebpf:
     COPY +vendor/files ./
 

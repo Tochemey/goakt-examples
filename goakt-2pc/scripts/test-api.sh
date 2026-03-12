@@ -137,10 +137,10 @@ bob_resp=$(curl -s "$BASE_URL/accounts/bob")
 alice_bal=$(get_balance "$alice_resp")
 bob_bal=$(get_balance "$bob_resp")
 if [ "$(echo "$alice_bal" | cut -d. -f1)" != "70" ] || [ "$(echo "$bob_bal" | cut -d. -f1)" != "80" ]; then
-  echo "FAIL: Balances changed after failed transfer (2pc compensation should have rolled back)"
+  echo "FAIL: Balances changed after failed transfer (2pc compensation should rejected the transfer)"
   exit 1
 fi
-echo "  Balances unchanged after failed transfer (2pc compensation verified)"
+echo "  Balances unchanged after failed transfer (2pc verified)"
 echo ""
 
 echo "=========================================="
