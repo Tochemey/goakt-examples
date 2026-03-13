@@ -91,8 +91,6 @@ func (s *TransferService) CreateAccount(w http.ResponseWriter, r *http.Request) 
 	}
 	accountID := req.CreateAccount.AccountId
 	balance := req.CreateAccount.AccountBalance
-	
-	s.logger.Info("Balance: %f", balance)
 
 	ctx := r.Context()
 	ctx, endSpawn := s.startSpan(ctx, "actor.Spawn", attribute.String("actor.id", accountID))

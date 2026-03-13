@@ -96,8 +96,6 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 			})
 			return
 		}
-		
-		ctx.Logger().Infof("Balance: %f", msg.AccountBalance)
 
 		state.SetBalance(msg.AccountBalance)
 		state.SetCreatedAt(time.Now())

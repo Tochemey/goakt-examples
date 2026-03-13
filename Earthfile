@@ -177,7 +177,7 @@ saga-image:
 compile-two-pc:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor -o bin/two-pc-transfer ./goakt-two-pc
+    RUN go build -mod=vendor -o bin/two-pc-transfer ./goakt-2pc
     SAVE ARTIFACT bin/two-pc-transfer /two-pc-transfer
 
 two-pc-image:
