@@ -69,7 +69,7 @@ func (p otelRemoteContextPropagator) Extract(ctx context.Context, headers nethtt
 const (
 	namespace         = "default"
 	serviceName       = "two-pc-transfer"
-	actorSystemName   = "2pcTransferSystem"
+	actorSystemName   = "two-pc-TransferSystem"
 	discoveryPortName = "discovery-port"
 	peersPortName     = "peers-port"
 	remotingPortName  = "remoting-port"

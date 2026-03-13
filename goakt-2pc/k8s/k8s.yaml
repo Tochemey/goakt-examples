@@ -28,22 +28,22 @@ metadata:
   name: two-pc-transfer
   labels:
     app.kubernetes.io/name: two-pc-transfer
-    app.kubernetes.io/component: two-pcTransferSystem
+    app.kubernetes.io/component: two-pc-TransferSystem
     app.kubernetes.io/part-of: two-pc
 spec:
   serviceName: two-pc-transfer
-  replicas: 1
+  replicas: 3
   podManagementPolicy: OrderedReady
   selector:
     matchLabels:
       app.kubernetes.io/name: two-pc-transfer
-      app.kubernetes.io/component: two-pcTransferSystem
+      app.kubernetes.io/component: two-pc-TransferSystem
       app.kubernetes.io/part-of: two-pc
   template:
     metadata:
       labels:
         app.kubernetes.io/name: two-pc-transfer
-        app.kubernetes.io/component: two-pcTransferSystem
+        app.kubernetes.io/component: two-pc-TransferSystem
         app.kubernetes.io/part-of: two-pc
     spec:
       restartPolicy: Always
@@ -63,7 +63,7 @@ spec:
         - name: two-pc-transfer
           image: "two-pc-transfer:dev"
           imagePullPolicy: IfNotPresent
-          command: [ "./2pc-transfer", "run" ]
+          command: [ "./two-pc-transfer", "run" ]
           ports:
             - containerPort: 50051
               name: http
@@ -141,12 +141,12 @@ metadata:
   name: two-pc-transfer-http
   labels:
     app.kubernetes.io/name: two-pc-transfer
-    app.kubernetes.io/component: two-pcTransferSystem
+    app.kubernetes.io/component: two-pc-TransferSystem
     app.kubernetes.io/part-of: two-pc
 spec:
   selector:
     app.kubernetes.io/name: two-pc-transfer
-    app.kubernetes.io/component: two-pcTransferSystem
+    app.kubernetes.io/component: two-pc-TransferSystem
     app.kubernetes.io/part-of: two-pc
   type: ClusterIP
   ports:
@@ -161,12 +161,12 @@ metadata:
   name: two-pc-transfer
   labels:
     app.kubernetes.io/name: two-pc-transfer
-    app.kubernetes.io/component: two-pcTransferSystem
+    app.kubernetes.io/component: two-pc-TransferSystem
     app.kubernetes.io/part-of: two-pc
 spec:
   selector:
     app.kubernetes.io/name: two-pc-transfer
-    app.kubernetes.io/component: two-pcTransferSystem
+    app.kubernetes.io/component: two-pc-TransferSystem
     app.kubernetes.io/part-of: two-pc
   clusterIP: None
   ports:

@@ -27,7 +27,7 @@ import "github.com/caarlos0/env/v11"
 // Config defines the service configuration for Kubernetes discovery
 type Config struct {
 	Port            int    `env:"PORT" envDefault:"50051"`
-	ActorSystemName string `env:"SYSTEM_NAME" envDefault:"2pc-transfer"`
+	ActorSystemName string `env:"SYSTEM_NAME" envDefault:"two-pc-TransferSystem"`
 	DiscoveryPort   int    `env:"DISCOVERY_PORT"`
 	PeersPort       int    `env:"PEERS_PORT"`
 	RemotingPort    int    `env:"REMOTING_PORT"`

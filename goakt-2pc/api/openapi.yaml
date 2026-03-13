@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: 2pc Money Transfer Service API
-  description: HTTP API for the GoAkt 2pc-based money transfer service (Kubernetes discovery with persistence)
+  title: 2PC Money Transfer Service API
+  description: HTTP API for the GoAkt two-pc-based money transfer service (Kubernetes discovery with persistence)
   version: 1.0.0
 
 paths:

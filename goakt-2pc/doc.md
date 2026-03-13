@@ -32,19 +32,19 @@ The `Coordinator` actor manages this two-phase protocol and persists transfer st
 
 ## API Endpoints
 
-| Method | Path                  | Description                   |
-|--------|-----------------------|-------------------------------|
-| POST   | /accounts             | Create account                |
-| GET    | /accounts/{id}        | Get account balance           |
-| POST   | /accounts/{id}/credit | Direct credit (bypass 2PC)    |
-| POST   | /transfers            | Initiate 2PC-based transfer   |
-| GET    | /transfers/{id}       | Get transfer status           |
+| Method | Path                  | Description                     |
+|--------|-----------------------|---------------------------------|
+| POST   | /accounts             | Create account                  |
+| GET    | /accounts/{id}        | Get account balance             |
+| POST   | /accounts/{id}/credit | Direct credit (bypass 2PC)      |
+| POST   | /transfers            | Initiate two-pc-based transfer  |
+| GET    | /transfers/{id}       | Get transfer status             |
 
 ## Running on Kind
 
 ```bash
 # From goakt-2pc/
-make cluster-create   # One-time: create Kind cluster
+make cluster-create  # One-time: create Kind cluster
 make deploy          # Build image, load, deploy
 make port-forward    # Access API at http://localhost:8080
 make test            # Run integration tests
@@ -74,3 +74,11 @@ All actor messages are Go types, registered for remoting serialization:
 - `TransferCompleted` - Transfer successfully committed
 - `TransferFailed` - Transfer aborted
 - `GetTransferStatus`, `TransferStatus` - Query transfer state
+
+## Limitations
+
+This project is a Proof of Concept for building 2 Phase Commit system using Goakt. This project has the following (but not limited to) limitations:
+
+- Safely retry the transfer when the actor/host dies and respawn on a different node
+
+I recommends you solve the potential problems above before adopting this project/concept in your production system.

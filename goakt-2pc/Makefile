@@ -23,7 +23,7 @@ REPO_ROOT := ..
 
 .PHONY: help
 help:
-	@echo "goakt-2pc - 2pc-based Money Transfer (Kind/Kubernetes)"
+	@echo "goakt-2pc - two-pc-based Money Transfer (Kind/Kubernetes)"
 	@echo ""
 	@echo "Targets:"
 	@echo "  deploy           Build image, load into Kind, and deploy (recommended)"
@@ -31,11 +31,11 @@ help:
 	@echo "  cluster-recreate Delete and recreate the cluster"
 	@echo "  cluster-delete   Delete the Kind cluster"
 	@echo "  image            Build the Docker image and load into Kind"
-	@echo "  cluster-up       Deploy PostgreSQL, 2pc-transfer, and nginx"
+	@echo "  cluster-up       Deploy PostgreSQL, two-pc-transfer, and nginx"
 	@echo "  cluster-down     Remove all deployments"
 	@echo "  status           Show cluster and pod status"
 	@echo "  test             Run API integration tests"
-	@echo "  logs             Tail logs from 2pc-transfer pods"
+	@echo "  logs             Tail logs from two-pc-transfer pods"
 	@echo "  port-forward     Forward nginx service to localhost:8080"
 	@echo "  port-forward-jaeger  Forward Jaeger UI to localhost:16686"
 
@@ -80,7 +80,7 @@ cluster-up:
 	kubectl apply -f $(K8S_DIR)/otel-collector-deployment.yaml
 	@echo "Waiting for OTEL Collector to be ready..."
 	kubectl wait --for=condition=available --timeout=60s deployment/otel-collector
-	@echo "Deploying 2pc-transfer service..."
+	@echo "Deploying two-pc-transfer service..."
 	kubectl apply -f $(K8S_DIR)/k8s.yaml
 	@echo "Waiting for two-pc-transfer pods to be ready..."
 	@for i in 0 1 2; do \
@@ -89,12 +89,12 @@ cluster-up:
 		until [ "$$(kubectl get pod two-pc-transfer-$$i -o jsonpath='{.status.containerStatuses[?(@.name=="two-pc-transfer")].ready}' 2>/dev/null)" = "true" ]; do \
 			sleep 5; elapsed=$$((elapsed+5)); \
 			if [ $$elapsed -ge 300 ]; then \
-				echo "  Timeout waiting for 2pc-transfer-$$i."; \
+				echo "  Timeout waiting for two-pc-transfer-$$i."; \
 				kubectl get pod two-pc-transfer-$$i -o wide 2>/dev/null; \
 				exit 1; \
 			fi; \
 		done; \
-		echo "  2pc-transfer-$$i is ready"; \
+		echo "  two-pc-transfer-$$i is ready"; \
 	done
 	@echo "Deploying nginx ingress..."
 	kubectl apply -f $(K8S_DIR)/nginx-config.yaml
