@@ -53,4 +53,5 @@ earthly +all
 - [goakt-chat](./goakt-chat) — Multi-room chat: remoting, room-based messaging, message history (protobuf)
 - [goakt-chat-v2](./goakt-chat-v2) — Chat with Go types: same chat app using standard Go structs instead of protobuf
 - [goakt-saga](./goakt-saga) — **Saga pattern**: production-like money transfer with compensating transactions, Kubernetes/Kind, Go types only
+- [goakt-2pc](./goakt-2pc) — **2 phase commit pattern**: The same production-like money transfer with 2 phase commit pattern, Kubernetes/Kind, Go types only
 - [goakt-ai](./goakt-ai) — **Distributed AI agents**: multi-agent system with Orchestrator, Research, Summarizer, Tool agents; OpenAI/Anthropic/Google/Mistral; CLI + load balancer; Kubernetes/Kind
