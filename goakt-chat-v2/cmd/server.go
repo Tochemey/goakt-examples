@@ -35,7 +35,7 @@ import (
 	"github.com/tochemey/goakt/v4/remote"
 	"github.com/tochemey/goakt/v4/supervisor"
 
-	"github.com/tochemey/goakt-examples/v2/internal/chatv2"
+	"github.com/tochemey/goakt-examples/v2/internal/chat"
 )
 
 const (
@@ -55,7 +55,7 @@ var serverCmd = &cobra.Command{
 
 The server binds to the specified host and port. Start the server before
 connecting any clients. Use --host 0.0.0.0 to accept connections from other machines.`,
-	Example: `  chatv2 server
+	Example: `  chat server
   chatv2 server --host 0.0.0.0 --port 5000`,
 	RunE: runServer,
 }
@@ -73,15 +73,15 @@ func runServer(cmd *cobra.Command, args []string) error {
 	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
 		actor.WithRemote(remote.NewConfig(serverHost, serverPort,
-			remote.WithSerializers((*chatv2.ChatMessage)(nil), cbor),
-			remote.WithSerializers((*chatv2.Connect)(nil), cbor),
-			remote.WithSerializers((*chatv2.Disconnect)(nil), cbor),
-			remote.WithSerializers((*chatv2.Message)(nil), cbor),
-			remote.WithSerializers((*chatv2.DirectMessage)(nil), cbor),
-			remote.WithSerializers((*chatv2.ListUsersRequest)(nil), cbor),
-			remote.WithSerializers((*chatv2.ListUsersResponse)(nil), cbor),
-			remote.WithSerializers((*chatv2.Broadcast)(nil), cbor),
-			remote.WithSerializers((*chatv2.SystemEvent)(nil), cbor),
+			remote.WithSerializers((*chat.ChatMessage)(nil), cbor),
+			remote.WithSerializers((*chat.Connect)(nil), cbor),
+			remote.WithSerializers((*chat.Disconnect)(nil), cbor),
+			remote.WithSerializers((*chat.Message)(nil), cbor),
+			remote.WithSerializers((*chat.DirectMessage)(nil), cbor),
+			remote.WithSerializers((*chat.ListUsersRequest)(nil), cbor),
+			remote.WithSerializers((*chat.ListUsersResponse)(nil), cbor),
+			remote.WithSerializers((*chat.Broadcast)(nil), cbor),
+			remote.WithSerializers((*chat.SystemEvent)(nil), cbor),
 		)),
 		actor.WithLoggingDisabled())
 
@@ -127,7 +127,7 @@ type clientInfo struct {
 // history to new joiners, and notifies peers of join/leave events.
 type chatServer struct {
 	clients map[string]*clientInfo
-	history map[string][]*chatv2.Broadcast
+	history map[string][]*chat.Broadcast
 }
 
 var _ actor.Actor = (*chatServer)(nil)
@@ -138,7 +138,7 @@ func newChatServer() *chatServer {
 
 func (s *chatServer) PreStart(ctx *actor.Context) error {
 	s.clients = make(map[string]*clientInfo)
-	s.history = make(map[string][]*chatv2.Broadcast)
+	s.history = make(map[string][]*chat.Broadcast)
 	return nil
 }
 
@@ -147,19 +147,19 @@ func (s *chatServer) Receive(ctx *actor.ReceiveContext) {
 	case *actor.PostStart:
 		s.handlePostStart(ctx)
 
-	case *chatv2.Connect:
+	case *chat.Connect:
 		s.handleConnect(ctx, msg)
 
-	case *chatv2.Disconnect:
+	case *chat.Disconnect:
 		s.handleDisconnect(ctx)
 
-	case *chatv2.Message:
+	case *chat.Message:
 		s.handleMessage(ctx, msg)
 
-	case *chatv2.DirectMessage:
+	case *chat.DirectMessage:
 		s.handleDirectMessage(ctx, msg)
 
-	case *chatv2.ListUsersRequest:
+	case *chat.ListUsersRequest:
 		s.handleListUsers(ctx, msg)
 
 	default:
@@ -173,12 +173,12 @@ func (s *chatServer) handlePostStart(ctx *actor.ReceiveContext) {
 
 func (s *chatServer) PostStop(*actor.Context) error {
 	s.clients = make(map[string]*clientInfo)
-	s.history = make(map[string][]*chatv2.Broadcast)
+	s.history = make(map[string][]*chat.Broadcast)
 	fmt.Println("Chat Server stopped")
 	return nil
 }
 
-func (s *chatServer) handleConnect(ctx *actor.ReceiveContext, msg *chatv2.Connect) {
+func (s *chatServer) handleConnect(ctx *actor.ReceiveContext, msg *chat.Connect) {
 	sender := ctx.Sender()
 	key := sender.ID()
 
@@ -192,7 +192,7 @@ func (s *chatServer) handleConnect(ctx *actor.ReceiveContext, msg *chatv2.Connec
 		return
 	}
 	s.clients[key] = &clientInfo{pid: sender, userName: msg.UserName, room: room}
-	history := make([]*chatv2.Broadcast, len(s.history[room]))
+	history := make([]*chat.Broadcast, len(s.history[room]))
 	copy(history, s.history[room])
 
 	fmt.Printf("user=%q joined room=%q from %s\n", msg.UserName, room, key)
@@ -201,7 +201,7 @@ func (s *chatServer) handleConnect(ctx *actor.ReceiveContext, msg *chatv2.Connec
 		ctx.Tell(sender, b)
 	}
 
-	event := &chatv2.SystemEvent{
+	event := &chat.SystemEvent{
 		Text: msg.UserName + " joined " + room,
 		At:   time.Now(),
 	}
@@ -221,14 +221,14 @@ func (s *chatServer) handleDisconnect(ctx *actor.ReceiveContext) {
 
 	fmt.Printf("user=%q left room=%q\n", info.userName, info.room)
 
-	event := &chatv2.SystemEvent{
+	event := &chat.SystemEvent{
 		Text: info.userName + " left " + info.room,
 		At:   time.Now(),
 	}
 	s.broadcastToRoom(ctx, info.room, key, event)
 }
 
-func (s *chatServer) handleMessage(ctx *actor.ReceiveContext, msg *chatv2.Message) {
+func (s *chatServer) handleMessage(ctx *actor.ReceiveContext, msg *chat.Message) {
 	sender := ctx.Sender()
 	key := sender.ID()
 
@@ -243,7 +243,7 @@ func (s *chatServer) handleMessage(ctx *actor.ReceiveContext, msg *chatv2.Messag
 		room = info.room
 	}
 
-	broadcast := &chatv2.Broadcast{
+	broadcast := &chat.Broadcast{
 		FromUser: info.userName,
 		Content:  msg.Content,
 		Room:     room,
@@ -254,7 +254,7 @@ func (s *chatServer) handleMessage(ctx *actor.ReceiveContext, msg *chatv2.Messag
 	s.broadcastToRoom(ctx, room, key, broadcast)
 }
 
-func (s *chatServer) handleDirectMessage(ctx *actor.ReceiveContext, msg *chatv2.DirectMessage) {
+func (s *chatServer) handleDirectMessage(ctx *actor.ReceiveContext, msg *chat.DirectMessage) {
 	target := msg.ToUser
 
 	var targetPID *actor.PID
@@ -270,7 +270,7 @@ func (s *chatServer) handleDirectMessage(ctx *actor.ReceiveContext, msg *chatv2.
 		return
 	}
 
-	dm := &chatv2.DirectMessage{
+	dm := &chat.DirectMessage{
 		FromUser: msg.FromUser,
 		ToUser:   target,
 		Content:  msg.Content,
@@ -279,7 +279,7 @@ func (s *chatServer) handleDirectMessage(ctx *actor.ReceiveContext, msg *chatv2.
 	ctx.Tell(targetPID, dm)
 }
 
-func (s *chatServer) handleListUsers(ctx *actor.ReceiveContext, msg *chatv2.ListUsersRequest) {
+func (s *chatServer) handleListUsers(ctx *actor.ReceiveContext, msg *chat.ListUsersRequest) {
 	room := msg.Room
 	if room == "" {
 		room = defaultRoom
@@ -292,7 +292,7 @@ func (s *chatServer) handleListUsers(ctx *actor.ReceiveContext, msg *chatv2.List
 		}
 	}
 
-	ctx.Tell(ctx.Sender(), &chatv2.ListUsersResponse{UserNames: names})
+	ctx.Tell(ctx.Sender(), &chat.ListUsersResponse{UserNames: names})
 }
 
 func (s *chatServer) broadcastToRoom(ctx *actor.ReceiveContext, room, excludeKey string, msg any) {
@@ -304,7 +304,7 @@ func (s *chatServer) broadcastToRoom(ctx *actor.ReceiveContext, room, excludeKey
 	}
 }
 
-func (s *chatServer) appendHistory(room string, b *chatv2.Broadcast) {
+func (s *chatServer) appendHistory(room string, b *chat.Broadcast) {
 	buf := s.history[room]
 	buf = append(buf, b)
 	if len(buf) > maxHistorySize {

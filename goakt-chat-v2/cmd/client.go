@@ -40,7 +40,7 @@ import (
 	"github.com/tochemey/goakt/v4/supervisor"
 	"github.com/travisjeffery/go-dynaport"
 
-	"github.com/tochemey/goakt-examples/v2/internal/chatv2"
+	"github.com/tochemey/goakt-examples/v2/internal/chat"
 )
 
 const clientHelpText = `Commands:
@@ -112,15 +112,15 @@ func runClient(c *cobra.Command, args []string) error {
 	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
 		actor.WithRemote(remote.NewConfig("127.0.0.1", port,
-			remote.WithSerializers((*chatv2.ChatMessage)(nil), cbor),
-			remote.WithSerializers((*chatv2.Connect)(nil), cbor),
-			remote.WithSerializers((*chatv2.Disconnect)(nil), cbor),
-			remote.WithSerializers((*chatv2.Message)(nil), cbor),
-			remote.WithSerializers((*chatv2.DirectMessage)(nil), cbor),
-			remote.WithSerializers((*chatv2.ListUsersRequest)(nil), cbor),
-			remote.WithSerializers((*chatv2.ListUsersResponse)(nil), cbor),
-			remote.WithSerializers((*chatv2.Broadcast)(nil), cbor),
-			remote.WithSerializers((*chatv2.SystemEvent)(nil), cbor),
+			remote.WithSerializers((*chat.ChatMessage)(nil), cbor),
+			remote.WithSerializers((*chat.Connect)(nil), cbor),
+			remote.WithSerializers((*chat.Disconnect)(nil), cbor),
+			remote.WithSerializers((*chat.Message)(nil), cbor),
+			remote.WithSerializers((*chat.DirectMessage)(nil), cbor),
+			remote.WithSerializers((*chat.ListUsersRequest)(nil), cbor),
+			remote.WithSerializers((*chat.ListUsersResponse)(nil), cbor),
+			remote.WithSerializers((*chat.Broadcast)(nil), cbor),
+			remote.WithSerializers((*chat.SystemEvent)(nil), cbor),
 		)),
 		actor.WithLogger(log.DiscardLogger))
 
@@ -177,14 +177,14 @@ func runClient(c *cobra.Command, args []string) error {
 
 				switch cmd {
 				case "/quit":
-					_ = client.Tell(ctx, server, &chatv2.Disconnect{})
+					_ = client.Tell(ctx, server, &chat.Disconnect{})
 					return
 
 				case "/help":
 					fmt.Print("\r" + clientHelpText + "\n")
 
 				case "/users":
-					_ = client.Tell(ctx, server, &chatv2.ListUsersRequest{
+					_ = client.Tell(ctx, server, &chat.ListUsersRequest{
 						Room: clientActor.currentRoom(),
 					})
 
@@ -194,12 +194,12 @@ func runClient(c *cobra.Command, args []string) error {
 						break
 					}
 					newRoom := parts[1]
-					_ = client.Tell(ctx, server, &chatv2.Disconnect{})
+					_ = client.Tell(ctx, server, &chat.Disconnect{})
 
 					time.Sleep(200 * time.Millisecond)
 
 					clientActor.setRoom(newRoom)
-					_ = client.Tell(ctx, server, &chatv2.Connect{
+					_ = client.Tell(ctx, server, &chat.Connect{
 						UserName: userName,
 						Room:     newRoom,
 					})
@@ -214,7 +214,7 @@ func runClient(c *cobra.Command, args []string) error {
 					}
 					toUser := parts[1]
 					content := parts[2]
-					_ = client.Tell(ctx, server, &chatv2.DirectMessage{
+					_ = client.Tell(ctx, server, &chat.DirectMessage{
 						FromUser: userName,
 						ToUser:   toUser,
 						Content:  content,
@@ -229,7 +229,7 @@ func runClient(c *cobra.Command, args []string) error {
 				continue
 			}
 
-			_ = client.Tell(ctx, server, &chatv2.Message{
+			_ = client.Tell(ctx, server, &chat.Message{
 				UserName: userName,
 				Content:  input,
 				Room:     clientActor.currentRoom(),
@@ -244,7 +244,7 @@ func runClient(c *cobra.Command, args []string) error {
 	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case <-sig:
-		_ = client.Tell(ctx, server, &chatv2.Disconnect{})
+		_ = client.Tell(ctx, server, &chat.Disconnect{})
 	case <-done:
 	}
 
@@ -288,27 +288,27 @@ func (c *chatClient) PreStart(*actor.Context) error {
 func (c *chatClient) Receive(ctx *actor.ReceiveContext) {
 	switch msg := ctx.Message().(type) {
 	case *actor.PostStart:
-		ctx.Tell(c.server, &chatv2.Connect{
+		ctx.Tell(c.server, &chat.Connect{
 			UserName: c.userName,
 			Room:     c.currentRoom(),
 		})
 
-	case *chatv2.Broadcast:
+	case *chat.Broadcast:
 		ts := formatTime(msg.SentAt)
 		fmt.Printf("\r[%s] [%s] %s: %s\n", ts, msg.Room, msg.FromUser, msg.Content)
 		printClientPrompt(c.userName, c.currentRoom())
 
-	case *chatv2.DirectMessage:
+	case *chat.DirectMessage:
 		ts := formatTime(msg.SentAt)
 		fmt.Printf("\r[%s] [DM from %s]: %s\n", ts, msg.FromUser, msg.Content)
 		printClientPrompt(c.userName, c.currentRoom())
 
-	case *chatv2.SystemEvent:
+	case *chat.SystemEvent:
 		ts := formatTime(msg.At)
 		fmt.Printf("\r[%s] *** %s ***\n", ts, msg.Text)
 		printClientPrompt(c.userName, c.currentRoom())
 
-	case *chatv2.ListUsersResponse:
+	case *chat.ListUsersResponse:
 		fmt.Printf("\rOnline in %s: %s\n", c.currentRoom(), strings.Join(msg.UserNames, ", "))
 		printClientPrompt(c.userName, c.currentRoom())
 
