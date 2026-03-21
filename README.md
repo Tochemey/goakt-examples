@@ -48,6 +48,10 @@ earthly +all
 - [goakt-grains](./goakt-grains) — Grains model: virtual actors with automatic activation and passivation
 - [goakt-grains-cluster/grains-dnssd](./goakt-grains-cluster/grains-dnssd) — Grains clustering: grains across multiple nodes with DNS-SD discovery
 
+### Reactive Streams
+
+- [goakt-stream](./goakt-stream) — **Reactive streams**: backpressure-aware pipelines with Sources, Flows, Sinks, fan-out/fan-in topologies, parallel processing, and actor integration
+
 ### Applications
 
 - [goakt-chat](./goakt-chat) — Multi-room chat: remoting, room-based messaging, message history (protobuf)

@@ -138,7 +138,7 @@ func (x *AccountEntity) handlePrepareTransfer(ctx *actor.ReceiveContext, msg *me
 		ctx.Response(&messages.VoteYes{TransferID: msg.TransferID, AccountID: state.AccountID()})
 		return
 	}
-	
+
 	ctx.Logger().Infof("Balance: %f", state.Balance())
 
 	// Validate the operation
