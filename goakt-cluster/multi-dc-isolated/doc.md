@@ -6,26 +6,81 @@ This example demonstrates GoAkt's **multi-datacenter** support using **two separ
 - **Standalone NATS container** on a shared Docker network for cross-DC coordination
 - **NATS JetStream control plane** for datacenter registration and discovery
 - **NATS discovery** for intra-DC peer finding
-- **Cross-DC actor messaging** via the `DataCenterGateway` cluster singleton
+- **DataCenterGateway singleton** for cross-DC actor discovery via `DiscoverActor`
 - **PostgreSQL persistence** per datacenter (isolated stores)
 - **HTTP/JSON REST API** with Swagger UI
 
 ## Architecture
 
 ```
-Host Machine (Docker)
-│
-├── kind-dc1 (Kind cluster 1)              ├── kind-dc2 (Kind cluster 2)
-│   ├── accounts-dc1 (3 replicas)          │   ├── accounts-dc2 (3 replicas)
-│   ├── postgres-dc1                       │   ├── postgres-dc2
-│   └── nginx (:8080)                      │   └── nginx (:8080)
-│                                          │
-└── nats-shared (standalone Docker) ───────┘
-    nats://NATS_IP:4222
-    (on shared Docker network: goakt-multi-dc-net)
+                       ┌────────────────────────┐
+                       │  nats-shared (Docker)  │
+                       │  JetStream + KV Store  │
+                       └───────────┬────────────┘
+                                   │
+                 ┌─────────────────┼─────────────────┐
+                 │   goakt-multi-dc-net (Docker)     │
+                 │                                   │
+   ┌─────────────▼───────────────┐   ┌───────────────▼─────────────┐
+   │  kind-dc1 (172.20.0.3)      │   │  kind-dc2 (172.20.0.4)      │
+   │                             │   │                             │
+   │  ┌───────────────────────┐  │   │  ┌───────────────────────┐  │
+   │  │ Leader (pod-0)        │  │   │  │ Leader (pod-0)        │  │
+   │  │ - DC Controller       │  │   │  │ - DC Controller       │  │
+   │  │ - DC Gateway          │◄─┼───┼─►│ - DC Gateway          │  │
+   │  │   (singleton)         │  │   │  │   (singleton)         │  │
+   │  │ :50051 / :50052       │  │   │  │ :50051 / :50052       │  │
+   │  └───────────────────────┘  │   │  └───────────────────────┘  │
+   │  ┌──────────┐ ┌──────────┐  │   │  ┌──────────┐ ┌──────────┐  │
+   │  │ pod-1    │ │ pod-2    │  │   │  │ pod-1    │ │ pod-2    │  │
+   │  │ :50151   │ │ :50251   │  │   │  │ :50151   │ │ :50251   │  │
+   │  └──────────┘ └──────────┘  │   │  └──────────┘ └──────────┘  │
+   │                             │   │                             │
+   │  ┌───────────────────────┐  │   │  ┌───────────────────────┐  │
+   │  │ PostgreSQL (dc1)      │  │   │  │ PostgreSQL (dc2)      │  │
+   │  └───────────────────────┘  │   │  └───────────────────────┘  │
+   │  ┌───────────────────────┐  │   │  ┌───────────────────────┐  │
+   │  │ nginx (:8080)         │  │   │  │ nginx (:8080)         │  │
+   │  └───────────────────────┘  │   │  └───────────────────────┘  │
+   └─────────────────────────────┘   └─────────────────────────────┘
 ```
 
-Each DC runs in its own Kind cluster. The clusters are connected via a shared Docker network (`goakt-multi-dc-net`). A standalone NATS container provides both peer discovery (per-DC) and JetStream-backed control plane (cross-DC coordination).
+Each DC runs in its own Kind cluster (separate Docker container). The clusters are connected via a shared Docker network (`goakt-multi-dc-net`). A standalone NATS container provides both peer discovery (per-DC) and JetStream-backed control plane (cross-DC coordination). All pods use `hostNetwork: true` and bind to the Kind node's shared network IP.
+
+### Cross-DC Request Flow
+
+When DC-2 receives a request for an account that exists in DC-1:
+
+```
+Client → docker exec dc2-control-plane curl :8080/accounts/acc-001
+           │
+           ▼
+    nginx (:8080) → round-robin across pod-0/pod-1/pod-2
+           │
+           ▼
+    DC-2 pod (any)
+           │
+    1. ActorOf("acc-001") → not in DC-2's Olric cluster
+           │
+    2. ActorOf("dc-gateway") → remote PID on DC-2 leader
+           │
+           ▼
+    DC-2 Leader (dc-gateway singleton on 172.20.0.4:50052)
+           │
+    3. SendSync("acc-001", GetAccount)
+       └─ ActorOf → not found locally
+       └─ DiscoverActor → queries NATS JetStream KV
+          └─ Finds DC-1 endpoints: [172.20.0.3:50052, :50152, :50252]
+          └─ RemoteLookup to DC-1 via shared Docker network
+                    │
+                    ▼
+             DC-1 cluster (172.20.0.3)
+                    │
+    4. Finds acc-001 in DC-1's Olric cluster → returns Account
+                    │
+                    ▼
+         Response flows back through gateway → service → nginx → client
+```
 
 ## Key Differences from `multi-dc`
 
