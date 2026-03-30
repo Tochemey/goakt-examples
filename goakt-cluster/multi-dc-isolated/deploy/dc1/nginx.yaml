@@ -1,0 +1,66 @@
+# Nginx for DC-1 — load balances across the 3 account pods on ordinal-based ports
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  nginx.conf: |
+    events { worker_connections 512; }
+    http {
+      sendfile on;
+      keepalive_timeout 15s;
+      access_log off;
+      error_log /var/log/nginx/error.log warn;
+
+      upstream accounts {
+        server 127.0.0.1:50051;
+        server 127.0.0.1:50151;
+        server 127.0.0.1:50251;
+      }
+
+      server {
+        listen 8080;
+
+        location / {
+          proxy_pass http://accounts;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+      volumes:
+        - name: config
+          configMap:
+            name: nginx-config

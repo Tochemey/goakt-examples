@@ -11,5 +11,7 @@ coverage.*
 vendor
 gen.env
 .env
+.env.ips
 gen/
 /.fleet/settings.json
+.claude

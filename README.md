@@ -38,6 +38,8 @@ earthly +all
 - [goakt-cluster/k8s](goakt-cluster/k8s) — Kubernetes discovery: cluster on K8s using the API to discover pods (gRPC, protobuf)
 - [goakt-luster/k8s-v2](goakt-cluster/k8s-v2) — **Production-ready K8s cluster**: Go types, HTTP/JSON API, PostgreSQL persistence, OpenTelemetry tracing
 - [goakt-cluster/k8s-ebpf](goakt-cluster/k8s-ebpf) — **k8s-v2 + eBPF**: zero-instrumentation actor-level tracing via goakt-ebpf sidecar
+- [goakt-cluster/multi-dc](goakt-cluster/multi-dc) — **Multi-datacenter**: two DCs (us-east-1, eu-west-1) with NATS JetStream control plane, cross-DC actor placement via SpawnOn + WithDataCenter, NATS discovery
+- [goakt-cluster/multi-dc-isolated](goakt-cluster/multi-dc-isolated) — **Multi-datacenter (network isolation)**: same as multi-dc but with two separate Kind clusters on a shared Docker network, simulating real network boundaries between DCs
 
 ### Persistence & Extensions
 

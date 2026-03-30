@@ -1,0 +1,191 @@
+openapi: 3.0.3
+info:
+  title: Account Service API (Multi-DC)
+  description: HTTP API for the GoAkt account service with multi-datacenter support
+  version: 1.0.0
+
+paths:
+  /accounts:
+    post:
+      operationId: createAccount
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+      responses:
+        "200":
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "500":
+          description: Internal server error
+
+  /accounts/{accountId}/credit:
+    post:
+      operationId: creditAccount
+      summary: Credit an account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreditAccountRequest"
+      responses:
+        "200":
+          description: Account credited successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "404":
+          description: Account not found
+        "500":
+          description: Internal server error
+
+  /accounts/{accountId}:
+    get:
+      operationId: getAccount
+      summary: Get an account by ID
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "500":
+          description: Internal server error
+
+  /accounts/spawn-remote:
+    post:
+      operationId: spawnRemoteAccount
+      summary: Spawn an account actor in a remote datacenter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpawnRemoteAccountRequest"
+      responses:
+        "200":
+          description: Account spawned remotely
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "500":
+          description: Internal server error
+
+  /dc/status:
+    get:
+      operationId: getDCStatus
+      summary: Get datacenter status and readiness
+      responses:
+        "200":
+          description: Datacenter status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DCStatusResponse"
+
+components:
+  schemas:
+    Account:
+      type: object
+      required:
+        - account_id
+        - account_balance
+      properties:
+        account_id:
+          type: string
+          description: Unique account identifier
+        account_balance:
+          type: number
+          format: double
+          description: Current account balance
+
+    CreateAccountRequest:
+      type: object
+      required:
+        - create_account
+      properties:
+        create_account:
+          type: object
+          required:
+            - account_id
+            - account_balance
+          properties:
+            account_id:
+              type: string
+            account_balance:
+              type: number
+              format: double
+
+    CreditAccountRequest:
+      type: object
+      required:
+        - balance
+      properties:
+        balance:
+          type: number
+          format: double
+
+    SpawnRemoteAccountRequest:
+      type: object
+      required:
+        - account_id
+        - account_balance
+        - target_dc
+      properties:
+        account_id:
+          type: string
+          description: Unique account identifier
+        account_balance:
+          type: number
+          format: double
+          description: Initial account balance
+        target_dc:
+          type: string
+          description: Target datacenter name (e.g. "dc-2")
+
+    AccountResponse:
+      type: object
+      required:
+        - account
+      properties:
+        account:
+          $ref: "#/components/schemas/Account"
+
+    DCStatusResponse:
+      type: object
+      required:
+        - ready
+        - dc_name
+      properties:
+        ready:
+          type: boolean
+          description: Whether the multi-DC controller is operational
+        dc_name:
+          type: string
+          description: Local datacenter name
+        last_refresh:
+          type: string
+          format: date-time
+          description: Time of last successful DC cache refresh

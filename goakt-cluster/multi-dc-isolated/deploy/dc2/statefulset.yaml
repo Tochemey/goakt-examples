@@ -1,0 +1,133 @@
+# StatefulSet for DC-2 (eu-west-1) — isolated Kind cluster
+# Uses hostNetwork: true so pods bind to the Kind node's Docker network IP,
+# making them reachable from the other Kind cluster via the shared Docker network.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: accounts-dc2
+  labels:
+    app.kubernetes.io/name: accounts
+    app.kubernetes.io/component: AccountsSystem
+    app.kubernetes.io/part-of: MultiDC
+    dc: dc-2
+spec:
+  serviceName: accounts-dc2
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: accounts
+      app.kubernetes.io/component: AccountsSystem
+      dc: dc-2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: accounts
+        app.kubernetes.io/component: AccountsSystem
+        app.kubernetes.io/part-of: MultiDC
+        dc: dc-2
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      restartPolicy: Always
+      initContainers:
+        - name: wait-for-deps
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres-dc2 5432; do
+                echo "Waiting for PostgreSQL (dc2)..."
+                sleep 2
+              done
+              echo "PostgreSQL (dc2) is ready"
+              until nc -z NATS_IP_PLACEHOLDER 4222; do
+                echo "Waiting for NATS..."
+                sleep 2
+              done
+              echo "NATS is ready"
+      containers:
+        - name: accounts
+          image: "accounts:dev-multi-dc-isolated"
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              export POD_ORDINAL=$(echo $POD_NAME | rev | cut -d'-' -f1 | rev)
+              exec ./accounts run
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: PORT
+              value: "50051"
+            - name: DISCOVERY_PORT
+              value: "3322"
+            - name: PEERS_PORT
+              value: "3320"
+            - name: REMOTING_PORT
+              value: "50052"
+            - name: DB_HOST
+              value: "postgres-dc2"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_DB
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: NODE_IP
+              value: "DC_IP_PLACEHOLDER"
+            - name: NATS_URL
+              value: "nats://NATS_IP_PLACEHOLDER:4222"
+            - name: DC_NAME
+              value: "dc-2"
+            - name: DC_REGION
+              value: "eu-west-1"
+            - name: DC_ZONE
+              value: "az-a"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://127.0.0.1:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "accounts-dc2"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+# Headless service for StatefulSet DNS — DC-2
+apiVersion: v1
+kind: Service
+metadata:
+  name: accounts-dc2
+  labels:
+    app.kubernetes.io/name: accounts
+    dc: dc-2
+spec:
+  selector:
+    app.kubernetes.io/name: accounts
+    dc: dc-2
+  clusterIP: None
+  ports:
+    - protocol: TCP
+      port: 50051
+      targetPort: 50051
+      name: http

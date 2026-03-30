@@ -28,6 +28,7 @@ all:
 	BUILD +protogen
 	BUILD +opengen
 	BUILD +opengen-k8s-v2
+	BUILD +opengen-multi-dc
 	BUILD +opengen-saga
 
 code:
@@ -88,6 +89,53 @@ opengen-saga:
 
     SAVE ARTIFACT goakt-saga/api/api.gen.go AS LOCAL goakt-saga/api/
 
+opengen-multi-dc:
+    WORKDIR /app
+
+    COPY goakt-cluster/multi-dc/api/openapi.yaml goakt-cluster/multi-dc/api/cfg.yaml goakt-cluster/multi-dc/api/
+    RUN cd goakt-cluster/multi-dc/api && oapi-codegen -config cfg.yaml openapi.yaml
+
+    SAVE ARTIFACT goakt-cluster/multi-dc/api/api.gen.go AS LOCAL goakt-cluster/multi-dc/api/
+
+compile-multi-dc:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor -o bin/accounts ./goakt-cluster/multi-dc
+    SAVE ARTIFACT bin/accounts /accounts
+
+multi-dc-image:
+    FROM alpine:3.21
+
+    WORKDIR /app
+    COPY +compile-multi-dc/accounts ./accounts
+    RUN chmod +x ./accounts
+
+    EXPOSE 50051
+    EXPOSE 50052
+    EXPOSE 3322
+    EXPOSE 3320
+
+    ENTRYPOINT ["./accounts"]
+    SAVE IMAGE accounts:dev-multi-dc
+
+compile-multi-dc-isolated:
+    COPY +vendor/files ./
+
+    RUN go build -mod=vendor -o bin/accounts ./goakt-cluster/multi-dc-isolated
+    SAVE ARTIFACT bin/accounts /accounts
+
+multi-dc-isolated-image:
+    FROM alpine:3.21
+
+    WORKDIR /app
+    COPY +compile-multi-dc-isolated/accounts ./accounts
+    RUN chmod +x ./accounts
+
+    EXPOSE 50051 50052 50053 50054 50061 50071 3320 3321 3322 3323 3324
+
+    ENTRYPOINT ["./accounts"]
+    SAVE IMAGE accounts:dev-multi-dc-isolated
+
 compile-goakt-ai:
     COPY +vendor/files ./
 
@@ -95,7 +143,7 @@ compile-goakt-ai:
     SAVE ARTIFACT bin/goakt-ai /goakt-ai
 
 goakt-ai-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-goakt-ai/goakt-ai ./goakt-ai
@@ -116,7 +164,7 @@ compile-k8s:
     SAVE ARTIFACT bin/accounts /accounts
 
 k8s-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-k8s/accounts ./accounts
@@ -138,7 +186,7 @@ compile-k8s-v2:
     SAVE ARTIFACT bin/accounts /accounts
 
 k8s-v2-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-k8s-v2/accounts ./accounts
@@ -160,7 +208,7 @@ compile-saga:
     SAVE ARTIFACT bin/saga-transfer /saga-transfer
 
 saga-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-saga/saga-transfer ./saga-transfer
@@ -181,7 +229,7 @@ compile-two-pc:
     SAVE ARTIFACT bin/two-pc-transfer /two-pc-transfer
 
 two-pc-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-two-pc/two-pc-transfer ./two-pc-transfer
@@ -202,7 +250,7 @@ compile-k8s-ebpf:
     SAVE ARTIFACT bin/accounts /accounts
 
 k8s-ebpf-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-k8s-ebpf/accounts ./accounts
@@ -223,7 +271,7 @@ compile-dnssd:
     SAVE ARTIFACT bin/accounts /accounts
 
 dnssd-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-dnssd/accounts ./accounts
@@ -246,7 +294,7 @@ compile-static:
     SAVE ARTIFACT bin/accounts /accounts
 
 static-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-static/accounts ./accounts
@@ -269,7 +317,7 @@ compile-grains-dnssd:
     SAVE ARTIFACT bin/accounts /accounts
 
 dnssd-grains-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-grains-dnssd/accounts ./accounts
@@ -293,7 +341,7 @@ compile-dnssd-v2:
     SAVE ARTIFACT bin/accounts /accounts
 
 dnssd-v2-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-dnssd-v2/accounts ./accounts
@@ -316,7 +364,7 @@ compile-dynalloc:
     SAVE ARTIFACT bin/accounts /accounts
 
 dynalloc-image:
-    FROM alpine:3.17
+    FROM alpine:3.21
 
     WORKDIR /app
     COPY +compile-dynalloc/accounts ./accounts
