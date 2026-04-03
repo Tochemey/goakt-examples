@@ -27,7 +27,6 @@ import (
 	"fmt"
 
 	"github.com/tochemey/goakt/v4/actor"
-	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
@@ -36,20 +35,20 @@ type Grain struct {
 	id         string
 	created    bool
 	stateStore StateStore
-	state      *atomic.Pointer[samplepb.Account]
+	state      *samplepb.Account
 }
 
 var _ actor.Grain = (*Grain)(nil)
 
 func (g *Grain) OnActivate(ctx context.Context, props *actor.GrainProps) error {
-	g.state = atomic.NewPointer(new(samplepb.Account))
+	g.state = new(samplepb.Account)
 	g.stateStore = props.ActorSystem().Extension("MemoryStore").(StateStore)
 	g.id = props.Identity().Name()
 	return g.recoverFromStore(ctx)
 }
 
 func (g *Grain) OnDeactivate(ctx context.Context, props *actor.GrainProps) error {
-	return g.stateStore.WriteState(ctx, g.id, g.state.Load())
+	return g.stateStore.WriteState(ctx, g.id, g.state)
 }
 
 func (g *Grain) OnReceive(ctx *actor.GrainContext) {
@@ -61,23 +60,23 @@ func (g *Grain) OnReceive(ctx *actor.GrainContext) {
 		}
 
 		balance := m.GetAccountBalance()
-		g.state.Load().AccountBalance = g.state.Load().GetAccountBalance() + balance
-		if err := g.stateStore.WriteState(ctx.Context(), g.id, g.state.Load()); err != nil {
+		g.state.AccountBalance = g.state.GetAccountBalance() + balance
+		if err := g.stateStore.WriteState(ctx.Context(), g.id, g.state); err != nil {
 			ctx.Err(fmt.Errorf("failed to write state: %w", err))
 			return
 		}
 
-		ctx.Response(g.state.Load())
+		ctx.Response(g.state)
 	case *samplepb.CreditAccount:
 		balance := m.GetBalance()
-		g.state.Load().AccountBalance = g.state.Load().GetAccountBalance() + balance
-		if err := g.stateStore.WriteState(ctx.Context(), g.id, g.state.Load()); err != nil {
+		g.state.AccountBalance = g.state.GetAccountBalance() + balance
+		if err := g.stateStore.WriteState(ctx.Context(), g.id, g.state); err != nil {
 			ctx.Err(fmt.Errorf("failed to write state: %w", err))
 			return
 		}
-		ctx.Response(g.state.Load())
+		ctx.Response(g.state)
 	case *samplepb.GetAccount:
-		ctx.Response(g.state.Load())
+		ctx.Response(g.state)
 	default:
 		ctx.Unhandled()
 	}
@@ -90,7 +89,7 @@ func (g *Grain) recoverFromStore(ctx context.Context) error {
 	}
 
 	if latestState != nil {
-		g.state.Store(latestState)
+		g.state = latestState
 	}
 
 	return nil

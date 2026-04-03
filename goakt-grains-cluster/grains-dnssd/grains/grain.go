@@ -28,7 +28,6 @@ import (
 
 	"github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/log"
-	"go.uber.org/atomic"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/domain"
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/persistence"
@@ -38,7 +37,7 @@ import (
 var zeroTime = time.Time{}
 
 type AccountGrain struct {
-	state   *atomic.Pointer[domain.Account]
+	state   *domain.Account
 	storage persistence.Store
 	logger  log.Logger
 }
@@ -47,13 +46,13 @@ var _ actor.Grain = (*AccountGrain)(nil)
 
 func NewAccountGrain() *AccountGrain {
 	return &AccountGrain{
-		state: atomic.NewPointer[domain.Account](new(domain.Account)),
+		state: new(domain.Account),
 	}
 }
 
 func (x *AccountGrain) OnActivate(ctx context.Context, props *actor.GrainProps) error {
 	accountID := props.Identity().Name()
-	x.state = atomic.NewPointer[domain.Account](domain.NewAccount(accountID, 0, zeroTime))
+	x.state = domain.NewAccount(accountID, 0, zeroTime)
 	actorSystem := props.ActorSystem()
 	x.storage = actorSystem.Extension(persistence.StateStoreID).(persistence.Store)
 	recoveredState, err := x.storage.GetState(ctx, accountID)
@@ -61,7 +60,7 @@ func (x *AccountGrain) OnActivate(ctx context.Context, props *actor.GrainProps) 
 		return err
 	}
 
-	x.state.Store(recoveredState)
+	x.state = recoveredState
 	x.logger = actorSystem.Logger()
 	return nil
 }
@@ -70,10 +69,9 @@ func (x *AccountGrain) OnReceive(ctx *actor.GrainContext) {
 	switch msg := ctx.Message().(type) {
 	case *samplepb.CreateAccount:
 		x.logger.Info("creating account by setting the balance...")
-		state := x.state.Load()
 
-		if !state.CreatedAt().Equal(zeroTime) {
-			x.logger.Infof("account=%s has been created already", state.AccountID())
+		if !x.state.CreatedAt().Equal(zeroTime) {
+			x.logger.Infof("account=%s has been created already", x.state.AccountID())
 			// TODO: we can return an error here
 			ctx.NoErr()
 			return
@@ -82,36 +80,34 @@ func (x *AccountGrain) OnReceive(ctx *actor.GrainContext) {
 		accountID := msg.GetAccountId()
 		balance := msg.GetAccountBalance()
 
-		state.SetBalance(balance)
-		state.SetCreatedAt(time.Now())
+		x.state.SetBalance(balance)
+		x.state.SetCreatedAt(time.Now())
 
 		ctx.Response(&samplepb.Account{
 			AccountId:      accountID,
-			AccountBalance: state.Balance(),
+			AccountBalance: x.state.Balance(),
 		})
 
 	case *samplepb.CreditAccount:
 		x.logger.Info("crediting balance...")
-		state := x.state.Load()
 
 		accountID := msg.GetAccountId()
 		balance := msg.GetBalance()
 
-		newBalance := state.Balance() + balance
-		state.SetBalance(newBalance)
+		newBalance := x.state.Balance() + balance
+		x.state.SetBalance(newBalance)
 
 		ctx.Response(&samplepb.Account{
 			AccountId:      accountID,
-			AccountBalance: state.Balance(),
+			AccountBalance: x.state.Balance(),
 		})
 
 	case *samplepb.GetAccount:
 		x.logger.Info("get account...")
-		state := x.state.Load()
 
 		ctx.Response(&samplepb.Account{
 			AccountId:      msg.GetAccountId(),
-			AccountBalance: state.Balance(),
+			AccountBalance: x.state.Balance(),
 		})
 	default:
 		ctx.Unhandled()
@@ -119,6 +115,5 @@ func (x *AccountGrain) OnReceive(ctx *actor.GrainContext) {
 }
 
 func (x *AccountGrain) OnDeactivate(ctx context.Context, _ *actor.GrainProps) error {
-	underlying := x.state.Load()
-	return x.storage.WriteState(ctx, underlying)
+	return x.storage.WriteState(ctx, x.state)
 }
