@@ -30,29 +30,25 @@ import (
 	adkrunner "google.golang.org/adk/runner"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-ai/agents"
-	"github.com/tochemey/goakt-examples/v2/goakt-ai/llm"
 	"github.com/tochemey/goakt-examples/v2/goakt-ai/messages"
 	"github.com/tochemey/goakt-examples/v2/goakt-ai/telemetry"
 )
 
-// ConversationGrain is a session-scoped virtual actor that owns an ADK
-// runner bound to the root multi-agent tree (orchestrator → research /
-// summarizer / tool sub-agents). GoAkt guarantees a single-writer per
-// grain identity across the cluster, so the ADK session history for a given
-// SessionID stays consistent even under concurrent HTTP requests.
+// ConversationGrain is a session-scoped virtual actor that owns ADK runners
+// for the root orchestrator tree and each specialized role. GoAkt guarantees
+// a single-writer per grain identity across the cluster, so the ADK session
+// history for a given SessionID stays consistent even under concurrent HTTP
+// requests.
 //
 // Activation: the grain is created on first message; passivation is
 // configured via WithGrainDeactivateAfter at registration time, so idle
 // sessions free their runner and let the underlying session.Service shed
 // memory.
 //
-// Dual routing paths:
-//   - Gemini provider: the inherited baseAgent.runner drives the full root
-//     orchestrator tree (LLM decides which sub-agent to call via tools).
-//   - Non-Gemini provider: the llm adapter strips tool declarations, so
-//     root-level delegation cannot happen. roleRunners holds one runner per
-//     role; handleSubmit uses agents.RouteByKeyword to pick which one to
-//     run, preserving legacy routing behavior for OpenAI/Anthropic/Mistral.
+// Routing: the legacy llm.Client adapter strips tool declarations, so the
+// root orchestrator cannot delegate via function calls. roleRunners holds
+// one runner per role; handleSubmit uses agents.RouteByKeyword to pick
+// which one to run, preserving the legacy routing behavior.
 type ConversationGrain struct {
 	baseAgent
 	sessionID   string
@@ -181,16 +177,11 @@ func (grain *ConversationGrain) handleSubmit(grainCtx *goakt.GrainContext, msg *
 }
 
 // pickRunner returns the runner to use for this turn along with the role it
-// represents. For Gemini, we use the root orchestrator runner and return an
-// empty Role — the LLM will route to sub-agents itself. For providers going
-// through the llm adapter (which strips tools), we pre-route via
-// agents.RouteByKeyword and pick the matching role runner so the user still
-// gets differentiated responses.
+// represents. All providers go through the legacy llm.Client adapter which
+// strips tool declarations, so the root orchestrator cannot delegate via
+// function calls; we always pre-route with agents.RouteByKeyword and drive
+// the matching single-role runner directly.
 func (grain *ConversationGrain) pickRunner(query string) (*adkrunner.Runner, agents.Role) {
-	if grain.extension != nil && grain.extension.LLMConfig != nil && grain.extension.LLMConfig.Provider == llm.ProviderGoogle {
-		return grain.runner, ""
-	}
-
 	role := agents.RouteByKeyword(query)
 	if runner, ok := grain.roleRunners[role]; ok {
 		return runner, role

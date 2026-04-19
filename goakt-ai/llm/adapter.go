@@ -24,34 +24,22 @@ package llm
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"strings"
 
 	"google.golang.org/adk/model"
-	"google.golang.org/adk/model/gemini"
 	"google.golang.org/genai"
 )
 
-// NewModelForConfig picks an adk-go model implementation that matches the
-// provider already configured via env vars. Gemini routes through adk-go's
-// native client so the LLM can emit function calls; every other provider is
-// adapted via clientModel, which preserves single-turn completion behavior
-// (no tool calls) using the existing Client implementations.
-func NewModelForConfig(ctx context.Context, llmConfig *Config) (model.LLM, error) {
-	switch llmConfig.Provider {
-	case ProviderGoogle:
-		if llmConfig.GoogleKey == "" {
-			return nil, fmt.Errorf("GOOGLE_API_KEY is required for Gemini")
-		}
-		return gemini.NewModel(ctx, llmConfig.Model, &genai.ClientConfig{APIKey: llmConfig.GoogleKey})
-	default:
-		legacyClient, err := NewClient(llmConfig)
-		if err != nil {
-			return nil, err
-		}
-		return &clientModel{name: llmConfig.Model, client: legacyClient}, nil
+// NewModelForConfig builds an adk-go model implementation that adapts the
+// configured provider's legacy Client into model.LLM. Single-turn completion
+// only — tool declarations from the LLMRequest are ignored.
+func NewModelForConfig(_ context.Context, llmConfig *Config) (model.LLM, error) {
+	legacyClient, err := NewClient(llmConfig)
+	if err != nil {
+		return nil, err
 	}
+	return &clientModel{name: llmConfig.Model, client: legacyClient}, nil
 }
 
 // clientModel adapts the legacy Client (OpenAI/Anthropic/Mistral) to
