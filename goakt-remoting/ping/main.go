@@ -58,7 +58,6 @@ func main() {
 		logger.Fatalf("failed to start actor system: %v", err)
 	}
 
-	// create an actor
 	totalScore := 1_000
 
 	ping, err := actorSystem.Spawn(ctx, "Ping", NewPing(totalScore),

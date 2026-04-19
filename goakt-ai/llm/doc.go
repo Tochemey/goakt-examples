@@ -20,38 +20,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// Package llm provides minimal single-turn HTTP clients for OpenAI,
+// Anthropic, Google, and Mistral, plus a Config loader that reads
+// provider selection and API keys from the environment.
+//
+// The public surface is the Client interface (single Complete method)
+// and the Config struct. After the ADK refactor these clients are
+// consumed indirectly: actors/llm_adapter.go wraps a Client as an adk-go
+// model.LLM for every provider except Gemini, which goes through
+// adk-go's native gemini.NewModel so tool calling works end-to-end.
+//
+// ConfigExtension remains as a GoAkt extension type for backwards
+// compatibility with callers that have not migrated to ADKExtension.
 package llm
-
-import "fmt"
-
-// NewClient creates an LLM client for the given provider
-func NewClient(config *Config) (Client, error) {
-	if config == nil {
-		return nil, fmt.Errorf("config is required")
-	}
-
-	switch config.Provider {
-	case ProviderOpenAI:
-		if config.OpenAIKey == "" {
-			return nil, fmt.Errorf("OPENAI_API_KEY is required for OpenAI")
-		}
-		return NewOpenAIClient(config.OpenAIKey, config.Model, config.MaxTokens), nil
-	case ProviderAnthropic:
-		if config.AnthropicKey == "" {
-			return nil, fmt.Errorf("ANTHROPIC_API_KEY is required for Anthropic")
-		}
-		return NewAnthropicClient(config.AnthropicKey, config.Model, config.MaxTokens), nil
-	case ProviderGoogle:
-		if config.GoogleKey == "" {
-			return nil, fmt.Errorf("GOOGLE_API_KEY is required for Google")
-		}
-		return NewGoogleClient(config.GoogleKey, config.Model, config.MaxTokens), nil
-	case ProviderMistral:
-		if config.MistralKey == "" {
-			return nil, fmt.Errorf("MISTRAL_API_KEY is required for Mistral")
-		}
-		return NewMistralClient(config.MistralKey, config.Model, config.MaxTokens), nil
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
-	}
-}

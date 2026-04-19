@@ -51,40 +51,48 @@ PROVIDER ?=
 
 .PHONY: help
 help:
-	@echo "goakt-ai - Distributed AI Agents (Kind/Kubernetes)"
+	@echo "goakt-ai — Distributed AI Agents on Kind/Kubernetes"
 	@echo ""
-	@echo "Targets:"
-	@echo "  deploy              Build image, load into Kind, and deploy (recommended)"
-	@echo "  cluster-create      Create a new Kind cluster"
-	@echo "  cluster-recreate    Delete and recreate the cluster"
-	@echo "  cluster-delete      Delete the Kind cluster"
-	@echo "  image               Build the Docker image and load into Kind"
-	@echo "  cluster-up          Deploy PostgreSQL, goakt-ai, nginx, tracing"
-	@echo "  cluster-down        Remove all deployments"
-	@echo "  status              Show cluster and pod status"
-	@echo "  query               Submit a query (requires QUERY=...)"
-	@echo "  set-llm-keys        Set API keys in cluster (run after deploy)"
-	@echo "  test                Run CLI integration tests"
-	@echo "  logs                Tail logs from goakt-ai pods"
-	@echo "  port-forward        Forward nginx service to localhost:8080"
-	@echo "  port-forward-jaeger Forward Jaeger UI to localhost:16686"
+	@echo "Quick start:"
+	@echo "  1. make cluster-create                                     # Create the Kind cluster (one-time)"
+	@echo "  2. make deploy                                             # Build image and deploy all services"
+	@echo "  3. make set-llm-keys PROVIDER=openai OPENAI_API_KEY=sk-... # Configure your LLM provider"
+	@echo "  4. make port-forward                                       # Forward nginx to localhost:8080 (run in another terminal)"
+	@echo "  5. make query QUERY=\"your question\"                        # Submit a query"
 	@echo ""
-	@echo "Query target (required):"
-	@echo "  QUERY=\"your question\"   The question to submit to the AI agents"
+	@echo "Cluster lifecycle:"
+	@echo "  cluster-create         Create a new Kind cluster"
+	@echo "  cluster-recreate       Delete and recreate the cluster"
+	@echo "  cluster-delete         Delete the Kind cluster"
 	@echo ""
-	@echo "Query target (optional):"
-	@echo "  ENDPOINT=URL         Load balancer endpoint (default: http://localhost:8080)"
+	@echo "Deployment:"
+	@echo "  deploy                 Build image, load into Kind, and deploy (recommended)"
+	@echo "  image                  Build the Docker image and load into Kind"
+	@echo "  cluster-up             Deploy PostgreSQL, goakt-ai, nginx, tracing"
+	@echo "  cluster-down           Remove all deployments"
 	@echo ""
-	@echo "Set LLM keys (run after deploy, no Makefile editing):"
-	@echo "  make set-llm-keys PROVIDER=openai OPENAI_API_KEY=sk-xxx"
-	@echo "  make set-llm-keys PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-xxx"
-	@echo "  make set-llm-keys PROVIDER=google GOOGLE_API_KEY=xxx"
-	@echo "  make set-llm-keys PROVIDER=mistral MISTRAL_API_KEY=xxx"
+	@echo "Operation:"
+	@echo "  set-llm-keys           Set API keys in the cluster (run after deploy)"
+	@echo "  query                  Submit a query (requires QUERY=...)"
+	@echo "  status                 Show cluster and pod status"
+	@echo "  logs                   Tail logs from goakt-ai pods"
+	@echo "  port-forward           Forward nginx service to localhost:8080"
+	@echo "  port-forward-jaeger    Forward Jaeger UI to localhost:16686"
+	@echo "  test                   Run CLI integration tests"
 	@echo ""
-	@echo "Examples:"
-	@echo "  make set-llm-keys PROVIDER=openai OPENAI_API_KEY=sk-your-key"
+	@echo "Query arguments:"
+	@echo "  QUERY=\"your question\"  (required) the question to submit to the AI agents"
+	@echo "  ENDPOINT=URL           (optional) load balancer endpoint (default: http://localhost:8080)"
+	@echo ""
+	@echo "LLM key examples:"
+	@echo "  make set-llm-keys PROVIDER=openai    OPENAI_API_KEY=sk-..."
+	@echo "  make set-llm-keys PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-..."
+	@echo "  make set-llm-keys PROVIDER=google    GOOGLE_API_KEY=..."
+	@echo "  make set-llm-keys PROVIDER=mistral   MISTRAL_API_KEY=..."
+	@echo ""
+	@echo "Query examples:"
 	@echo "  make query QUERY=\"Summarize the benefits of distributed systems\""
-	@echo "  make query QUERY=\"What is 15%% of 1000?\""
+	@echo "  make query QUERY=\"What is 15% of 1000?\""
 	@echo "  make query QUERY=\"...\" ENDPOINT=http://192.168.1.10:30080"
 
 .PHONY: query
@@ -118,11 +126,16 @@ endif
 		$(if $(GOOGLE_API_KEY),--from-literal=GOOGLE_API_KEY=$(GOOGLE_API_KEY)) \
 		$(if $(MISTRAL_API_KEY),--from-literal=MISTRAL_API_KEY=$(MISTRAL_API_KEY)) \
 		--dry-run=client -o yaml | kubectl apply -f -
-	@echo "Restarting goakt-ai pods to pick up new keys..."
-	@kubectl rollout restart statefulset/goakt-ai
-	@echo "Waiting for all pods to be ready..."
-	@kubectl rollout status statefulset/goakt-ai --timeout=120s
-	@echo "Done. Run 'make query QUERY=\"...\"'"
+	@if kubectl get statefulset/goakt-ai >/dev/null 2>&1; then \
+		echo "Restarting goakt-ai pods to pick up new keys..."; \
+		kubectl rollout restart statefulset/goakt-ai; \
+		echo "Waiting for all pods to be ready..."; \
+		kubectl rollout status statefulset/goakt-ai --timeout=120s; \
+		echo "Done. Run 'make query QUERY=\"...\"'"; \
+	else \
+		echo "StatefulSet 'goakt-ai' not found — secret stored only."; \
+		echo "Run 'make deploy' to roll out the service; new pods will pick up the secret."; \
+	fi
 
 .PHONY: cluster-create
 cluster-create:
@@ -165,29 +178,44 @@ cluster-up:
 	kubectl apply -f $(K8S_DIR)/otel-collector-deployment.yaml
 	@echo "Waiting for OTEL Collector to be ready..."
 	kubectl wait --for=condition=available --timeout=60s deployment/otel-collector
-	@echo "Creating LLM API keys secret (update with your keys: kubectl edit secret llm-api-keys)..."
-	kubectl apply -f $(K8S_DIR)/llm-secret.yaml
+	@if kubectl get secret llm-api-keys >/dev/null 2>&1; then \
+		echo "LLM API keys secret already exists — keeping current values."; \
+	else \
+		echo "Creating LLM API keys secret (set real keys via 'make set-llm-keys ...')..."; \
+		kubectl apply -f $(K8S_DIR)/llm-secret.yaml; \
+	fi
 	@echo "Deploying goakt-ai service..."
 	kubectl apply -f $(K8S_DIR)/k8s.yaml
-	@echo "Waiting for goakt-ai pods to be ready..."
-	@for i in 0 1 2; do \
-		echo "  Waiting for goakt-ai-$$i..."; \
-		elapsed=0; \
-		until [ "$$(kubectl get pod goakt-ai-$$i -o jsonpath='{.status.containerStatuses[?(@.name=="goakt-ai")].ready}' 2>/dev/null)" = "true" ]; do \
-			sleep 5; elapsed=$$((elapsed+5)); \
-			if [ $$elapsed -ge 300 ]; then \
-				echo "  Timeout waiting for goakt-ai-$$i."; \
-				kubectl get pod goakt-ai-$$i -o wide 2>/dev/null; \
-				exit 1; \
-			fi; \
+	@has_key=$$(kubectl get secret llm-api-keys -o jsonpath='{.data.OPENAI_API_KEY}{.data.ANTHROPIC_API_KEY}{.data.GOOGLE_API_KEY}{.data.MISTRAL_API_KEY}' 2>/dev/null); \
+	if [ -z "$$has_key" ]; then \
+		echo "No LLM API keys configured — skipping pod readiness wait."; \
+		echo "Pods will crash-loop until you run:"; \
+		echo "  make set-llm-keys PROVIDER=<provider> <PROVIDER>_API_KEY=<key>"; \
+	else \
+		echo "Waiting for goakt-ai pods to be ready..."; \
+		for i in 0 1 2; do \
+			echo "  Waiting for goakt-ai-$$i..."; \
+			elapsed=0; \
+			until [ "$$(kubectl get pod goakt-ai-$$i -o jsonpath='{.status.containerStatuses[?(@.name=="goakt-ai")].ready}' 2>/dev/null)" = "true" ]; do \
+				sleep 5; elapsed=$$((elapsed+5)); \
+				if [ $$elapsed -ge 300 ]; then \
+					echo "  Timeout waiting for goakt-ai-$$i."; \
+					kubectl get pod goakt-ai-$$i -o wide 2>/dev/null; \
+					exit 1; \
+				fi; \
+			done; \
+			echo "  goakt-ai-$$i is ready"; \
 		done; \
-		echo "  goakt-ai-$$i is ready"; \
-	done
+	fi
 	@echo "Deploying nginx load balancer..."
 	kubectl apply -f $(K8S_DIR)/nginx-config.yaml
 	kubectl apply -f $(K8S_DIR)/nginx-deployment.yaml
 	kubectl apply -f $(K8S_DIR)/nginx-service.yaml
-	@echo "All components deployed. Run 'make port-forward' then 'make query QUERY=\"...\"'"
+	@echo "All components deployed."
+	@echo "Next steps:"
+	@echo "  1. make set-llm-keys PROVIDER=... <PROVIDER>_API_KEY=... (if not done)"
+	@echo "  2. make port-forward   (in another terminal)"
+	@echo "  3. make query QUERY=\"...\""
 
 .PHONY: cluster-down
 cluster-down:

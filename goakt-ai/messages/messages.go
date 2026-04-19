@@ -49,3 +49,40 @@ type QueryResult struct {
 	Result string
 	Err    string
 }
+
+// ExecuteTool is sent to the ToolExecutor router pool to run a deterministic
+// tool. Keeps the router interface explicit so the routee can fan out
+// concurrent calls from a single LLM turn. The Tool field should carry one
+// of the actors.ToolName* constants; the operator fields (Op) should carry
+// actors.Op* constants.
+type ExecuteTool struct {
+	CallID    string
+	SessionID string
+	Tool      string
+
+	// Arithmetic fields — populated when Tool names the arithmetic tool.
+	A  float64
+	Op string
+	B  float64
+
+	// Percent fields — populated when Tool names the percent_of tool.
+	Percent float64
+	Value   float64
+}
+
+// ToolResult is returned by the ToolExecutor.
+type ToolResult struct {
+	CallID string
+	Result string
+	Err    string
+}
+
+// StreamToken carries one partial LLM output chunk. Emitted by
+// ConversationGrain through the goakt/v4/stream pipeline when the caller
+// opted into the SSE endpoint.
+type StreamToken struct {
+	SessionID string
+	Text      string
+	Final     bool
+	Err       string
+}
