@@ -24,6 +24,12 @@ earthly +all
 - [goakt-hello-world](./goakt-hello-world) — Minimal actor system: spawn an actor, send messages, graceful shutdown
 - [goakt-ping-pong](./goakt-ping-pong) — Actor-to-actor messaging: two actors exchanging messages (Tell pattern)
 - [goakt-behaviors](./goakt-behaviors) — Stateful behaviors: actor with multiple states (authenticated, logged-in) and state transitions
+- [goakt-parent-child](./goakt-parent-child) — Parent/child hierarchy: spawn children from inside an actor, observe `Terminated`
+- [goakt-supervision](./goakt-supervision) — Supervision directives: `Stop`, `Resume`, `Restart` side-by-side with retry budgets
+- [goakt-routers](./goakt-routers) — Actor pools/routers: round-robin, fan-out, consistent-hash; runtime pool resize
+- [goakt-pubsub](./goakt-pubsub) — Topic-based pub/sub via `WithPubSub()` and the system `TopicActor`
+- [goakt-scheduler](./goakt-scheduler) — Scheduling messages: `ScheduleOnce`, recurring `Schedule`, cancellation by reference
+- [goakt-dead-letters](./goakt-dead-letters) — Subscribing to the system event stream to observe unhandled messages
 
 ### Remoting & Location Transparency
 
@@ -48,6 +54,7 @@ earthly +all
 ### Grains (Virtual Actors)
 
 - [goakt-grains](./goakt-grains) — Grains model: virtual actors with automatic activation and passivation
+- [goakt-iot-twin](./goakt-iot-twin) — Device twins as grains: on-demand activation per device, idle passivation, state restored on reactivation
 - [goakt-grains-cluster/grains-dnssd](./goakt-grains-cluster/grains-dnssd) — Grains clustering: grains across multiple nodes with DNS-SD discovery
 
 ### Reactive Streams
