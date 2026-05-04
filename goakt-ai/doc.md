@@ -1,209 +1,191 @@
-# goakt-ai — Distributed AI Agents on GoAkt + Google ADK
+# goakt-ai: Distributed AI Agents Application
 
-A production-shaped example that runs a multi-agent AI system on
-[GoAkt](https://github.com/tochemey/goakt) with
-[Google's Agent Development Kit for Go](https://pkg.go.dev/google.golang.org/adk).
-GoAkt handles clustering, remoting, grains, routers, streams, eventstream,
-and supervision; ADK handles LLM tool calling, agent trees, and session
-memory. Deploys to Kubernetes via Kind.
+A production-like example implementing a **distributed AI agents** application using GoAkt actors. The example runs on **Kubernetes** using **Kind**, uses only **Go types** for actor messages (no protobuf), and demonstrates how multiple specialized AI agents can collaborate across cluster nodes to process user queries.
 
-## What it does
+For implementation details and architecture patterns, see the sections below.
 
-A user submits a natural-language query over HTTP. The system routes the
-query to a session-scoped grain, runs one turn through an ADK agent tree
-(orchestrator + research / summarizer / tool sub-agents), and returns
-either a JSON response or a Server-Sent Events token stream.
+## What We Want to Achieve
 
-Two request shapes are exposed:
+### High-Level Goal
 
-- `POST /query` — blocking JSON, one turn, returns aggregated text.
-- `GET /query/stream` — SSE, one turn, streams partial LLM tokens as
-  they arrive.
-- `GET /health` — liveness probe.
+Build a **multi-agent AI system** where:
 
-Sessions are identified by `session_id` (generated if the caller does
-not supply one). Conversation history is stored by ADK's session
-service; providing the same `session_id` on subsequent turns continues
-the conversation.
+1. **Specialized agents** (research, summarization, tool-use, etc.) run as GoAkt actors
+2. **Agents are distributed** across Kubernetes pods—any agent can live on any node
+3. **Location transparency**—the orchestrator does not need to know where agents run; the cluster routes messages automatically
+4. **Production-ready**—CLI interface, PostgreSQL persistence, OpenTelemetry tracing, Kind-based deployment
 
-## Architecture
+### Use Case: Collaborative Query Processing
+
+A user submits a natural language query (e.g., *"Summarize the latest news about AI and calculate 15% of 1000"*). The system:
+
+1. **Orchestrator Agent** receives the query and breaks it into sub-tasks
+2. **Research Agent** (if needed) fetches or simulates external data (e.g., news)
+3. **Summarizer Agent** condenses long content
+4. **Tool Agent** executes computations (calculator, code, etc.)
+5. **Orchestrator** aggregates results and returns a coherent response
+
+All of this happens via **actor messaging** (`Tell`/`Ask`) across the cluster. Agents may run on different pods; GoAkt's cluster and remoting handle routing and serialization.
+
+## Architecture Overview
+
+### Component Diagram
 
 ```
-      HTTP request                       Cluster (any node)
-           │                     ┌───────────────────────────────────┐
-           │                     │                                   │
-           ▼                     ▼                                   │
-   ┌──────────────┐      ┌────────────────────┐                      │
-   │ QueryService │──────▶ ConversationGrain  │  (per SessionID,     │
-   │  /query      │      │  single-writer     │   auto-passivates    │
-   │  /stream     │      │  per cluster)      │   after idle TTL)    │
-   └──────┬───────┘      └──────────┬─────────┘                      │
-          │                         │                                │
-          │                         │ runs                           │
-          │                         ▼                                │
-          │               ┌────────────────────┐                     │
-          │               │   ADK Runner       │                     │
-          │               │   root LlmAgent    │                     │
-          │               │   ├─ research      │                     │
-          │               │   ├─ summarizer    │                     │
-          │               │   └─ tool          │                     │
-          │               └────────────────────┘                     │
-          │                                                          │
-          ▼                                                          │
-   ┌──────────────┐                                                  │
-   │ stream.From  │     goakt/v4/stream pipeline                     │
-   │   Channel →  │     (producer goroutine feeds an SSE sink)       │
-   │   ForEach    │                                                  │
-   └──────────────┘                                                  │
-                                                                     │
-   ┌─ Cluster-kind actors ──────────────────────────────────────┐    │
-   │                                                            │    │
-   │  AgentActor (kind) × 3  — one per Role; PipeTo(Self)       │    │
-   │    RoleResearch / RoleSummarizer / RoleTool                │    │
-   │    Idle → Thinking (Stash) → Idle state machine            │    │
-   │    Serves legacy *messages.ProcessQuery callers            │    │
-   │                                                            │    │
-   │  ToolExecutor router (pool size 4, round-robin)            │    │
-   │    Serves *messages.ExecuteTool for parallel tool dispatch │    │
-   └────────────────────────────────────────────────────────────┘    │
-                                                                     │
-   eventstream ◀─ telemetry subscribers (turn-finished, llm-error,   │
-                  tool-called, grain-passivated) + actor deadletter  │
-                                                                     │
-   ADKExtension (model.LLM + session.Service + eventstream)          │
-   registered once via goakt.WithExtensions at bootstrap ────────────┘
+  User (local machine): goakt-ai query "Summarize..."
+                     │
+                     │ HTTP (--endpoint or default)
+                     ▼
+┌────────────────────────────────────────────────────────────────┐
+│                      Kubernetes Cluster                        │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Nginx (NodePort) — Load balancer; round-robin to pods   │  │
+│  └────────────────────────────┬─────────────────────────────┘  │
+│                               │                                │
+│             ┌─────────────────┼─────────────────┐              │
+│             ▼                 ▼                 ▼              │
+│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐         │
+│  │  goakt-ai-0   │ │  goakt-ai-1   │ │  goakt-ai-2   │         │
+│  │ (StatefulSet) │ │ (StatefulSet) │ │ (StatefulSet) │         │
+│  │               │ │               │ │               │         │
+│  │ goakt-ai run  │ │ goakt-ai run  │ │ goakt-ai run  │         │
+│  │ + query HTTP  │ │ + query HTTP  │ │ + query HTTP  │         │
+│  │   endpoint    │ │   endpoint    │ │   endpoint    │         │
+│  │               │ │               │ │               │         │
+│  │ Cluster kinds │ │ Cluster kinds │ │ Cluster kinds │         │
+│  │ (distributed) │ │ (distributed) │ │ (distributed) │         │
+│  └───────┬───────┘ └───────┬───────┘ └───────┬───────┘         │
+│          │                 │                 │                 │
+│          └─────────────────┼─────────────────┘                 │
+│                            │ OTLP traces                       │
+│               ┌────────────┴────────────┐                      │
+│               ▼                         ▼                      │
+│  ┌───────────────────┐  ┌───────────────────┐                  │
+│  │  OTEL Collector   │  │    PostgreSQL     │                  │
+│  │   (-> Jaeger)     │  │ (Task/Conv state) │                  │
+│  └─────────┬─────────┘  └───────────────────┘                  │
+│            │                                                   │
+│            ▼                                                   │
+│  ┌───────────────────┐                                         │
+│  │      Jaeger       │                                         │
+│  │    (Trace UI)     │                                         │
+│  └───────────────────┘                                         │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-### Dual routing paths
+- **User runs the CLI locally**—no kubectl. `goakt-ai query "..."` connects to the load balancer endpoint (e.g., `http://localhost:8080` after `make port-forward`).
+- **Nginx** load balances requests across goakt-ai pods (round-robin).
+- Each pod runs `goakt-ai run` and exposes a **minimal query endpoint** (HTTP) for the CLI—the only client. No public REST API.
+- Actor instances are **distributed** across pods by the cluster (location transparent).
 
-Only Gemini (via adk-go's native `gemini.NewModel`) supports function
-calling. OpenAI / Anthropic / Mistral are adapted as a `model.LLM` by
-`actors/llm_adapter.go`; that adapter strips tool declarations, so the
-root LlmAgent cannot delegate to its sub-agent tools on those providers.
+### Actor Types
 
-The grain resolves this at request time:
+| Actor                 | Role                                                                                                  | Lifecycle                                         |
+|-----------------------|-------------------------------------------------------------------------------------------------------|---------------------------------------------------|
+| **OrchestratorAgent** | Receives user queries, decomposes into sub-tasks, delegates to specialized agents, aggregates results | One per session/request (actor name = session ID) |
+| **ResearchAgent**     | Performs research using LLM APIs (web search, data synthesis)                                         | One per research task or shared pool              |
+| **SummarizerAgent**   | Summarizes long text or content                                                                       | One per summarization task or shared pool         |
+| **ToolAgent**         | Executes tools (calculator, code execution, etc.)                                                     | One per tool invocation or shared pool            |
 
-- `LLM_PROVIDER=google` → run the **root** runner; the LLM picks which
-  sub-agent to invoke via ADK tool calls.
-- Anything else → run the **role** runner picked by `routeByKeyword`
-  (the same regex-style rules the legacy orchestrator used: `%-of`,
-  `+ - * /`, `summar`, default research).
+Agents are **cluster kinds**—GoAkt distributes them across nodes. The orchestrator uses `ActorOf` to obtain references and `Ask`/`Tell` for communication.
 
-Both paths share the same `session.Service`, so conversation history
-does not depend on which route a turn took.
+### Agent Relocation When Host Leaves the Cluster
 
-## Package layout
+All agents (Orchestrator, Research, Summarizer, Tool) are **relocatable by default**. When a node leaves the cluster:
 
-| Path                           | Responsibility                                                                         |
-|--------------------------------|----------------------------------------------------------------------------------------|
-| `actors/`                      | ADK extension, agent factories, tools, grain, cluster kinds, router, telemetry         |
-| `actors/agents.go`             | `buildRootAgent`, `buildSingleRoleAgent` — ADK LlmAgent wiring                         |
-| `actors/agent_actor.go`        | `AgentActor` cluster-kind with Behaviors + PipeTo state machine                        |
-| `actors/conversation_grain.go` | `ConversationGrain` — per-session single-writer virtual actor                          |
-| `actors/constants.go`          | Canonical string constants (user IDs, agent names, tool names, operators)              |
-| `actors/llm_adapter.go`        | Adapter wrapping `llm.Client` as `model.LLM` for non-Gemini providers                  |
-| `actors/tools.go`              | `arithmetic` and `percent_of` tools registered with the Tool sub-agent                 |
-| `actors/tool_executor.go`      | Router routee for legacy `ExecuteTool` messages                                        |
-| `actors/routing.go`            | `routeByKeyword` + prompt-prefix helpers for the non-Gemini path                       |
-| `actors/telemetry.go`          | Eventstream topics, `StartTelemetryLogger`, `StartDeadLetterLogger`                    |
-| `actors/adk_extension.go`      | `ADKExtension` — the shared ADK runtime handle                                         |
-| `cmd/`                         | Cobra CLI, cluster bootstrap, supervisor wiring                                        |
-| `llm/`                         | Legacy LLM clients (OpenAI, Anthropic, Google, Mistral) used by the adapter            |
-| `messages/`                    | Plain-Go message types (`SubmitQuery`, `ProcessQuery`, `ExecuteTool`, `StreamToken` …) |
-| `service/`                     | HTTP handlers; `service/stream.go` hosts the SSE endpoint                              |
-| `k8s/`                         | Kubernetes manifests (StatefulSet, Nginx, Jaeger, OTEL collector, Postgres)            |
+1. **Graceful shutdown** (e.g. pod receives SIGTERM): GoAkt's relocation system persists the node's actor state to peers and recreates relocatable actors on remaining nodes. The cluster remains available.
 
-## GoAkt capabilities used
+2. **Abrupt failure** (e.g. OOMKill, node crash): Relocation cannot run because the node cannot persist state. Actors on that node are lost. The orchestrator's `getOrSpawnAgent` flow handles this: it first tries `ActorOf(kind)`; if the actor does not exist (e.g. its host crashed), it spawns a new instance. Subsequent requests therefore recover automatically.
 
-| Capability                    | Where                                                                                          |
-|-------------------------------|------------------------------------------------------------------------------------------------|
-| Plain actors                  | `AgentActor`, `ToolExecutor` routees                                                           |
-| Cluster kinds                 | `AgentActor` registered via `WithKinds`; spawned once per role at bootstrap                    |
-| Grains (virtual actors)       | `ConversationGrain` keyed by SessionID; auto-passivates after 10 min idle                      |
-| Remoting (CBOR)               | `remote.WithSerializables(...)` for every message type that may cross a node                   |
-| Behaviors + Stash             | `AgentActor` Idle → Thinking state machine; stash buffers concurrent ProcessQueries            |
-| Routers                       | `SpawnRouter` pool (4 × `ToolExecutor`, round-robin) for parallel tool fan-out                 |
-| Supervision                   | `supervisor.NewSupervisor(WithRetry(3, 2s), WithAnyErrorDirective(RestartDirective))`          |
-| Scheduled passivation         | `WithGrainDeactivateAfter(10 * time.Minute)`                                                   |
-| Reactive streams              | `goakt/v4/stream.FromChannel → ForEach` powers the SSE producer pipeline                       |
-| Eventstream pubsub            | Telemetry topics (`ai.turn.finished`, `ai.llm.error`, `ai.tool.called`, `ai.grain.passivated`) |
-| Deadletter + lifecycle events | `ActorSystem.Subscribe()` wired to `StartDeadLetterLogger`                                     |
-| Extensions                    | `ADKExtension` registered via `goakt.WithExtensions`, read by every actor and grain            |
-| Kubernetes discovery          | `goakt/v4/discovery/kubernetes` + headless service for FQDN peer addressing                    |
-| OTel remoting propagator      | Custom `otelRemoteContextPropagator` injects/extracts trace context into actor RPCs            |
+Agents are spawned with `WithLongLived()` (passivation strategy) and **without** `WithRelocationDisabled()`, so they participate in relocation. The actor system does not use `WithoutRelocation()`.
 
-## ADK surface used
 
-| Symbol                         | Purpose                                                                                      |
-|--------------------------------|----------------------------------------------------------------------------------------------|
-| `agent.Agent` / `llmagent.New` | LlmAgent with `Instruction`, `SubAgents`, `Tools`                                            |
-| `agenttool.New(...)`           | Lets the root orchestrator call each sub-agent as a tool                                     |
-| `functiontool.New`             | Registers `arithmetic` and `percent_of` tools with the tool sub-agent                        |
-| `runner.New` / `Runner.Run`    | One runner per role + one root runner, reused across turns                                   |
-| `session.InMemoryService`      | In-memory conversation history. Swap to `session/database` to persist on Postgres            |
-| `model.LLM`                    | Provider abstraction — implemented directly for Gemini, adapted from `llm.Client` for others |
-| `genai.NewContentFromText`     | Builds the user-role `genai.Content` the runner expects                                      |
+## Message Flow (Go Types Only)
 
-## Message flow
+All actor messages are **Go structs** registered for remoting serialization. No protocol buffers.
 
-1. **`POST /query`** arrives at any pod's `QueryService`.
-2. `QueryService.handleQuery` resolves a `ConversationGrain` identity
-   keyed by `session_id` via `ActorSystem.GrainIdentity(...)`. GoAkt
-   places the grain on exactly one cluster node.
-3. `AskGrain(identity, SubmitQuery, 60s)` delivers the query to the
-   grain's single-writer mailbox.
-4. `ConversationGrain.handleSubmit` picks the appropriate runner
-   (root for Gemini, role runner otherwise) and calls
-   `runner.Run(ctx, userID, sessionID, genaiContent, RunConfig{...})`.
-5. The ADK runner drives one turn, emits events, appends to the
-   session, and returns. The grain collects the final text, publishes
-   a telemetry event on the eventstream, and `Response`s the caller.
-6. `QueryService` marshals the response as JSON.
+### Orchestrator → Specialized Agents
 
-`GET /query/stream` follows the same path but:
+- **`ProcessQuery`** — Orchestrator asks a specialized agent to process a sub-task
+- **`QueryResult`** — Agent responds with the result
 
-- Builds a per-request runner (cheap; reuses the shared model and
-  session service).
-- Runs the producer in a goroutine that feeds a channel,
-  `select`ing on `r.Context().Done()` so a client disconnect cleans
-  up the goroutine and the ADK turn.
-- Wires the channel to a `stream.FromChannel[StreamToken] → ForEach`
-  pipeline that writes SSE frames.
+### User → CLI → Load Balancer → Pod → Orchestrator
 
-## HTTP reference
+- **`SubmitQuery`** — User runs CLI locally; CLI sends HTTP request to load balancer; Nginx forwards to a pod; pod spawns or finds Orchestrator and sends `SubmitQuery`
+- **`QueryResponse`** — Orchestrator responds with aggregated result; pod returns HTTP response; CLI prints to stdout
 
-| Method | Path            | Body / Query                                | Response                                         |
-|--------|-----------------|---------------------------------------------|--------------------------------------------------|
-| POST   | `/query`        | JSON: `{"query": "...", "session_id": "…"}` | JSON: `{"session_id", "result" | "error"}`       |
-| GET    | `/query/stream` | `?q=<query>&session_id=<id>`                | `text/event-stream` of `StreamToken` JSON frames |
-| GET    | `/health`       | —                                           | `200 OK` / `ok`                                  |
+### Internal Coordination
 
-## CLI
+- **`DelegateTask`** — Orchestrator delegates a sub-task to Research/Summarizer/Tool agent
+- **`TaskCompleted`** — Sub-agent returns result
+- **`TaskFailed`** — Sub-agent returns error
 
-The example ships a Cobra CLI (`main.go` → `cmd/`) with two commands:
+### Persistence (Optional)
 
-- `goakt-ai run` — start a cluster node. Reads env vars (ports, DB
-  config, OTel endpoint, LLM provider + key).
-- `goakt-ai query "…"` — submit a query to the load balancer
-  endpoint. Prints the aggregated text response.
+- **`SaveConversation`** — Persist conversation/session state to PostgreSQL
+- **`LoadConversation`** — Load prior context for a session
 
-## Configuration (env vars)
 
-| Variable                      | Default                      | Notes                                            |
-|-------------------------------|------------------------------|--------------------------------------------------|
-| `PORT`                        | `50051`                      | HTTP port for query service                      |
-| `REMOTING_PORT`               | `50052`                      | Actor-to-actor RPC                               |
-| `DISCOVERY_PORT`              | `3322`                       | Kubernetes discovery                             |
-| `PEERS_PORT`                  | `3320`                       | Cluster peer communication                       |
-| `SYSTEM_NAME`                 | `goakt-ai`                   | Actor system name                                |
-| `LLM_PROVIDER`                | `openai`                     | `openai` \| `anthropic` \| `google` \| `mistral` |
-| `LLM_MODEL`                   | provider default             | e.g. `gpt-4o-mini`, `gemini-2.5-flash-lite`      |
-| `OPENAI_API_KEY` etc.         | —                            | Matched to `LLM_PROVIDER`                        |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4318` | OTLP HTTP endpoint                               |
-| `OTEL_SERVICE_NAME`           | `goakt-ai`                   | Service name reported to tracers                 |
+## CLI Interface
 
-Only Gemini (`LLM_PROVIDER=google`) exercises the full ADK tool-calling
-path. Other providers work single-turn through the keyword fallback.
+The application is a **CLI tool**—no public REST API. Users run the CLI on their local machine; it connects to the cluster via the load balancer.
+
+### Commands
+
+| Command                          | Description                                                             |
+|----------------------------------|-------------------------------------------------------------------------|
+| `goakt-ai run`                   | Start the actor system (cluster node). Used in K8s pods.                |
+| `goakt-ai query "your question"` | Submit a query; CLI connects to load balancer, prints result to stdout. |
+| `goakt-ai chat`                  | Interactive chat mode (optional).                                       |
+
+### Endpoint Configuration
+
+The CLI connects to the cluster through the load balancer. Configure via:
+
+- **`--endpoint URL`** — e.g., `--endpoint http://localhost:8080`
+- **Environment**: `GOAKT_AI_ENDPOINT`
+- **Config file**: `endpoint: http://localhost:8080`
+
+After `make port-forward`, the default is `http://localhost:8080`. For direct NodePort access (no port-forward), use `http://<node-ip>:30080` (or the configured NodePort).
+
+### API Key Configuration
+
+Users provide their **real API keys** for LLM providers. Supported methods:
+
+1. **Environment variables** (recommended for security):
+   - `OPENAI_API_KEY`
+   - `ANTHROPIC_API_KEY`
+   - `GOOGLE_API_KEY` (for Gemini)
+   - `MISTRAL_API_KEY`
+
+2. **Config file** (`~/.goakt-ai/config.yaml` or `./goakt-ai.yaml`):
+   ```yaml
+   llm:
+     provider: openai  # openai | anthropic | google | mistral
+     openai_api_key: sk-...
+     anthropic_api_key: sk-ant-...
+     google_api_key: ...
+     mistral_api_key: ...
+   ```
+
+3. **CLI flags** (overrides env/config):
+   - `--openai-key`, `--anthropic-key`, `--google-key`, `--mistral-key`
+   - `--provider openai|anthropic|google|mistral`
+
+### Supported LLM Providers
+
+| Provider      | Models                             | Env Variable        |
+|---------------|------------------------------------|---------------------|
+| **OpenAI**    | GPT-4o, GPT-4o-mini, GPT-3.5-turbo | `OPENAI_API_KEY`    |
+| **Anthropic** | Claude 3.5 Sonnet, Claude 3 Haiku  | `ANTHROPIC_API_KEY` |
+| **Google**    | Gemini 1.5 Pro, Gemini 1.5 Flash   | `GOOGLE_API_KEY`    |
+| **Mistral**   | Mistral Large, Mistral Small       | `MISTRAL_API_KEY`   |
+
+Users choose a provider via `--provider` or config; the selected provider's API key must be set.
+
+**Cluster deployment**: When running in Kubernetes, API keys are injected into pods via Kubernetes Secrets (e.g., `llm-api-keys` secret mounted as env vars). Never commit API keys to the repo.
+
 
 ## Deployment (Kind)
 
@@ -211,93 +193,165 @@ path. Other providers work single-turn through the keyword fallback.
 
 - [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [Earthly](https://earthly.dev/get-earthly) (for the Docker image build)
+- [Earthly](https://earthly.dev/get-earthly) (for building the Docker image)
 
-### Quick start
+### Quick Start
 
 ```bash
-# From goakt-ai/
+# All commands run from goakt-ai/
 
-make cluster-create                                     # once
-make deploy                                             # image + manifests
-make set-llm-keys PROVIDER=google GOOGLE_API_KEY=...    # or openai / anthropic / mistral
-make port-forward                                       # in another terminal
-make query QUERY="Summarize the benefits of distributed systems"
+# 1. Create the Kind cluster (one-time)
+make cluster-create
+
+# 2. Build the image, load it into Kind, and deploy all components
+make deploy
+
+# 3. Set your LLM API key (pick one provider)
+make set-llm-keys PROVIDER=openai OPENAI_API_KEY=sk-your-key
+# or: make set-llm-keys PROVIDER=google GOOGLE_API_KEY=your-key
+# or: make set-llm-keys PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-your-key
+# or: make set-llm-keys PROVIDER=mistral MISTRAL_API_KEY=your-key
+
+# 4. Expose the load balancer (run in a separate terminal)
+make port-forward
+
+# 5. Submit queries from your local machine
+make query QUERY="Summarize the key benefits of distributed systems"
 make query QUERY="What is 15% of 1000?"
 ```
 
-Teardown:
+Math queries (step 5) work without an API key. All other queries require step 3.
+
+To tear everything down:
 
 ```bash
-make cluster-down      # remove deployments, keep the Kind cluster
-make cluster-delete    # remove the Kind cluster entirely
+make cluster-down     # Remove deployments (keeps the Kind cluster)
+make cluster-delete   # Delete the Kind cluster entirely
 ```
 
-### Makefile reference
+### Makefile Reference
 
-| Target                      | Description                                        |
-|-----------------------------|----------------------------------------------------|
-| `make cluster-create`       | Create a Kind cluster (one-time)                   |
-| `make deploy`               | Build image, load into Kind, deploy all components |
-| `make set-llm-keys`         | Set an LLM API key secret in the cluster           |
-| `make port-forward`         | Forward nginx to `http://localhost:8080`           |
-| `make query QUERY="..."`    | Submit a query via the CLI                         |
-| `make status` / `make logs` | Cluster inspection                                 |
-| `make image`                | Build + load the image only                        |
-| `make cluster-up`           | Deploy (no image rebuild)                          |
-| `make cluster-down`         | Remove deployments                                 |
-| `make cluster-recreate`     | Recreate the Kind cluster                          |
-| `make cluster-delete`       | Delete the Kind cluster                            |
-| `make port-forward-jaeger`  | Forward Jaeger UI to `http://localhost:16686`      |
-| `make test`                 | Run CLI integration tests                          |
+| Target                     | Description                                                |
+|----------------------------|------------------------------------------------------------|
+| `make cluster-create`      | Create a Kind cluster (one-time)                           |
+| `make deploy`              | Build image, load into Kind, deploy all components         |
+| `make set-llm-keys`        | Set LLM API key in the cluster (see examples above)        |
+| `make port-forward`        | Forward nginx to `http://localhost:8080`                    |
+| `make query QUERY="..."`   | Submit a query to the cluster                              |
+| `make status`              | Show cluster and pod status                                |
+| `make logs`                | Tail logs from goakt-ai pods                               |
+| `make image`               | Build Docker image and load into Kind (without deploying)  |
+| `make cluster-up`          | Deploy components (without rebuilding the image)           |
+| `make cluster-down`        | Remove all deployments                                     |
+| `make cluster-recreate`    | Delete and recreate the Kind cluster                       |
+| `make cluster-delete`      | Delete the Kind cluster                                    |
+| `make port-forward-jaeger` | Forward Jaeger UI to `http://localhost:16686`               |
+| `make test`                | Run CLI integration tests                                  |
 
-### Cluster topology (per pod)
+## Design Decisions
 
-- 1 × Go binary running the actor system + query service.
-- `ADKExtension` registered at startup (model + session service +
-  eventstream).
-- 3 × `AgentActor` spawned by role, supervised with retry-backoff.
-- 1 × `ToolExecutor` router with a 4-routee pool.
-- 1 × Postgres init-container wait (Postgres itself deployed separately;
-  swap `session.InMemoryService()` for `session/database` to persist
-  conversation history there).
+### 1. Go Types Only
 
-Supporting infrastructure in `k8s/`:
+- All actor messages are plain Go structs (e.g., `ProcessQuery`, `QueryResult`)
+- Registered with `remote.WithSerializables(...)` for CBOR serialization over the wire
+- Aligns with goakt-saga and k8s-v2; no protobuf tooling required
 
-- `nginx-*` — round-robin load balancer exposed as a NodePort.
-- `jaeger-*` and `otel-collector-*` — distributed tracing.
-- `postgres-deployment.yaml` — optional state store.
+### 2. Load Balancer + Kubernetes Discovery
 
-## Observability
+- **Nginx** load balancer (NodePort) exposes the cluster to users; no kubectl required
+- User runs CLI locally; `make port-forward` maps Nginx to localhost:8080
+- Pods discover each other via the Kubernetes API (same pattern as goakt-saga, k8s-v2)
+- StatefulSet with 3 replicas; each pod runs the full actor system and a minimal query HTTP endpoint for the CLI
+- Cluster partitions actors across nodes; location transparent
 
-- OpenTelemetry traces on all HTTP handlers and actor remoting
-  (custom `otelRemoteContextPropagator`).
-- Application eventstream topics — see `actors/telemetry.go`.
-  `StartTelemetryLogger` logs every event at Info.
-- Actor system events (deadletters, actor stops, restarts) surfaced
-  via `ActorSystem.Subscribe()` and `StartDeadLetterLogger`.
+### 3. Orchestrator Pattern
 
-## Extending the example
+- One orchestrator per session/request (or long-lived per user)
+- Orchestrator decides which agents to invoke and in what order
+- Uses `Ask` for request-reply to specialized agents
 
-- **Persist sessions on Postgres.** Replace
-  `adksession.InMemoryService()` in `cmd/run.go` with
-  `database.NewSessionService(postgres.Open(dsn))`. Run
-  `database.AutoMigrate(svc)` once on startup.
-- **Add a new role.** Append a constant to the `Role` enum, extend
-  `buildSingleRoleAgent`, and include the new role in the
-  `cmd/run.go` spawn loop. The grain picks it up automatically if
-  you update `routeByKeyword` (non-Gemini) or the orchestrator
-  description (Gemini).
-- **Add a tool.** Define `<Name>Args` / `<Name>Result` types and a
-  `functiontool.New` wrapper in `actors/tools.go`. Append it to
-  `builtinTools()`; it becomes available to the Tool sub-agent on
-  next startup.
-- **Stream via the router.** The Tool router pool currently serves
-  only legacy `ExecuteTool` messages. To fan out tool calls from ADK
-  in parallel, add a `BeforeToolCallback` on the ADK LlmAgent that
-  dispatches through `ToolExecutorRouter` instead of running in
-  process.
+### 4. AI Integration (Real LLM APIs)
+
+- Agents call **real LLM APIs** using the user's API keys
+- Supported providers: **OpenAI**, **Anthropic**, **Google (Gemini)**, **Mistral**
+- API keys via environment variables, config file, or CLI flags
+- User selects provider via `--provider` or config; no mock/simulated responses
+
+### 5. Persistence
+
+- PostgreSQL stores session state, conversation history, and task results
+- Supports recovery and auditing
+- Schema: `sessions`, `messages`, `tasks` (or similar)
+
+### 6. Observability
+
+- OpenTelemetry traces for CLI/actor spans
+- Jaeger for trace visualization
+- Logs for debugging
+
+## Failure Handling
+
+| Scenario                      | Behavior                                                               |
+|-------------------------------|------------------------------------------------------------------------|
+| Specialized agent timeout     | Orchestrator marks sub-task failed; may retry or return partial result |
+| Agent unreachable (node down) | Cluster rebalances; new actor spawned on another node; retry possible  |
+| LLM API failure               | Agent returns error; orchestrator can retry or fail the query          |
+| Process crash mid-query       | Session state in DB; manual or automated recovery possible             |
+
+## Project Structure (Planned)
+
+```
+goakt-ai/
+├── actors/              # OrchestratorAgent, ResearchAgent, SummarizerAgent, ToolAgent
+├── cmd/                 # CLI entry point (run, query, chat commands)
+├── db/
+│   └── migrations/      # SQL schema (sessions, messages, tasks)
+├── domain/              # Query, Session, Task domain models
+├── k8s/                 # Kubernetes manifests
+│   ├── kind-config.yaml
+│   ├── k8s.yaml         # StatefulSet, Service, RBAC
+│   ├── nginx-*.yaml     # Load balancer (NodePort)
+│   ├── postgres-*.yaml
+│   ├── otel-collector-*.yaml
+│   └── jaeger-*.yaml
+├── llm/                 # LLM client abstractions (OpenAI, Anthropic, Google, Mistral)
+├── messages/             # Go structs for actor messages
+├── persistence/          # PostgreSQL store
+├── scripts/              # test-cli.sh
+├── doc.md                # This file
+└── Makefile
+```
+
+## Differences from Other Examples
+
+| Feature       | goakt-saga                      | goakt-ai                                 |
+|---------------|---------------------------------|------------------------------------------|
+| Domain        | Money transfer                  | AI query processing                      |
+| Orchestration | Saga (compensation)             | Multi-agent delegation                   |
+| Actors        | AccountEntity, SagaOrchestrator | Orchestrator, Research, Summarizer, Tool |
+| External deps | None                            | Real LLM APIs (user API keys)            |
+| Message flow  | Sequential steps                | DAG of agent delegations                 |
+
+| Feature      | k8s-v2           | goakt-ai                    |
+|--------------|------------------|-----------------------------|
+| Domain       | Account CRUD     | AI agents                   |
+| Actors       | AccountEntity    | Multiple specialized agents |
+| Coordination | None (stateless) | Orchestrator coordinates    |
+
+## Summary
+
+**goakt-ai** demonstrates a production-like **distributed AI agents** application:
+
+- **CLI interface**—users run `goakt-ai query "..."` locally; connects via load balancer (no kubectl)
+- **Multiple specialized agents** (Orchestrator, Research, Summarizer, Tool) as GoAkt actors
+- **Kubernetes + Kind** for deployment; **Go types only** for messages
+- **Location transparency**—agents can run on any cluster node
+- **Real LLM integration**—OpenAI, Anthropic, Google (Gemini), Mistral with user-provided API keys
+- **API key support**—environment variables, config file, or CLI flags
+- PostgreSQL persistence, OpenTelemetry tracing
+
+The implementation will follow the patterns established in goakt-saga and goakt-actors-cluster/k8s-v2, adapted for the multi-agent AI domain.
 
 ## License
 
-MIT — see the `LICENSE` file at the repository root.
+MIT License - see repository root for details.

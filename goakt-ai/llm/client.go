@@ -25,33 +25,32 @@ package llm
 import "fmt"
 
 // NewClient creates an LLM client for the given provider
-func NewClient(config *Config) (Client, error) {
-	if config == nil {
+func NewClient(cfg *Config) (Client, error) {
+	if cfg == nil {
 		return nil, fmt.Errorf("config is required")
 	}
-
-	switch config.Provider {
+	switch cfg.Provider {
 	case ProviderOpenAI:
-		if config.OpenAIKey == "" {
+		if cfg.OpenAIKey == "" {
 			return nil, fmt.Errorf("OPENAI_API_KEY is required for OpenAI")
 		}
-		return NewOpenAIClient(config.OpenAIKey, config.Model, config.MaxTokens), nil
+		return NewOpenAIClient(cfg.OpenAIKey, cfg.Model, cfg.MaxTokens), nil
 	case ProviderAnthropic:
-		if config.AnthropicKey == "" {
+		if cfg.AnthropicKey == "" {
 			return nil, fmt.Errorf("ANTHROPIC_API_KEY is required for Anthropic")
 		}
-		return NewAnthropicClient(config.AnthropicKey, config.Model, config.MaxTokens), nil
+		return NewAnthropicClient(cfg.AnthropicKey, cfg.Model, cfg.MaxTokens), nil
 	case ProviderGoogle:
-		if config.GoogleKey == "" {
+		if cfg.GoogleKey == "" {
 			return nil, fmt.Errorf("GOOGLE_API_KEY is required for Google")
 		}
-		return NewGoogleClient(config.GoogleKey, config.Model, config.MaxTokens), nil
+		return NewGoogleClient(cfg.GoogleKey, cfg.Model, cfg.MaxTokens), nil
 	case ProviderMistral:
-		if config.MistralKey == "" {
+		if cfg.MistralKey == "" {
 			return nil, fmt.Errorf("MISTRAL_API_KEY is required for Mistral")
 		}
-		return NewMistralClient(config.MistralKey, config.Model, config.MaxTokens), nil
+		return NewMistralClient(cfg.MistralKey, cfg.Model, cfg.MaxTokens), nil
 	default:
-		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
+		return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
 	}
 }

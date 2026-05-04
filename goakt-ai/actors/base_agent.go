@@ -23,127 +23,50 @@
 package actors
 
 import (
-	"context"
-	"fmt"
-	"strings"
-
 	goakt "github.com/tochemey/goakt/v4/actor"
-	adkagent "google.golang.org/adk/agent"
-	adkrunner "google.golang.org/adk/runner"
-	"google.golang.org/genai"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-ai/agents"
+	"github.com/tochemey/goakt-examples/v2/goakt-ai/llm"
+	"github.com/tochemey/goakt-examples/v2/goakt-ai/messages"
 )
 
-// baseAgent holds the shared ADK runner + extension handles that every actor
-// and grain needs. Kept intentionally small: it knows how to resolve the
-// ADKExtension and how to execute exactly one turn through the runner.
+// baseAgent provides common LLM client access for specialized agents.
+// The LLM client is initialized in PreStart for efficiency and GC friendliness.
 type baseAgent struct {
-	extension *agents.ADKExtension
-	runner    *adkrunner.Runner
+	llmClient llm.Client
 }
 
-// initADKFromContext fetches the ADKExtension and builds a Runner bound to
-// rootAgent. Call this from an actor's PreStart.
-func (base *baseAgent) initADKFromContext(ctx *goakt.Context, rootAgent adkagent.Agent) error {
-	extension := ctx.Extension(agents.ADKExtensionID)
-	if extension == nil {
-		return fmt.Errorf("ADK extension not registered")
+// initLLMClient initializes the LLM client from the extension. Call from PreStart.
+func (b *baseAgent) initLLMClient(ctx *goakt.Context) {
+	ext := ctx.Extension(llm.LLMConfigExtensionID)
+	if ext == nil {
+		ctx.Logger().Warn("LLM extension not registered")
+		return
 	}
-
-	adkExtension, ok := extension.(*agents.ADKExtension)
-	if !ok || adkExtension == nil {
-		return fmt.Errorf("invalid ADK extension type: %T", extension)
+	cfgExt, ok := ext.(*llm.ConfigExtension)
+	if !ok || cfgExt == nil || cfgExt.Config == nil {
+		ctx.Logger().Warn("LLM extension has no config")
+		return
 	}
-	base.extension = adkExtension
-
-	runner, err := adkrunner.New(adkrunner.Config{
-		AppName:           adkExtension.AppName,
-		Agent:             rootAgent,
-		SessionService:    adkExtension.SessionService,
-		AutoCreateSession: true,
-	})
+	client, err := llm.NewClient(cfgExt.Config)
 	if err != nil {
-		return fmt.Errorf("build ADK runner: %w", err)
+		ctx.Logger().Errorf("failed to create LLM client: %v", err)
+		return
 	}
-
-	base.runner = runner
-	return nil
+	ctx.Logger().Infof("LLM client initialized (provider=%s, model=%s)", cfgExt.Config.Provider, cfgExt.Config.Model)
+	b.llmClient = client
 }
 
-// runTurnCollecting executes one ADK turn on the actor's default runner.
-// Equivalent to runTurnOn(b.runner, ...); kept as a thin wrapper so actors
-// that only have one runner don't need to reference it explicitly.
-func (base *baseAgent) runTurnCollecting(ctx context.Context, sessionID, userID, query string) (string, error) {
-	return base.runTurnOn(ctx, base.runner, sessionID, userID, query)
+func (b *baseAgent) completeWithLLM(ctx *goakt.ReceiveContext, prompt, systemPrompt string) (string, error) {
+	if b.llmClient == nil {
+		return "[LLM not configured - set API key and LLM_PROVIDER]", nil
+	}
+	return b.llmClient.Complete(ctx.Context(), prompt, systemPrompt)
 }
 
-// runTurnOn executes one ADK turn against the supplied runner and returns
-// the concatenated final text response. Tool / function-call intermediate
-// events are consumed but only final, non-partial text parts are included
-// in the result. Taking runner as a parameter lets ConversationGrain hold
-// multiple runners (one per role) and route to the right one per turn,
-// without swapping b.runner from under other helpers.
-func (base *baseAgent) runTurnOn(ctx context.Context, runner *adkrunner.Runner, sessionID, userID, query string) (string, error) {
-	if runner == nil {
-		return "", fmt.Errorf("ADK runner not initialized")
-	}
-
-	if userID == "" {
-		userID = agents.DefaultUserID
-	}
-
-	var responseBuilder strings.Builder
-	userMessage := genai.NewContentFromText(query, genai.RoleUser)
-
-	for event, err := range runner.Run(ctx, userID, sessionID, userMessage, adkagent.RunConfig{StreamingMode: adkagent.StreamingModeNone}) {
-		if err != nil {
-			return "", err
-		}
-
-		if event == nil || event.LLMResponse.Content == nil {
-			continue
-		}
-
-		if event.LLMResponse.Partial {
-			continue
-		}
-
-		if !event.IsFinalResponse() {
-			continue
-		}
-
-		for _, part := range event.LLMResponse.Content.Parts {
-			if part != nil && part.Text != "" {
-				if responseBuilder.Len() > 0 {
-					responseBuilder.WriteString("\n")
-				}
-				responseBuilder.WriteString(part.Text)
-			}
-		}
-	}
-
-	return responseBuilder.String(), nil
+func (b *baseAgent) respondResult(ctx *goakt.ReceiveContext, taskID, result string) {
+	ctx.Response(&messages.QueryResult{TaskID: taskID, Result: result})
 }
 
-// initRunnerFromExtension builds the ADK runner using the extension already
-// stored on the receiver. Used from grain activation, which has an
-// ADKExtension pointer but not a full Context or GrainContext.
-func (base *baseAgent) initRunnerFromExtension(rootAgent adkagent.Agent) error {
-	if base.extension == nil {
-		return fmt.Errorf("ADK extension not initialized on baseAgent")
-	}
-
-	runner, err := adkrunner.New(adkrunner.Config{
-		AppName:           base.extension.AppName,
-		Agent:             rootAgent,
-		SessionService:    base.extension.SessionService,
-		AutoCreateSession: true,
-	})
-	if err != nil {
-		return fmt.Errorf("build ADK runner: %w", err)
-	}
-
-	base.runner = runner
-	return nil
+func (b *baseAgent) respondError(ctx *goakt.ReceiveContext, taskID, errMsg string) {
+	ctx.Response(&messages.QueryResult{TaskID: taskID, Err: errMsg})
 }
