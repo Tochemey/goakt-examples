@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tetris — powered by GoAkt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-0: #0a0a18;
+      --bg-1: #1a0a2e;
+      --panel-bg: rgba(255, 255, 255, 0.035);
+      --panel-border: rgba(255, 255, 255, 0.07);
+      --text: #f4f4f8;
+      --text-dim: #9090a8;
+      --text-mute: #5a5a76;
+      --accent: #c026d3;
+      --accent-soft: rgba(192, 38, 211, 0.18);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; height: 100%; overflow: hidden;
+      font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(60% 50% at 20% 20%, rgba(192, 38, 211, 0.12) 0%, transparent 60%),
+        radial-gradient(50% 40% at 80% 80%, rgba(59, 130, 246, 0.10) 0%, transparent 60%),
+        linear-gradient(180deg, var(--bg-0), var(--bg-1));
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      display: flex; align-items: center; justify-content: center; gap: 36px;
+    }
+    #stage {
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+    .brand {
+      text-align: center;
+      user-select: none;
+    }
+    .brand .title {
+      font-size: 26px; font-weight: 700;
+      letter-spacing: 10px; text-transform: uppercase;
+      line-height: 1;
+      background: linear-gradient(90deg, #fff 0%, #c5c5d4 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .brand .sub {
+      margin-top: 6px; font-size: 9px; font-weight: 500;
+      letter-spacing: 5px; text-transform: uppercase;
+      color: var(--text-mute);
+    }
+    #board {
+      background: #050510;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      box-shadow:
+        0 0 80px rgba(192, 38, 211, 0.18),
+        0 20px 60px rgba(0, 0, 0, 0.55),
+        inset 0 0 30px rgba(0, 0, 0, 0.55);
+    }
+    #sidebar {
+      display: flex; flex-direction: column; gap: 12px; width: 200px;
+    }
+    .panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .panel h2 {
+      margin: 0 0 6px 0;
+      font-size: 10px; font-weight: 600;
+      color: var(--text-mute);
+      letter-spacing: 2px; text-transform: uppercase;
+    }
+    .stat .val {
+      font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      font-size: 26px; font-weight: 700; line-height: 1;
+      letter-spacing: 0.5px;
+      color: var(--text);
+      transition: color 0.2s ease;
+    }
+    .stat.pulse .val {
+      animation: scorePulse 0.5s ease-out;
+    }
+    @keyframes scorePulse {
+      0%   { transform: scale(1);    color: var(--text); }
+      40%  { transform: scale(1.08); color: var(--accent); }
+      100% { transform: scale(1);    color: var(--text); }
+    }
+    #nextCanvas {
+      display: block; margin: 8px auto 2px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+    }
+    #pauseBtn {
+      width: 100%; padding: 11px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      font: 600 12px 'Inter', sans-serif;
+      letter-spacing: 2px; text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    #pauseBtn:hover {
+      background: var(--accent-soft);
+      border-color: rgba(192, 38, 211, 0.4);
+      color: #fff;
+    }
+    #pauseBtn:active { transform: scale(0.98); }
+    .controls {
+      font-size: 12px; line-height: 1.85; color: var(--text-dim);
+    }
+    kbd {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font: 500 10px 'JetBrains Mono', ui-monospace, monospace;
+      min-width: 16px; text-align: center;
+      color: var(--text);
+    }
+    #status {
+      position: fixed; bottom: 14px; left: 18px;
+      font-size: 10px; color: var(--text-mute);
+      letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    .overlay {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(5, 5, 16, 0.78);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      flex-direction: column;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+      z-index: 100;
+    }
+    .overlay.show { opacity: 1; pointer-events: auto; }
+    .overlay .title {
+      font-size: 60px; font-weight: 700; letter-spacing: 14px;
+      text-transform: uppercase; line-height: 1;
+    }
+    .overlay .sub {
+      margin-top: 14px;
+      font-size: 12px; letter-spacing: 3px;
+      color: var(--text-dim); text-transform: uppercase;
+    }
+    #overlay .title {
+      color: #ef4444; text-shadow: 0 0 40px rgba(239, 68, 68, 0.5);
+    }
+    #pauseOverlay .title {
+      color: #fbbf24; text-shadow: 0 0 40px rgba(251, 191, 36, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div class="brand">
+      <div class="title">Tetris</div>
+      <div class="sub">powered by GoAkt</div>
+    </div>
+    <canvas id="board" width="300" height="600"></canvas>
+  </div>
+
+  <div id="sidebar">
+    <div class="panel stat" id="scorePanel"><h2>Score</h2><div id="scoreVal" class="val">0</div></div>
+    <div class="panel stat" id="linesPanel"><h2>Lines</h2><div id="linesVal" class="val">0</div></div>
+    <div class="panel stat" id="levelPanel"><h2>Level</h2><div id="levelVal" class="val">1</div></div>
+    <div class="panel"><h2>Next</h2><canvas id="nextCanvas" width="140" height="100"></canvas></div>
+    <div class="panel"><button id="pauseBtn">Pause</button></div>
+    <div class="panel controls">
+      <kbd>←</kbd> <kbd>→</kbd> Move<br>
+      <kbd>↑</kbd> Rotate<br>
+      <kbd>↓</kbd> Soft drop<br>
+      <kbd>Space</kbd> Hard drop<br>
+      <kbd>P</kbd> Pause<br>
+      <kbd>R</kbd> Restart
+    </div>
+  </div>
+
+  <div id="overlay" class="overlay">
+    <div class="title">Game Over</div>
+    <div class="sub">Press <kbd>R</kbd> to restart</div>
+  </div>
+  <div id="pauseOverlay" class="overlay">
+    <div class="title">Paused</div>
+    <div class="sub">Press <kbd>P</kbd> to resume</div>
+  </div>
+  <div id="status">connecting…</div>
+  <script src="main.js"></script>
+</body>
+</html>

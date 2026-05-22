@@ -1,0 +1,6 @@
+# Go build output
+bin/
+
+# TypeScript-compiled client. The .ts source in web/main.ts is the source
+# of truth; `make web` (or the Docker build) regenerates this file.
+web/main.js

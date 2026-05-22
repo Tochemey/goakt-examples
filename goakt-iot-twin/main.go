@@ -32,8 +32,6 @@ import (
 	"github.com/tochemey/goakt/v4/log"
 )
 
-// --- messages ---------------------------------------------------------------
-
 type (
 	Telemetry struct {
 		Temp     float64
@@ -49,7 +47,6 @@ type (
 	}
 )
 
-// --- in-memory state store --------------------------------------------------
 //
 // A grain keeps state in memory while active; on deactivation it persists a
 // snapshot here so the next activation can restore. In a real deployment this
@@ -81,8 +78,6 @@ func (s *store) save(id string, snap snapshot) {
 	defer s.mu.Unlock()
 	s.data[id] = snap
 }
-
-// --- the grain --------------------------------------------------------------
 
 // DeviceTwin is a virtual actor that represents one physical device. The
 // runtime activates it on demand when the first message for that device id
@@ -135,11 +130,9 @@ func (x *DeviceTwin) OnReceive(ctx *actor.GrainContext) {
 	}
 }
 
-// --- demo -------------------------------------------------------------------
-
 func main() {
 	ctx := context.Background()
-	logger := log.DiscardLogger
+	logger := log.DefaultLogger
 
 	system, err := actor.NewActorSystem("IoTTwin", actor.WithLogger(logger))
 	if err != nil {
@@ -203,6 +196,7 @@ func main() {
 	if err != nil {
 		logger.Fatal(err)
 	}
+
 	s = resp.(*Status)
 	fmt.Printf("sensor-A after reactivation: temp=%.1f humidity=%.1f readings=%d\n",
 		s.LastTemp, s.LastHumidity, s.ReadingsSeen)

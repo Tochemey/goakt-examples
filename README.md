@@ -68,3 +68,4 @@ earthly +all
 - [goakt-saga](./goakt-saga) — **Saga pattern**: production-like money transfer with compensating transactions, Kubernetes/Kind, Go types only
 - [goakt-2pc](./goakt-2pc) — **2 phase commit pattern**: The same production-like money transfer with 2 phase commit pattern, Kubernetes/Kind, Go types only
 - [goakt-ai](./goakt-ai) — **Distributed AI agents**: multi-agent system with Orchestrator, Research, Summarizer, Tool agents; OpenAI/Anthropic/Google/Mistral; CLI + load balancer; Kubernetes/Kind
+- [goakt-game](./goakt-game) — **Browser-playable Tetris**: real-time stateful game where every match is a per-WS-connection actor. Demonstrates scheduled-tick game loop, Watch/`*Terminated` lifecycle cleanup, `SpawnSingleton` matchmaker, `SpawnOn` cluster-aware placement, CBOR serializers, and a TypeScript canvas client. Includes a `docker compose` two-node cluster setup
