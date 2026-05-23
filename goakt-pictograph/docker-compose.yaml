@@ -1,0 +1,56 @@
+# goakt-pictograph two-node cluster.
+#
+# Both containers run the same image with the same internal port layout
+# (8080 HTTP, 9000 remoting, 9001 discovery, 9002 peers). They reach each
+# other on the docker network via the service hostnames `node-a` /
+# `node-b`. Each node's HTTP port is mapped to a distinct host port so a
+# browser can connect to either:
+#
+#   browser ─► localhost:8080 ─► node-a HTTP gateway
+#   browser ─► localhost:8081 ─► node-b HTTP gateway
+#   node-a  ◄── cluster traffic (9000/9001/9002) ──► node-b
+
+services:
+  node-a:
+    build:
+      context: ..
+      dockerfile: goakt-pictograph/Dockerfile
+    image: goakt-pictograph:dev
+    container_name: goakt-pictograph-node-a
+    hostname: node-a
+    command:
+      - --bind-host=node-a
+      - --http-port=8080
+      - --remoting-port=9000
+      - --discovery-port=9001
+      - --peers-port=9002
+      - --peers=node-a:9001,node-b:9001
+    ports:
+      - "8080:8080"
+    networks: [cluster]
+    restart: unless-stopped
+
+  node-b:
+    build:
+      context: ..
+      dockerfile: goakt-pictograph/Dockerfile
+    image: goakt-pictograph:dev
+    container_name: goakt-pictograph-node-b
+    hostname: node-b
+    command:
+      - --bind-host=node-b
+      - --http-port=8080
+      - --remoting-port=9000
+      - --discovery-port=9001
+      - --peers-port=9002
+      - --peers=node-a:9001,node-b:9001
+    ports:
+      - "8081:8080"
+    networks: [cluster]
+    restart: unless-stopped
+    depends_on:
+      - node-a
+
+networks:
+  cluster:
+    name: goakt-pictograph-cluster

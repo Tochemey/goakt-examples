@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>goakt-pictograph</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1a1d26;
+      --panel-2: #232733;
+      --ink: #e6e6e6;
+      --muted: #8b91a0;
+      --accent: #5eb1ff;
+      --good: #61d095;
+      --bad: #ef6f6f;
+      --warn: #ffb454;
+      --border: #2a2f3d;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    #app {
+      display: grid;
+      grid-template-columns: 240px 1fr 280px;
+      grid-template-rows: 48px 36px 1fr;
+      grid-template-areas:
+        "header header header"
+        "banner banner banner"
+        "left   center right";
+      height: 100vh;
+      gap: 1px;
+      background: var(--border);
+    }
+    header {
+      grid-area: header;
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      position: relative;
+    }
+    header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: 0.4px;
+    }
+    header .room {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    header .roundInfo {
+      color: var(--muted);
+      margin-left: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    header .roundDots { margin-left: 8px; display: inline-flex; gap: 4px; }
+    header .roundDots .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.2s;
+    }
+    header .roundDots .dot.done { background: var(--accent); }
+    header .roundDots .dot.current {
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(94, 177, 255, 0.25);
+    }
+    header .word {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: 4px;
+      margin-left: auto;
+      color: var(--ink);
+      font-size: 16px;
+    }
+    header .timer {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--ink);
+      margin-left: 12px;
+      min-width: 48px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    header .timer.warn { color: var(--warn); }
+    header .timer.crit { color: var(--bad); }
+    header .progress {
+      position: absolute;
+      left: 0; bottom: 0;
+      height: 4px;
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+    }
+    header .progress .fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.4s linear, background 0.2s;
+    }
+    header .progress .fill.warn { background: var(--warn); }
+    header .progress .fill.crit { background: var(--bad); }
+
+    .banner {
+      grid-area: banner;
+      background: var(--panel-2);
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .banner.drawing { background: linear-gradient(90deg, rgba(94,177,255,0.18), rgba(94,177,255,0.05)); color: var(--accent); }
+    .banner.choosing { background: linear-gradient(90deg, rgba(255,180,84,0.18), rgba(255,180,84,0.05)); color: var(--warn); }
+    .banner.waiting  { color: var(--muted); }
+    .banner.gameover { background: linear-gradient(90deg, rgba(97,208,149,0.18), rgba(97,208,149,0.05)); color: var(--good); }
+    .banner .icon { font-size: 16px; }
+
+    aside.left, aside.right {
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    aside.left  { grid-area: left; }
+    aside.right { grid-area: right; }
+    aside h2 {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      padding: 12px 16px 6px;
+      margin: 0;
+    }
+    .list {
+      flex: 0 0 auto;
+      padding: 4px 0;
+      overflow: auto;
+    }
+    .list .row {
+      padding: 6px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-left: 3px solid transparent;
+    }
+    .list .row.drawer { border-left-color: var(--accent); }
+    .list .row.guessed { color: var(--good); }
+    .list .row.you .name::after { content: " (you)"; color: var(--muted); font-weight: 400; }
+    .list .row .name { font-weight: 500; }
+    .list .row .score {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--muted);
+    }
+    .center {
+      grid-area: center;
+      background: var(--panel-2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .canvasWrap {
+      flex: 1 1 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      min-height: 0;
+    }
+    canvas {
+      background: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+      cursor: crosshair;
+      max-width: 100%;
+      max-height: 100%;
+    }
+    canvas.spectator { cursor: not-allowed; }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--panel);
+      align-items: center;
+      border-top: 1px solid var(--border);
+    }
+    .toolbar .swatch {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    .toolbar .swatch.active { border-color: var(--ink); }
+    .toolbar .spacer { flex: 1; }
+    .toolbar button {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .toolbar button:hover { background: var(--border); }
+    .toolbar input[type=range] { width: 100px; }
+    .toolbar:where(.disabled) > * { opacity: 0.4; pointer-events: none; }
+    .overlay {
+      position: absolute;
+      background: rgba(15,17,21,0.92);
+      color: var(--ink);
+      padding: 20px 32px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      pointer-events: auto;
+      text-align: center;
+      max-width: 80%;
+    }
+    .overlay h3 { margin: 0 0 12px; font-size: 16px; }
+    .overlay button {
+      background: var(--accent);
+      color: var(--bg);
+      border: 0;
+      padding: 8px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 4px;
+    }
+    .overlayLayer {
+      position: absolute; inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    /* Toast notifications */
+    .toasts {
+      position: fixed;
+      top: 64px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 50;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      color: var(--ink);
+      padding: 8px 14px;
+      border-radius: 4px;
+      font-size: 13px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      animation: toastIn 0.18s ease-out, toastOut 0.3s ease-in 2.7s forwards;
+      min-width: 200px;
+      max-width: 320px;
+    }
+    .toast.good { border-left-color: var(--good); }
+    .toast.warn { border-left-color: var(--warn); }
+    .toast.score { border-left-color: var(--accent); font-variant-numeric: tabular-nums; }
+    @keyframes toastIn  { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes toastOut { to   { transform: translateX(40px); opacity: 0; } }
+
+    .chat {
+      flex: 1 1 0;
+      overflow: auto;
+      padding: 8px 16px;
+    }
+    .chat .msg {
+      margin-bottom: 4px;
+    }
+    .chat .msg .from {
+      color: var(--accent);
+      font-weight: 600;
+      margin-right: 6px;
+    }
+    .chat .msg.system { color: var(--muted); font-style: italic; }
+    .chat .msg.good { color: var(--good); }
+    .chatInput {
+      display: flex;
+      padding: 8px;
+      gap: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .chatInput input {
+      flex: 1;
+      background: var(--panel-2);
+      color: var(--ink);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font: inherit;
+    }
+    .chatInput input:focus { outline: 1px solid var(--accent); }
+    .chatInput input:disabled { background: var(--panel); color: var(--muted); cursor: not-allowed; }
+    .leaderboard .row .wins {
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>goakt-pictograph</h1>
+      <span>room <span class="room" id="roomCode">…</span></span>
+      <span class="roundInfo" id="roundInfo">round —</span>
+      <span class="roundDots" id="roundDots"></span>
+      <span class="word" id="wordHint"></span>
+      <span class="timer" id="timer">—</span>
+      <div class="progress"><div class="fill" id="progressFill"></div></div>
+    </header>
+
+    <div class="banner waiting" id="banner">waiting for players…</div>
+
+    <aside class="left">
+      <h2>Players</h2>
+      <div class="list" id="players"></div>
+      <h2>Leaderboard</h2>
+      <div class="list leaderboard" id="leaderboard"></div>
+    </aside>
+
+    <div class="center" style="position: relative;">
+      <div class="canvasWrap">
+        <canvas id="canvas" width="800" height="500"></canvas>
+      </div>
+      <div class="toolbar" id="toolbar">
+        <span class="swatch" style="background:#000000"></span>
+        <span class="swatch" style="background:#e63946"></span>
+        <span class="swatch" style="background:#f4a261"></span>
+        <span class="swatch" style="background:#e9c46a"></span>
+        <span class="swatch" style="background:#2a9d8f"></span>
+        <span class="swatch" style="background:#264653"></span>
+        <span class="swatch" style="background:#9d4edd"></span>
+        <span class="swatch" style="background:#ffffff"></span>
+        <span style="margin-left:12px;color:var(--muted);">size</span>
+        <input type="range" id="widthRange" min="1" max="20" value="4" />
+        <button id="clearBtn">Clear</button>
+        <span class="spacer"></span>
+        <span id="role" style="color:var(--muted);"></span>
+      </div>
+      <div class="overlayLayer" id="overlayLayer"></div>
+    </div>
+
+    <aside class="right">
+      <h2>Chat &amp; Guesses</h2>
+      <div class="chat" id="chat"></div>
+      <div class="chatInput">
+        <input id="chatInput" type="text" placeholder="Type your guess and press Enter…" maxlength="60" />
+      </div>
+    </aside>
+  </div>
+  <div class="toasts" id="toasts"></div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
