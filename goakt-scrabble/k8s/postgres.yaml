@@ -1,0 +1,113 @@
+# Bundled Postgres for the scrabble profile store.
+#
+# This is a single-replica StatefulSet sized for a kind-cluster demo;
+# it is NOT a production posture (no replicas, no backups, no TLS,
+# no pgbouncer). In a real deployment, use a managed Postgres or a
+# proper operator (CloudNativePG, Zalando) and inject DATABASE_URL via
+# an external Secret.
+#
+# The credentials below are stored in a manifest-defined Secret so the
+# whole stack comes up with `make k8s-up`. Rotate them for any real use.
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: scrabble-postgres
+  namespace: scrabble
+  labels:
+    app: scrabble-postgres
+type: Opaque
+stringData:
+  POSTGRES_USER: scrabble
+  POSTGRES_PASSWORD: scrabble-demo
+  POSTGRES_DB: scrabble
+  # Full libpq URL consumed by the scrabble app. The hostname resolves
+  # via the headless service below.
+  DATABASE_URL: postgres://scrabble:scrabble-demo@scrabble-postgres-0.scrabble-postgres.scrabble.svc.cluster.local:5432/scrabble?sslmode=disable
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scrabble-postgres
+  namespace: scrabble
+  labels:
+    app: scrabble-postgres
+spec:
+  clusterIP: None
+  selector:
+    app: scrabble-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: scrabble-postgres
+  namespace: scrabble
+  labels:
+    app: scrabble-postgres
+spec:
+  serviceName: scrabble-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scrabble-postgres
+  template:
+    metadata:
+      labels:
+        app: scrabble-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: scrabble-postgres
+          env:
+            # PGDATA lives in a subdirectory of the mounted volume so
+            # postgres doesn't complain that the mount root contains
+            # lost+found / dotfiles on some volume drivers.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scrabble
+  namespace: scrabble
+  annotations:
+    # Cookie-based session affinity. A WebSocket connection routed to
+    # pod A must stay on pod A for its lifetime; the PlayerSessionActor
+    # lives on whichever pod accepted the upgrade. IP-hash would break
+    # behind shared NAT (households, mobile networks); cookies don't.
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/affinity-mode: persistent
+    nginx.ingress.kubernetes.io/session-cookie-name: scrabble-affinity
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+
+    # WebSocket-friendly timeouts: don't reap an idle game over a long
+    # human turn. (The actor itself has its own 90s turn timer.)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: scrabble
+                port:
+                  number: 8080

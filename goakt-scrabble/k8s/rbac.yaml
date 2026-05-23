@@ -1,0 +1,42 @@
+# RBAC for the kubernetes discovery provider.
+#
+# The provider calls the Kubernetes API to list scrabble pods in the
+# namespace and reads their pod IPs + named container ports. It needs
+# read-only access to Pod objects in this namespace — nothing else,
+# nothing cluster-wide.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scrabble
+  namespace: scrabble
+  labels:
+    app: scrabble
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: scrabble-pod-reader
+  namespace: scrabble
+  labels:
+    app: scrabble
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scrabble-pod-reader
+  namespace: scrabble
+  labels:
+    app: scrabble
+subjects:
+  - kind: ServiceAccount
+    name: scrabble
+    namespace: scrabble
+roleRef:
+  kind: Role
+  name: scrabble-pod-reader
+  apiGroup: rbac.authorization.k8s.io

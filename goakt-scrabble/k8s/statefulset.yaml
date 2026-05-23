@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: scrabble
+  namespace: scrabble
+  labels:
+    app: scrabble
+spec:
+  serviceName: scrabble-headless
+  replicas: 3
+
+  # All three pods start in parallel: the goakt cluster bootstraps when
+  # peers are discoverable concurrently, not when they come up one by one.
+  podManagementPolicy: Parallel
+
+  selector:
+    matchLabels:
+      app: scrabble
+
+  template:
+    metadata:
+      labels:
+        app: scrabble
+    spec:
+      serviceAccountName: scrabble
+
+      # Wait for the bundled Postgres to accept connections before the
+      # main container starts. The app fails hard if its DSN is set but
+      # unreachable, so without this gate the scrabble pods crash-loop
+      # for as long as the database needs to come up.
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:18-alpine
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: scrabble-postgres
+          command:
+            - sh
+            - -c
+            - |
+              host=scrabble-postgres-0.scrabble-postgres.scrabble.svc.cluster.local
+              echo "waiting for postgres at $host:5432..."
+              until pg_isready -h "$host" -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t 2; do
+                sleep 2
+              done
+              echo "postgres is ready"
+
+      # If two nodes are available, the scheduler is required to put no
+      # more than one scrabble pod on each node. Lets a node failure take
+      # out at most one cluster member.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: scrabble
+
+      containers:
+        - name: scrabble
+          image: goakt-scrabble:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: remoting
+              containerPort: 9000
+            - name: discovery
+              containerPort: 9001
+            - name: peers
+              containerPort: 9002
+
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # DATABASE_URL switches the profile store from the per-pod
+            # in-memory map to the bundled Postgres. Sourced from the
+            # scrabble-postgres Secret (see k8s/postgres.yaml).
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scrabble-postgres
+                  key: DATABASE_URL
+
+          # Each pod advertises its own DNS name (resolvable via the
+          # headless service) for remoting; the goakt kubernetes
+          # discovery provider finds peers by listing pods with
+          # label app=scrabble in this namespace via the API server.
+          args:
+            - --bind-host=$(POD_NAME).scrabble-headless.$(POD_NAMESPACE).svc.cluster.local
+            - --http-port=8080
+            - --remoting-port=9000
+            - --discovery-port=9001
+            - --peers-port=9002
+            - --namespace=$(POD_NAMESPACE)
+            - --app-label=scrabble
+
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 6
+
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+
+    "rootDir": "./web",
+    "outDir": "./web",
+
+    "strict": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+
+    "moduleDetection": "auto",
+    "isolatedModules": false,
+    "skipLibCheck": true,
+    "removeComments": false,
+    "noEmitOnError": true,
+    "newLine": "lf"
+  },
+  "include": ["web/main.ts"],
+  "exclude": ["web/main.js"]
+}

@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>goakt-scrabble</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <style>
+    :root {
+      /* warm dark frame around the board */
+      --bg:       #181410;
+      --panel:    #221c17;
+      --panel-2:  #2d251e;
+      --ink:      #ede4d3;
+      --muted:    #9a8e7a;
+      --accent:   #d8a960;
+      --good:     #7bc88a;
+      --bad:      #e07064;
+      --warn:     #e8b75a;
+      --border:   #3a3127;
+
+      /* classic Scrabble board palette */
+      --frame:      #6e553a;
+      --cell:       #e7d7a8;
+      --cell-line:  #c5b487;
+      --dl:         #a5c8dc;
+      --tl:         #4a7ba8;
+      --dw:         #e8aaa0;
+      --tw:         #c63837;
+      --center:     #e8aaa0;
+      --premium-ink: #2a1a08;
+
+      /* wooden tile */
+      --tile:           #f5e2a3;
+      --tile-shadow:    #b89567;
+      --tile-ink:       #2a1a08;
+      --tile-pending:   #fff7d8;
+      --tile-pending-stroke: #d8a960; /* gold = YOUR uncommitted tiles */
+      --tile-recent-stroke:  #4aa8a4; /* teal = OPPONENT's last move (not interactive) */
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overscroll-behavior: none;
+    }
+
+    button {
+      background: var(--panel-2); color: var(--ink); border: 1px solid var(--border);
+      padding: 7px 14px; border-radius: 5px; cursor: pointer; font: inherit;
+      transition: background 120ms, border-color 120ms;
+    }
+    button:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #1a1207; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #1a1207; font-weight: 600; }
+    button.primary:hover { filter: brightness(1.1); }
+    input[type=text], select {
+      background: var(--panel-2); color: var(--ink); border: 1px solid var(--border);
+      padding: 8px 12px; border-radius: 5px; font: inherit; outline: none;
+    }
+    input[type=text]:focus, select:focus { border-color: var(--accent); }
+
+    /* ------------------------------------ layout */
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      grid-template-rows: 52px 1fr;
+      grid-template-areas: "header header" "play side";
+      height: 100dvh;
+      gap: 0;
+    }
+    header {
+      grid-area: header;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 18px; gap: 14px;
+      min-width: 0;
+    }
+    header h1 { font-size: 14px; font-weight: 800; margin: 0; letter-spacing: 2px; color: var(--accent); }
+    header .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: 12px;
+      font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+      color: var(--ink);
+    }
+    header .pill .label { color: var(--muted); }
+    header .timer {
+      margin-left: auto;
+      font-family: ui-monospace, Menlo, monospace;
+      font-weight: 700; font-size: 16px;
+      min-width: 56px; text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    header .timer.warn { color: var(--warn); }
+    header .timer.crit { color: var(--bad); animation: pulse 0.8s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+    .play-area {
+      grid-area: play;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-start;
+      padding: 14px 12px;
+      gap: 12px;
+      overflow: auto;
+      min-width: 0; min-height: 0;
+    }
+
+    /* The board fills as much room as the viewport allows: capped by the
+       smaller of the play-area width OR the vertical space left after the
+       header + rack + controls + own padding. Always square via aspect-ratio. */
+    .board-frame {
+      width: min(100%, calc(100dvh - 230px));
+      aspect-ratio: 1 / 1;
+      background: var(--frame);
+      padding: 8px;
+      border-radius: 6px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+    }
+    .board-frame svg { display: block; width: 100%; height: 100%; touch-action: none; }
+    .board-frame rect.drop-hint { stroke: var(--accent); stroke-width: 2.4; }
+    .rack.drop-hint { outline: 2px dashed var(--accent); outline-offset: 2px; }
+
+    /* Ghost tile that follows the pointer during a drag. */
+    .tile-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      width: 46px; height: 50px;
+      background: var(--tile);
+      color: var(--tile-ink);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700;
+      border-radius: 4px;
+      box-shadow: inset 0 -4px 0 var(--tile-shadow), 0 8px 18px rgba(0,0,0,0.55);
+      transform: translate(-50%, -55%);
+      opacity: 0.95;
+    }
+    .tile-ghost.blank { font-style: italic; color: #6b5640; }
+    .tile-ghost .pts {
+      position: absolute; bottom: 3px; right: 5px;
+      font-size: 10px; font-weight: 700;
+      opacity: 0.75;
+    }
+
+    .rack {
+      display: flex; gap: 8px;
+      padding: 12px 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .rack-tile {
+      width: 46px; height: 50px; flex: 0 0 46px;
+      background: var(--tile);
+      color: var(--tile-ink);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700;
+      border-radius: 4px;
+      cursor: pointer;
+      position: relative;
+      user-select: none;
+      box-shadow: inset 0 -4px 0 var(--tile-shadow), 0 2px 4px rgba(0,0,0,0.5);
+      transition: transform 100ms, box-shadow 100ms;
+    }
+    .rack-tile:hover { transform: translateY(-3px); }
+    .rack-tile.blank { font-style: italic; color: #6b5640; }
+    .rack-tile.selected { transform: translateY(-6px); box-shadow: inset 0 -4px 0 var(--tile-shadow), 0 0 0 2px var(--accent), 0 6px 10px rgba(0,0,0,0.55); }
+    .rack-tile.spent { opacity: 0.28; cursor: default; pointer-events: none; }
+    .rack-tile { touch-action: none; }
+    .rack-tile.dragging-source { opacity: 0.25; }
+    .rack-tile.exchange-pick {
+      background: #f4cf7a;
+      box-shadow: inset 0 -4px 0 var(--tile-shadow), 0 0 0 3px var(--bad), 0 2px 6px rgba(0,0,0,0.4);
+      transform: translateY(4px);
+      position: relative;
+    }
+    .rack-tile.exchange-pick::after {
+      content: "↻";
+      position: absolute;
+      top: -8px; right: -8px;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--bad);
+      color: #fff;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    .rack-tile .pts {
+      position: absolute; bottom: 3px; right: 5px;
+      font-size: 10px; font-weight: 700;
+      color: var(--tile-ink); opacity: 0.75;
+    }
+
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+    .controls .hint { color: var(--muted); margin-left: 4px; font-size: 12px; }
+    .controls .turn-badge {
+      background: var(--accent); color: #1a1207;
+      padding: 5px 12px; border-radius: 12px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+    }
+    .controls .waiting-badge {
+      background: var(--panel-2); color: var(--muted);
+      padding: 5px 12px; border-radius: 12px;
+      font-size: 12px;
+    }
+    .controls .paused-badge {
+      background: var(--warn); color: #1a1207;
+      padding: 5px 14px; border-radius: 12px;
+      font-size: 12px; font-weight: 700; letter-spacing: 1px;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    .lobby-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 24px; text-align: center;
+      max-width: 480px; width: 100%;
+    }
+    .lobby-card h2 { margin: 0 0 8px; font-size: 18px; color: var(--accent); }
+    .lobby-card p { margin: 0 0 16px; color: var(--muted); }
+    .lobby-card .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+    /* ------------------------------------ side pane */
+
+    .side-pane {
+      grid-area: side;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      min-height: 0; min-width: 0;
+    }
+    .pane-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .pane-section.scroll { flex: 1; overflow-y: auto; min-height: 0; }
+    .pane-section h3 {
+      margin: 0 0 10px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1.4px; color: var(--muted); font-weight: 700;
+    }
+
+    .players ul { list-style: none; margin: 0; padding: 0; }
+    .players li {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; margin: 2px -10px;
+      border-radius: 6px;
+      position: relative;
+    }
+    .players li.current {
+      background: rgba(216, 169, 96, 0.14);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+    .players li.current .name { color: var(--accent); font-weight: 700; }
+    .players .name { font-size: 14px; }
+    .players .bot-tag { font-size: 9px; background: var(--panel-2); padding: 2px 7px; border-radius: 8px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+    .players .rack-count { color: var(--muted); font-size: 11px; }
+    .players .score { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 16px; color: var(--ink); }
+    .players button { padding: 2px 7px; font-size: 11px; }
+
+    .bag-letters {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .bag-letter {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 3px 0;
+      text-align: center;
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .bag-letter.has { color: var(--ink); }
+    .bag-letter.gone { opacity: 0.25; }
+    .bag-letter .ch { font-weight: 700; font-size: 12px; }
+    .bag-letter .n { font-size: 9px; opacity: 0.8; margin-left: 2px; }
+
+    .moves-log { list-style: none; margin: 0; padding: 0; }
+    .moves-log li {
+      padding: 7px 0;
+      border-bottom: 1px dashed var(--border);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 10px;
+      font-size: 13px;
+    }
+    .moves-log li:last-child { border-bottom: none; }
+    .moves-log .who { color: var(--muted); font-size: 11px; }
+    .moves-log .words { font-weight: 600; color: var(--ink); }
+    .moves-log .delta { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--good); text-align: right; }
+    .moves-log .bingo {
+      display: inline-block; margin-left: 6px;
+      background: var(--warn); color: #1a1207;
+      padding: 1px 6px; border-radius: 8px;
+      font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
+    }
+    .moves-log .event { color: var(--muted); font-style: italic; grid-column: 1 / -1; }
+    .moves-log .event.error { color: var(--bad); font-style: normal; }
+
+    .moves-log-empty { color: var(--muted); font-size: 12px; font-style: italic; }
+
+    /* ------------------------------------ modals */
+
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(10, 8, 6, 0.85);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal-card {
+      background: var(--panel);
+      padding: 24px;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    }
+    .modal-card h2 { margin: 0 0 6px; font-size: 18px; color: var(--accent); letter-spacing: 0.5px; }
+    .modal-card p { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+    .modal-card label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .modal-card input, .modal-card select { width: 100%; }
+    .modal-card .row { display: flex; gap: 12px; }
+    .modal-card .row > * { flex: 1; }
+    .modal-card .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    .blank-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .blank-grid button {
+      padding: 10px 0;
+      font-size: 16px; font-weight: 700;
+      background: var(--tile); color: var(--tile-ink);
+      border: 1px solid var(--tile-shadow);
+      box-shadow: inset 0 -3px 0 var(--tile-shadow);
+    }
+    .blank-grid button:hover { background: var(--tile-pending); color: var(--tile-ink); border-color: var(--accent); }
+
+    .gameover-table { width: 100%; margin: 12px 0; border-collapse: collapse; }
+    .gameover-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+    .gameover-table td.winner { color: var(--good); font-weight: 700; }
+    .gameover-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* ------------------------------------ responsive */
+
+    @media (max-width: 980px) {
+      #app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 52px auto 1fr;
+        grid-template-areas: "header" "play" "side";
+        height: auto; min-height: 100dvh;
+      }
+      .side-pane { border-left: none; border-top: 1px solid var(--border); max-height: none; }
+      .pane-section.scroll { max-height: 40dvh; }
+    }
+    @media (max-width: 520px) {
+      header { padding: 0 12px; gap: 8px; }
+      header h1 { font-size: 12px; letter-spacing: 1.4px; }
+      header .pill { padding: 3px 8px; font-size: 11px; }
+      .play-area { padding: 12px 8px; gap: 10px; }
+      .rack { gap: 6px; padding: 8px; }
+      .rack-tile { width: 38px; height: 42px; flex-basis: 38px; font-size: 20px; }
+      .rack-tile .pts { font-size: 9px; }
+      .controls button { padding: 6px 10px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" hidden>
+    <header>
+      <h1>SCRABBLE</h1>
+      <span class="pill"><span class="label">room</span> <span id="roomCode">—</span></span>
+      <span class="pill"><span class="label">lang</span> <span id="langCode">en</span></span>
+      <span class="pill"><span class="label">bag</span> <span id="bagBadge">100</span></span>
+      <span class="timer" id="timer"></span>
+    </header>
+    <div class="play-area" id="play"></div>
+    <aside class="side-pane">
+      <div class="pane-section players">
+        <h3>Players</h3>
+        <ul id="playerList"></ul>
+        <div id="lobbyActions" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;"></div>
+      </div>
+      <div class="pane-section" id="bagSection">
+        <h3>Tiles remaining</h3>
+        <div class="bag-letters" id="bagLetters"></div>
+      </div>
+      <div class="pane-section scroll">
+        <h3>Move history</h3>
+        <ol class="moves-log" id="movesLog"></ol>
+      </div>
+    </aside>
+  </div>
+
+  <div id="modalRoot"></div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

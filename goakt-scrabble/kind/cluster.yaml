@@ -1,0 +1,35 @@
+# kind cluster topology for goakt-scrabble.
+#
+#   control-plane  — runs the NGINX Ingress controller (via the
+#                    ingress-ready label) and publishes :80 on the host
+#                    so the browser can hit http://localhost.
+#   worker × 3     — each runs one scrabble pod (topology spread keeps
+#                    them on distinct nodes), so a node failure takes
+#                    out at most one of the three cluster members.
+#
+# Apply with:  kind create cluster --config kind/cluster.yaml
+# or via:      make kind-up
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: goakt-scrabble
+
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+
+  - role: worker
+  - role: worker
+  - role: worker

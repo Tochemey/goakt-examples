@@ -1,0 +1,54 @@
+# Two services back the same set of pods:
+#
+#   scrabble-headless  — clusterIP: None, so a DNS query for
+#                        scrabble-N.scrabble-headless.scrabble.svc.cluster.local
+#                        resolves to that specific pod's IP. This is what
+#                        goakt's static discovery uses for inter-node gossip.
+#
+#   scrabble           — a normal ClusterIP service that load-balances HTTP
+#                        traffic from the ingress controller across the
+#                        three pods. Session affinity is handled at the
+#                        ingress layer (cookie) so we don't need any here.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: scrabble-headless
+  namespace: scrabble
+  labels:
+    app: scrabble
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: scrabble
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: remoting
+      port: 9000
+      targetPort: remoting
+    - name: discovery
+      port: 9001
+      targetPort: discovery
+    - name: peers
+      port: 9002
+      targetPort: peers
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scrabble
+  namespace: scrabble
+  labels:
+    app: scrabble
+spec:
+  type: ClusterIP
+  selector:
+    app: scrabble
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
