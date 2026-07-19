@@ -62,7 +62,8 @@ func getConfig(logger log.Logger) *config {
 	cfg := &config{}
 	opts := env.Options{RequiredIfNoDef: true, UseFieldNameByDefault: false}
 	if err := env.ParseWithOptions(cfg, opts); err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 	return cfg
 }

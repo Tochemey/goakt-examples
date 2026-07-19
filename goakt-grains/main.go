@@ -48,7 +48,8 @@ func main() {
 
 	// connect to the storage
 	if err := stateStore.Connect(ctx); err != nil {
-		logger.Panic(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	// create the actor system. kindly in real-life application handle the error
@@ -61,7 +62,8 @@ func main() {
 
 	// start the actor system
 	if err := actorSystem.Start(ctx); err != nil {
-		logger.Panic(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	// wait for system to start properly
@@ -85,7 +87,8 @@ func main() {
 
 	response, err := actorSystem.AskGrain(ctx, identity, command, time.Second)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	account := response.(*samplepb.Account)
@@ -94,7 +97,8 @@ func main() {
 	// fetch the account from the store and compare the outcome
 	fromStore, err := stateStore.GetLatestState(ctx, accountID)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("current balance from store: %v\n", fromStore.GetAccountBalance())
@@ -108,7 +112,8 @@ func main() {
 	// send the message to the actor and wait for the response
 	response, err = actorSystem.AskGrain(ctx, identity, command, time.Second)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	account = response.(*samplepb.Account)
@@ -117,7 +122,8 @@ func main() {
 	// fetch the account from the store and compare the outcome
 	fromStore, err = stateStore.GetLatestState(ctx, accountID)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("current balance from store: %v\n", fromStore.GetAccountBalance())
@@ -125,7 +131,8 @@ func main() {
 	// Deactivate the grain
 	err = actorSystem.TellGrain(ctx, identity, &actor.PoisonPill{})
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	fmt.Println("waiting for a minute before reactivating the grain. This is just to simulate a long deactivation period...")
@@ -135,7 +142,8 @@ func main() {
 	// send the message to the actor and wait for the response
 	response, err = actorSystem.AskGrain(ctx, identity, command, time.Second)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
+		os.Exit(1)
 	}
 
 	account = response.(*samplepb.Account)

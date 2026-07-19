@@ -37,7 +37,7 @@ const (
 	// schedRefCountdown is the per-room schedule reference used by the
 	// recurring 1-Hz countdown in the drawing phase. Combined with the
 	// room actor name to stay globally unique (schedule refs collide
-	// system-wide otherwise — same constraint as goakt-game).
+	// system-wide otherwise — same constraint as goakt-tetris).
 	schedRefCountdown = "countdown."
 	schedRefChoose    = "choose."
 	schedRefRoundEnd  = "roundend."
@@ -104,7 +104,7 @@ type RoomActor struct {
 
 	// hadPlayer prevents the actor from shutting itself down between
 	// PostStart and the first PlayerHello (same guard pattern as
-	// MatchActor in goakt-game).
+	// MatchActor in goakt-tetris).
 	hadPlayer bool
 }
 

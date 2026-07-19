@@ -2,7 +2,7 @@
 
 [![GitHub go.mod Go version](https://badges.chse.dev/github/go-mod/go-version/Tochemey/goakt-examples)](https://go.dev/doc/install)
 
-Examples for [GoAkt](https://github.com/Tochemey/goakt) v4. For the stable v3.14 examples, see the [v3 branch](https://github.com/Tochemey/goakt-examples/tree/release/v3.14).
+Examples for [GoAkt](https://github.com/Tochemey/goakt) v4. For the v3.14 examples, see the [v3 branch](https://github.com/Tochemey/goakt-examples/tree/release/v3.14).
 
 ## Getting Started
 
@@ -11,63 +11,64 @@ git clone https://github.com/Tochemey/goakt-examples
 cd goakt-examples
 ```
 
-**Build all examples** (requires [Earthly](https://earthly.dev/get-earthly)):
+To build all examples, install [Earthly](https://earthly.dev/get-earthly) and run:
 
 ```bash
 earthly +all
 ```
 
-## Examples Overview
+## Examples
 
 ### Core Concepts
 
-- [goakt-hello-world](./goakt-hello-world) — Minimal actor system: spawn an actor, send messages, graceful shutdown
-- [goakt-ping-pong](./goakt-ping-pong) — Actor-to-actor messaging: two actors exchanging messages (Tell pattern)
-- [goakt-behaviors](./goakt-behaviors) — Stateful behaviors: actor with multiple states (authenticated, logged-in) and state transitions
-- [goakt-parent-child](./goakt-parent-child) — Parent/child hierarchy: spawn children from inside an actor, observe `Terminated`
-- [goakt-supervision](./goakt-supervision) — Supervision directives: `Stop`, `Resume`, `Restart` side-by-side with retry budgets
-- [goakt-routers](./goakt-routers) — Actor pools/routers: round-robin, fan-out, consistent-hash; runtime pool resize
-- [goakt-pubsub](./goakt-pubsub) — Topic-based pub/sub via `WithPubSub()` and the system `TopicActor`
-- [goakt-scheduler](./goakt-scheduler) — Scheduling messages: `ScheduleOnce`, recurring `Schedule`, cancellation by reference
-- [goakt-dead-letters](./goakt-dead-letters) — Subscribing to the system event stream to observe unhandled messages
+- [goakt-hello-world](./goakt-hello-world): a minimal actor system. Spawns an actor, sends it messages, and shuts down gracefully.
+- [goakt-ping-pong](./goakt-ping-pong): two actors exchanging messages using the Tell pattern.
+- [goakt-behaviors](./goakt-behaviors): an actor that moves between states (authenticated, logged in) using behaviors.
+- [goakt-parent-child](./goakt-parent-child): spawning child actors from inside an actor and observing `Terminated` events.
+- [goakt-supervision](./goakt-supervision): the `Stop`, `Resume`, and `Restart` supervision directives, each with retry limits.
+- [goakt-routers](./goakt-routers): actor pools with round-robin, fan-out, and consistent-hash routing, including resizing a pool at runtime.
+- [goakt-pubsub](./goakt-pubsub): topic-based publish/subscribe using `WithPubSub()` and the system `TopicActor`.
+- [goakt-scheduler](./goakt-scheduler): scheduling messages with `ScheduleOnce`, recurring schedules, and cancellation by reference.
+- [goakt-dead-letters](./goakt-dead-letters): subscribing to the system event stream to observe unhandled messages.
 
-### Remoting & Location Transparency
+### Remoting and Location Transparency
 
-- [goakt-remoting](./goakt-remoting) — Actor remoting: Ping and Pong actors on separate processes, communicating over the network
-- [goakt-cluster/dynalloc](goakt-cluster/dynalloc) — Location transparency: actors can live on any node; cluster routes messages automatically
+- [goakt-remoting](./goakt-remoting): Ping and Pong actors running in separate processes and communicating over the network.
+- [goakt-cluster/dynalloc](goakt-cluster/dynalloc): location transparency in a cluster. Actors can live on any node and the cluster routes messages to them.
 
-### Clustering & Discovery
+### Clustering and Discovery
 
-- [goakt-cluster/static](goakt-cluster/static) — Static peer discovery: cluster nodes configured via fixed addresses
-- [goakt-cluster/dnssd](goakt-cluster/dnssd) — DNS-SD discovery: nodes discover each other via mDNS/DNS (protobuf messages)
-- [goakt-cluster/dnssd-v2](goakt-cluster/dnssd-v2) — DNS-SD + Go types: same as dnssd but with standard Go structs and PostgreSQL persistence
-- [goakt-cluster/k8s](goakt-cluster/k8s) — Kubernetes discovery: cluster on K8s using the API to discover pods (gRPC, protobuf)
-- [goakt-luster/k8s-v2](goakt-cluster/k8s-v2) — **Production-ready K8s cluster**: Go types, HTTP/JSON API, PostgreSQL persistence, OpenTelemetry tracing
-- [goakt-cluster/k8s-ebpf](goakt-cluster/k8s-ebpf) — **k8s-v2 + eBPF**: zero-instrumentation actor-level tracing via goakt-ebpf sidecar
-- [goakt-cluster/multi-dc](goakt-cluster/multi-dc) — **Multi-datacenter**: two DCs (us-east-1, eu-west-1) with NATS JetStream control plane, cross-DC actor placement via SpawnOn + WithDataCenter, NATS discovery
-- [goakt-cluster/multi-dc-isolated](goakt-cluster/multi-dc-isolated) — **Multi-datacenter (network isolation)**: same as multi-dc but with two separate Kind clusters on a shared Docker network, simulating real network boundaries between DCs
+- [goakt-cluster/static](goakt-cluster/static): a cluster whose nodes are configured with fixed peer addresses.
+- [goakt-cluster/dnssd](goakt-cluster/dnssd): nodes that discover each other through DNS-SD/mDNS, using protobuf messages.
+- [goakt-cluster/dnssd-v2](goakt-cluster/dnssd-v2): the same as dnssd but with plain Go structs instead of protobuf, plus PostgreSQL persistence.
+- [goakt-cluster/k8s](goakt-cluster/k8s): a cluster on Kubernetes that uses the Kubernetes API to discover pods, with a gRPC API and protobuf messages.
+- [goakt-cluster/k8s-v2](goakt-cluster/k8s-v2): a Kubernetes cluster with plain Go types, an HTTP/JSON API, PostgreSQL persistence, and OpenTelemetry tracing.
+- [goakt-cluster/k8s-ebpf](goakt-cluster/k8s-ebpf): k8s-v2 with actor-level tracing collected by a goakt-ebpf sidecar, without instrumenting the application code.
+- [goakt-cluster/multi-dc](goakt-cluster/multi-dc): two datacenters (us-east-1 and eu-west-1) with a NATS JetStream control plane, NATS discovery, and cross-datacenter actor placement via `SpawnOn` and `WithDataCenter`.
+- [goakt-cluster/multi-dc-isolated](goakt-cluster/multi-dc-isolated): the same as multi-dc but with two separate Kind clusters on a shared Docker network, to simulate real network boundaries between datacenters.
 
-### Persistence & Extensions
+### Persistence and Extensions
 
-- [goakt-persistence](./goakt-persistence) — Persistence extension: actor state snapshots to a pluggable store (in-memory example)
+- [goakt-persistence](./goakt-persistence): the persistence extension. Snapshots actor state to a pluggable store, with an in-memory store as the example implementation.
 
 ### Grains (Virtual Actors)
 
-- [goakt-grains](./goakt-grains) — Grains model: virtual actors with automatic activation and passivation
-- [goakt-iot-twin](./goakt-iot-twin) — Device twins as grains: on-demand activation per device, idle passivation, state restored on reactivation
-- [goakt-grains-cluster/grains-dnssd](./goakt-grains-cluster/grains-dnssd) — Grains clustering: grains across multiple nodes with DNS-SD discovery
+- [goakt-grains](./goakt-grains): the grains model. Virtual actors with automatic activation and passivation.
+- [goakt-iot-twin](./goakt-iot-twin): device twins as grains. Each device activates on demand, passivates when idle, and restores its state on reactivation.
+- [goakt-grains-cluster/grains-dnssd](./goakt-grains-cluster/grains-dnssd): grains spread across multiple nodes with DNS-SD discovery.
 
 ### Reactive Streams
 
-- [goakt-stream](./goakt-stream) — **Reactive streams**: backpressure-aware pipelines with Sources, Flows, Sinks, fan-out/fan-in topologies, parallel processing, and actor integration
+- [goakt-stream](./goakt-stream): backpressure-aware pipelines built from Sources, Flows, and Sinks, with fan-out and fan-in topologies, parallel processing, and actor integration.
 
 ### Applications
 
-- [goakt-chat](./goakt-chat) — Multi-room chat: remoting, room-based messaging, message history (protobuf)
-- [goakt-chat-v2](./goakt-chat-v2) — Chat with Go types: same chat app using standard Go structs instead of protobuf
-- [goakt-saga](./goakt-saga) — **Saga pattern**: production-like money transfer with compensating transactions, Kubernetes/Kind, Go types only
-- [goakt-2pc](./goakt-2pc) — **2 phase commit pattern**: The same production-like money transfer with 2 phase commit pattern, Kubernetes/Kind, Go types only
-- [goakt-ai](./goakt-ai) — **Distributed AI agents**: multi-agent system with Orchestrator, Research, Summarizer, Tool agents; OpenAI/Anthropic/Google/Mistral; CLI + load balancer; Kubernetes/Kind
-- [goakt-game](./goakt-game) — **Browser-playable Tetris**: real-time stateful game where every match is a per-WS-connection actor. Demonstrates scheduled-tick game loop, Watch/`*Terminated` lifecycle cleanup, `SpawnSingleton` matchmaker, `SpawnOn` cluster-aware placement, CBOR serializers, and a TypeScript canvas client. Includes a `docker compose` two-node cluster setup
-- [goakt-pictograph](./goakt-pictograph) — **Browser-playable multiplayer drawing & guessing** (Skribbl.io-style): per-room `RoomActor` with a `Become`-driven FSM (`waiting → choosing → drawing → roundOver → gameOver`), `Stash` for early guesses, pub/sub topic per room for stroke/chat fan-out (including spectators), `PlayerProfileGrain` for cross-session stats, and a cluster-wide CRDT `PNCounter` leaderboard. Same `docker compose` two-node story as `goakt-game`
-- [goakt-scrabble](./goakt-scrabble) — **Browser-playable multiplayer Scrabble** (2–4 humans + bots, English): per-room `RoomActor` with a turn-based `Become` FSM (`waiting → playing → gameOver`), pure-Go Scrabble engine (DAWG dictionary, premium-square scoring, Appel/Jacobson move generator) wrapped in actors, child `BotActor` per AI seat using `ScheduleOnce` for a thinking delay, system Extensions for shared per-language dictionaries, and a per-(player, language) CRDT `PNCounter` leaderboard. Vanilla-TS SVG board client
+- [goakt-chat](./goakt-chat): a multi-room chat application with remoting, room-based messaging, and message history, using protobuf messages.
+- [goakt-chat-v2](./goakt-chat-v2): the same chat application using plain Go structs instead of protobuf.
+- [goakt-saga](./goakt-saga): a money transfer service that uses the saga pattern with compensating transactions. Runs on Kubernetes/Kind and uses plain Go types.
+- [goakt-2pc](./goakt-2pc): the same money transfer service implemented with two-phase commit instead of a saga. Runs on Kubernetes/Kind and uses plain Go types.
+- [goakt-ai](./goakt-ai): a distributed multi-agent system with Orchestrator, Research, Summarizer, and Tool agents. Supports OpenAI, Anthropic, Google, and Mistral models, and ships with a CLI and a load balancer. Runs on Kubernetes/Kind.
+- [goakt-tetris](./goakt-tetris): a browser-playable Tetris game where each match is an actor tied to a WebSocket connection. Covers a scheduled-tick game loop, `Watch`/`Terminated` lifecycle cleanup, a `SpawnSingleton` matchmaker, cluster-aware placement with `SpawnOn`, and CBOR serializers, with a TypeScript canvas client and a two-node `docker compose` setup.
+- [goakt-pictograph](./goakt-pictograph): a browser-playable multiplayer drawing and guessing game in the style of Skribbl.io. Each room is a `RoomActor` with a `Become`-driven state machine (waiting, choosing, drawing, round over, game over), `Stash` for early guesses, a pub/sub topic per room for stroke and chat fan-out (spectators included), a `PlayerProfileGrain` for cross-session stats, and a cluster-wide CRDT `PNCounter` leaderboard. Uses the same two-node `docker compose` setup as goakt-tetris.
+- [goakt-scrabble](./goakt-scrabble): browser-playable multiplayer Scrabble for 2 to 4 players, humans or bots, in English. Each room is a `RoomActor` with a turn-based `Become` state machine (waiting, playing, game over) around a pure-Go Scrabble engine (DAWG dictionary, premium-square scoring, Appel/Jacobson move generation). Each bot seat is a child `BotActor` that uses `ScheduleOnce` to simulate thinking time. Shared per-language dictionaries live in system Extensions, and a CRDT `PNCounter` tracks a per-player, per-language leaderboard. The client is a vanilla TypeScript SVG board.
+- [skybound-runner](https://github.com/Tochemey/skybound-runner): a browser-playable co-op platformer for up to 4 players, in its own repository. A `GameActor` per match runs an authoritative 60 Hz physics simulation, a `MatchFactory` singleton matches players into games with `SpawnOn` and least-load placement, and a `PlayerSessionActor` bridges each WebSocket connection to its game. Uses CBOR serializers for remoting and a TypeScript canvas client.

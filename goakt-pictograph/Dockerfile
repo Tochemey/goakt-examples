@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 #
-# Three-stage build (mirrors goakt-game):
+# Three-stage build (mirrors goakt-tetris):
 #   1. web-builder  — Node compiles web/main.ts → web/main.js
 #   2. go-builder   — Go compiles the binary, embedding the freshly-built JS
 #   3. runtime      — minimal alpine that just runs the binary

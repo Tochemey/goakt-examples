@@ -33,7 +33,7 @@ import (
 
 // writeBudget caps how long one outbound JSON frame may take to land on
 // the socket. A slow client trips it, the actor logs and self-stops —
-// that's our backpressure. Same posture as goakt-game.
+// that's our backpressure. Same posture as goakt-tetris.
 const writeBudget = 80 * time.Millisecond
 
 // closed is sent by the gateway reader goroutine when the WS ends.

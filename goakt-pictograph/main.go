@@ -48,7 +48,7 @@ const (
 	systemName  = "pictograph"
 	readTimeout = 10 * time.Second
 
-	// defaultBindHost — same shape as goakt-game: 127.0.0.1 keeps
+	// defaultBindHost — same shape as goakt-tetris: 127.0.0.1 keeps
 	// single-machine multi-node dev self-contained; override with
 	// --bind-host for multi-machine setups.
 	defaultBindHost = "127.0.0.1"
@@ -57,7 +57,7 @@ const (
 //go:embed web/index.html web/main.js
 var webFS embed.FS
 
-// Same CLI shape as goakt-game so the docker-compose / Makefile
+// Same CLI shape as goakt-tetris so the docker-compose / Makefile
 // recipes from that example translate one-to-one.
 var (
 	httpPort      = flag.Int("http-port", 8080, "HTTP/WebSocket port for browser clients")

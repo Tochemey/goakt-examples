@@ -169,7 +169,7 @@ func (s *AccountService) listenAndServe() {
 	// create an interceptor
 	interceptor, err := otelconnect.NewInterceptor()
 	if err != nil {
-		s.logger.Fatal(err)
+		s.logger.Error(err)
 		return
 	}
 
@@ -194,7 +194,7 @@ func (s *AccountService) listenAndServe() {
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		s.logger.Fatal(fmt.Errorf("http server listen error: %w", err))
+		s.logger.Error(fmt.Errorf("http server listen error: %w", err))
 	}
 }
 

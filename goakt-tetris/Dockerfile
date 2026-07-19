@@ -16,8 +16,8 @@
 FROM node:22-alpine AS web-builder
 
 WORKDIR /src
-COPY goakt-game/tsconfig.json ./tsconfig.json
-COPY goakt-game/web ./web
+COPY goakt-tetris/tsconfig.json ./tsconfig.json
+COPY goakt-tetris/web ./web
 
 # `tsc` reads tsconfig.json (rootDir=web, outDir=web) and writes
 # /src/web/main.js next to the source.
@@ -36,26 +36,26 @@ COPY go.mod go.sum ./
 COPY vendor ./vendor
 
 # Source for just this example.
-COPY goakt-game ./goakt-game
+COPY goakt-tetris ./goakt-tetris
 
 # Drop in the freshly-built JS. Overwrites any stale file that might
 # have been carried in by the COPY above (there shouldn't be one — it's
 # gitignored — but being explicit keeps the layer hermetic).
-COPY --from=web-builder /src/web/main.js ./goakt-game/web/main.js
+COPY --from=web-builder /src/web/main.js ./goakt-tetris/web/main.js
 
 ENV CGO_ENABLED=0
-RUN go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/goakt-game ./goakt-game
+RUN go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/goakt-tetris ./goakt-tetris
 
 # ─── Stage 3: Runtime ───────────────────────────────────────────────────
 FROM alpine:3.20
 
 RUN apk --no-cache add ca-certificates
 
-COPY --from=go-builder /out/goakt-game /usr/local/bin/goakt-game
+COPY --from=go-builder /out/goakt-tetris /usr/local/bin/goakt-tetris
 
 # 8080 = HTTP/WS gateway, 9000 = remote actor gRPC, 9001 = cluster gossip,
 # 9002 = peer state sync. docker-compose.yaml maps 8080 to a host port and
 # leaves the rest internal to the docker network.
 EXPOSE 8080 9000 9001 9002
 
-ENTRYPOINT ["/usr/local/bin/goakt-game"]
+ENTRYPOINT ["/usr/local/bin/goakt-tetris"]

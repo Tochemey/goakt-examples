@@ -1,4 +1,4 @@
-# goakt-game
+# goakt-tetris
 
 A browser-playable single-player **Tetris** built on [GoAkt](https://github.com/Tochemey/goakt) — every running game is a per-connection actor, snapshots are pushed to the browser over a WebSocket, and matches can be transparently distributed across a multi-node cluster.
 

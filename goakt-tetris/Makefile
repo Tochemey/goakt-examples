@@ -1,4 +1,4 @@
-# goakt-game Makefile
+# goakt-tetris Makefile
 #
 # Single-node (local process):
 #   make run                run on default ports (open http://localhost:8080)
@@ -14,7 +14,7 @@
 #   make local-stop         kill anything bound to the example's ports
 #
 # Other:
-#   make build              compile the binary into ./bin/goakt-game
+#   make build              compile the binary into ./bin/goakt-tetris
 #   make clean              remove the build output
 #
 # Open http://localhost:8080 (node A) or http://localhost:8081 (node B)
@@ -23,7 +23,7 @@
 
 .PHONY: build run web cluster-up cluster-down cluster-logs local-node-a local-node-b local-stop clean
 
-BIN      := bin/goakt-game
+BIN      := bin/goakt-tetris
 BIN_DIR  := bin
 
 # TypeScript source → committed JS output. `make web` regenerates the JS

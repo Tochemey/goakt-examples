@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -227,6 +228,7 @@ func (s *AccountService) listenAndServe() {
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		s.logger.Panic(errors.Wrap(err, "failed to start actor-remoting service"))
+		s.logger.Error(errors.Wrap(err, "failed to start actor-remoting service"))
+		os.Exit(1)
 	}
 }

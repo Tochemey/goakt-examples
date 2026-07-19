@@ -97,7 +97,7 @@ func (l *LobbyActor) handleJoinOrCreate(ctx *actor.ReceiveContext, msg *JoinOrCr
 	// node mode this trivially picks the local node. WithRelocationDisabled
 	// keeps a room pinned to its origin — mid-game relocation would just
 	// drop the live state on the floor, so we prefer to let a room die
-	// with its host. Same rationale as goakt-game's MatchFactory.
+	// with its host. Same rationale as goakt-tetris's MatchFactory.
 	// new(RoomActor) is intentional — SpawnOn re-instantiates on the
 	// chosen node via the kind registry anyway. The room derives its
 	// code from its actor name and reads the leaderboard from system

@@ -84,7 +84,7 @@ func roundRobinDemo(ctx context.Context, system actor.ActorSystem) {
 	router, err := system.SpawnRouter(ctx, "rr", 3, &Worker{},
 		actor.WithRoutingStrategy(actor.RoundRobinRouting))
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
 	}
 
 	sender := system.NoSender()
@@ -111,7 +111,7 @@ func fanOutDemo(ctx context.Context, system actor.ActorSystem) {
 	router, err := system.SpawnRouter(ctx, "fan", 3, &Worker{},
 		actor.WithRoutingStrategy(actor.FanOutRouting))
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
 	}
 
 	sender := system.NoSender()
@@ -139,7 +139,7 @@ func consistentHashDemo(ctx context.Context, system actor.ActorSystem) {
 	router, err := system.SpawnRouter(ctx, "ch", 3, &Worker{},
 		actor.WithConsistentHashRouter(extractor))
 	if err != nil {
-		logger.Fatal(err)
+		logger.Error(err)
 	}
 
 	sender := system.NoSender()

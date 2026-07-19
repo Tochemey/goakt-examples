@@ -45,7 +45,7 @@ const (
 	lobbyAskTimeout = 5 * time.Second
 
 	// roomResolveDeadline is the upper bound on how long we retry
-	// ActorOf for a freshly-spawned room. Same race window as goakt-game:
+	// ActorOf for a freshly-spawned room. Same race window as goakt-tetris:
 	// cross-node SpawnOn returns before the cluster's actor registry has
 	// propagated to this node.
 	roomResolveDeadline = 2 * time.Second
@@ -109,7 +109,7 @@ func wsHandler(system actor.ActorSystem, leaderboard *Leaderboard, drainCtx cont
 		wg.Add(1)
 		defer wg.Done()
 
-		// Accept-options: InsecureSkipVerify mirrors goakt-game's stance
+		// Accept-options: InsecureSkipVerify mirrors goakt-tetris's stance
 		// for an unauthenticated demo. A real deployment would enforce
 		// Origin.
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{

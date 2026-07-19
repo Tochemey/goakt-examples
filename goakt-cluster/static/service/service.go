@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -207,7 +208,8 @@ func (s *AccountService) listenAndServe() {
 	// create an interceptor
 	interceptor, err := otelconnect.NewInterceptor()
 	if err != nil {
-		s.logger.Panic(err)
+		s.logger.Error(err)
+		os.Exit(1)
 	}
 	// create the resource and handler
 	path, handler := samplepbconnect.NewAccountServiceHandler(s,
@@ -234,6 +236,7 @@ func (s *AccountService) listenAndServe() {
 		if errors.Is(err, http.ErrServerClosed) {
 			return
 		}
-		s.logger.Panic(errors.Wrap(err, "failed to start actor-remoting service"))
+		s.logger.Error(errors.Wrap(err, "failed to start actor-remoting service"))
+		os.Exit(1)
 	}
 }

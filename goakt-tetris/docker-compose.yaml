@@ -1,4 +1,4 @@
-# goakt-game two-node cluster.
+# goakt-tetris two-node cluster.
 #
 # Both containers run the same image with the same internal port layout
 # (8080 HTTP, 9000 remoting, 9001 discovery, 9002 peers). They reach each
@@ -17,9 +17,9 @@ services:
   node-a:
     build:
       context: ..
-      dockerfile: goakt-game/Dockerfile
-    image: goakt-game:dev
-    container_name: goakt-game-node-a
+      dockerfile: goakt-tetris/Dockerfile
+    image: goakt-tetris:dev
+    container_name: goakt-tetris-node-a
     hostname: node-a
     command:
       - --bind-host=node-a
@@ -36,9 +36,9 @@ services:
   node-b:
     build:
       context: ..
-      dockerfile: goakt-game/Dockerfile
-    image: goakt-game:dev
-    container_name: goakt-game-node-b
+      dockerfile: goakt-tetris/Dockerfile
+    image: goakt-tetris:dev
+    container_name: goakt-tetris-node-b
     hostname: node-b
     command:
       - --bind-host=node-b
@@ -56,4 +56,4 @@ services:
 
 networks:
   cluster:
-    name: goakt-game-cluster
+    name: goakt-tetris-cluster
