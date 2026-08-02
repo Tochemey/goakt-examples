@@ -205,13 +205,10 @@ func (s *AccountService) getGrain(ctx context.Context, name string) (*actor.Grai
 		actor.WithGrainDeactivateAfter(2 * time.Minute),
 	}
 
-	grainFactory := func(ctx context.Context) (actor.Grain, error) {
-		return grains.NewAccountGrain(), nil
-	}
-
-	identity, err := s.actorSystem.GrainIdentity(ctx, name, grainFactory, opts...)
+	identity, err := actor.GrainOf[*grains.AccountGrain](ctx, s.actorSystem, name, opts...)
 	if err != nil {
 		return nil, err
 	}
+
 	return identity, nil
 }

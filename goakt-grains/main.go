@@ -69,13 +69,12 @@ func main() {
 	// wait for system to start properly
 	time.Sleep(1 * time.Second)
 
-	// register the grain
-	grain := &Grain{}
-
 	accountID := uuid.NewString()
-	identity, err := actorSystem.GrainIdentity(ctx, accountID, func(ctx context.Context) (actor.Grain, error) {
-		return grain, nil
-	})
+	identity, err := actor.GrainOf[*Grain](ctx, actorSystem, accountID)
+	if err != nil {
+		logger.Error(err)
+		os.Exit(1)
+	}
 
 	var command proto.Message
 
@@ -148,6 +147,7 @@ func main() {
 
 	account = response.(*samplepb.Account)
 	fmt.Printf("current balance after (re)activation: %v\n", account.GetAccountBalance())
+	fmt.Printf("press CTRL+C to stop the program")
 
 	// capture ctrl+c
 	interruptSignal := make(chan os.Signal, 1)
