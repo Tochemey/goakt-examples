@@ -24,7 +24,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -46,9 +45,10 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/actors"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/persistence"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/service"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/actors"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/persistence"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/service"
 )
 
 func initTracer(ctx context.Context, res *resource.Resource, traceURL string) *sdktrace.TracerProvider {
@@ -71,27 +71,7 @@ func initTracer(ctx context.Context, res *resource.Resource, traceURL string) *s
 	return tp
 }
 
-func getLogLevel(level string) log.Level {
-	var logLevel log.Level
-	switch level {
-	case "debug":
-		logLevel = log.DebugLevel
-	case "info":
-		logLevel = log.InfoLevel
-	case "warn":
-		logLevel = log.WarningLevel
-	case "error":
-		logLevel = log.ErrorLevel
-	default:
-		logLevel = log.InfoLevel
-	}
-	return logLevel
-}
-
-func initMeter(res *resource.Resource) *metric.MeterProvider {
-	// The exporter embeds a default OpenTelemetry Reader and
-	// implements prometheus.Collector, allowing it to be used as
-	// both a Reader and Collector.
+func initMeter(res *resource.Resource, logger log.Logger) *metric.MeterProvider {
 	metricExporter, err := prometheus.New()
 	if err != nil {
 		panic(err)
@@ -106,49 +86,47 @@ func initMeter(res *resource.Resource) *metric.MeterProvider {
 	go func() {
 		_ = http.ListenAndServe(":9092", nil)
 	}()
-	fmt.Println("Prometheus server running on :9092")
+	logger.Info("Prometheus server running on :9092")
 	return meterProvider
 }
 
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "A brief description of your command",
-	Long:  ``,
+	Short: "Run the account service with DNSSD discovery",
 	Run: func(cmd *cobra.Command, args []string) {
-		// create a background context
 		ctx := context.Background()
 
-		// get the configuration from the env vars
-		config, err := service.GetConfig()
-		//  handle the error
-		if err != nil {
-			panic(err)
-		}
-
 		// use the address default log. real-life implement the log interface`
-		logger := log.NewZap(getLogLevel(config.LogLevel), os.Stdout)
+		logger := log.NewSlog(log.DebugLevel, os.Stdout)
+
+		config, err := service.GetConfig()
+		if err != nil {
+			logger.Fatal(err)
+			os.Exit(1)
+		}
 
 		res, err := resource.New(ctx,
 			resource.WithHost(),
 			resource.WithProcess(),
 			resource.WithTelemetrySDK(),
 			resource.WithAttributes(
-				semconv.ServiceNameKey.String("accounts"),
+				semconv.ServiceNameKey.String("accounts-selfmanaged"),
 			),
 		)
 		if err != nil {
 			logger.Fatal(err)
+			os.Exit(1)
 		}
 
-		// initialize traces and metric providers
 		_ = initTracer(ctx, res, config.TraceURL)
-		_ = initMeter(res)
-		// define the discovery options
-		discoConfig := dnssd.Config{
+		_ = initMeter(res, logger)
+
+		host, _ := os.Hostname()
+
+		discoConfig := &dnssd.Config{
 			DomainName: config.DomainName,
 		}
-		// instantiate the dnssd discovery provider
-		disco := dnssd.NewDiscovery(&discoConfig)
+		disco := dnssd.NewDiscovery(discoConfig)
 
 		persistenceStore := persistence.NewPostgresStore(&persistence.PostgresConfig{
 			DBHost:     config.DBHost,
@@ -158,15 +136,12 @@ var runCmd = &cobra.Command{
 			DBPassword: config.DBPassword,
 		})
 
-		// Start the persistence storage
-		// This is to demonstrate a proper workflow
 		if err := persistenceStore.Start(ctx); err != nil {
 			logger.Fatal(err)
+			os.Exit(1)
 		}
 
-		// grab the host
-		host, _ := os.Hostname()
-
+		cbor := remote.NewCBORSerializer()
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(disco).
@@ -180,58 +155,60 @@ var runCmd = &cobra.Command{
 			WithClusterStateSyncInterval(3 * time.Second).
 			WithKinds(new(actors.AccountEntity))
 
-		// create the actor system
 		actorSystem, err := goakt.NewActorSystem(
 			config.ActorSystemName,
 			goakt.WithLogger(logger),
 			goakt.WithExtensions(persistenceStore),
 			goakt.WithActorInitMaxRetries(3),
-			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort)),
-			goakt.WithCluster(clusterConfig))
-
-		// handle the error
+			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort,
+				remote.WithSerializers((*messages.CreateAccount)(nil), cbor),
+				remote.WithSerializers((*messages.CreditAccount)(nil), cbor),
+				remote.WithSerializers((*messages.GetAccount)(nil), cbor),
+				remote.WithSerializers((*messages.Account)(nil), cbor),
+			)),
+			goakt.WithCluster(clusterConfig),
+		)
 		if err != nil {
-			logger.Panic(err)
+			logger.Fatal(err)
+			os.Exit(1)
 		}
 
-		// start the actor system
 		if err := actorSystem.Start(ctx); err != nil {
-			logger.Panic(err)
+			logger.Fatal(err)
+			os.Exit(1)
 		}
 
-		// create the account service
-		accountService := service.NewAccountService(actorSystem, logger, config.Port)
-		// start the account service
+		logger.Info("Actor system started with DNSSD discovery")
+		logger.Infof("Domain name: %s", config.DomainName)
+
+		accountService := service.NewAccountService(actorSystem, config.Port, logger)
 		accountService.Start()
 
-		// wait for interruption/termination
 		sigs := make(chan os.Signal, 1)
 		done := make(chan struct{}, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		// wait for a shutdown signal, and then shutdown
 		go func() {
 			<-sigs
 
-			// stop the actor system
+			logger.Info("Shutting down...")
 			if err := actorSystem.Stop(ctx); err != nil {
-				logger.Fatal(err)
+				logger.Errorf("error stopping actor system: %v", err)
 			}
 
-			// close this after the system
 			if err := persistenceStore.Stop(); err != nil {
-				logger.Fatal(err)
+				logger.Errorf("error stopping persistence: %v", err)
 			}
 
-			// stop the account service
 			newCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
 			if err := accountService.Stop(newCtx); err != nil {
-				logger.Fatal(err)
+				logger.Errorf("error stopping account service: %v", err)
 			}
 
 			done <- struct{}{}
 		}()
 		<-done
+		logger.Info("Shutdown complete")
 	},
 }
 

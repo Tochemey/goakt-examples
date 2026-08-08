@@ -22,7 +22,7 @@
 
 package main
 
-import "github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/cmd"
+import "github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/cmd"
 
 func main() {
 	cmd.Execute()

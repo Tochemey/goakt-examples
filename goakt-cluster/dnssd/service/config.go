@@ -24,12 +24,12 @@ package service
 
 import "github.com/caarlos0/env/v11"
 
-// Config defines the service configuration
+// Config defines the service configuration for DNSSD discovery
 type Config struct {
 	Port            int    `env:"PORT" envDefault:"50051"`
 	DomainName      string `env:"DOMAIN_NAME"`
-	ActorSystemName string `env:"SYSTEM_NAME"`
-	TraceURL        string `env:"TRACE_URL"`
+	ActorSystemName string `env:"SYSTEM_NAME" envDefault:"accounts"`
+	TraceURL        string `env:"TRACE_URL" envDefault:"localhost:4317"`
 	DiscoveryPort   int    `env:"DISCOVERY_PORT"`
 	PeersPort       int    `env:"PEERS_PORT"`
 	RemotingPort    int    `env:"REMOTING_PORT"`
@@ -38,17 +38,14 @@ type Config struct {
 	DBName          string `env:"DB_NAME"`
 	DBUser          string `env:"DB_USER"`
 	DBPassword      string `env:"DB_PASSWORD"`
-	LogLevel        string `env:"LOG_LEVEL" envDefault:"debug"`
 }
 
 // GetConfig returns the configuration
 func GetConfig() (*Config, error) {
-	// load the host node configuration
 	cfg := &Config{}
 	opts := env.Options{RequiredIfNoDef: true, UseFieldNameByDefault: false}
 	if err := env.ParseWithOptions(cfg, opts); err != nil {
 		return nil, err
 	}
-
 	return cfg, nil
 }

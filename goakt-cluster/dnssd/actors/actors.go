@@ -28,20 +28,19 @@ import (
 
 	"github.com/tochemey/goakt/v4/actor"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/domain"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/persistence"
-	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/domain"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/persistence"
 )
 
 var zeroTime = time.Time{}
 
-// AccountEntity represents the immutable implementation of Actor
+// AccountEntity represents the actor implementation using Go structs
 type AccountEntity struct {
 	state   *domain.Account
 	storage persistence.Store
 }
 
-// enforce compilation error
 var _ actor.Actor = (*AccountEntity)(nil)
 
 // NewAccountEntity creates an instance of AccountEntity
@@ -53,7 +52,6 @@ func NewAccountEntity() *AccountEntity {
 func (x *AccountEntity) PreStart(ctx *actor.Context) error {
 	accountID := ctx.ActorName()
 	x.storage = ctx.Extension(persistence.PostgresStateStoreID).(persistence.Store)
-	// recover the state
 	latestState, err := x.storage.GetState(ctx.Context(), accountID)
 	if err != nil {
 		return err
@@ -74,23 +72,23 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 			state.SetBalance(0)
 		}
 
-	case *samplepb.CreateAccount:
+	case *messages.CreateAccount:
 		ctx.Logger().Info("creating account by setting the balance...")
 		state := x.state
 
 		// check whether the create operation has been done already
 		if !state.CreatedAt().Equal(zeroTime) {
 			ctx.Logger().Infof("account=%s has been created already", state.AccountID())
-			ctx.Response(&samplepb.Account{
-				AccountId:      state.AccountID(),
+			ctx.Response(&messages.Account{
+				AccountID:      state.AccountID(),
 				AccountBalance: state.Balance(),
 			})
 			return
 		}
 
 		// get the data
-		accountID := msg.GetAccountId()
-		balance := msg.GetAccountBalance()
+		accountID := msg.AccountID
+		balance := msg.AccountBalance
 
 		// set the new values
 		state.SetBalance(balance)
@@ -100,35 +98,34 @@ func (x *AccountEntity) Receive(ctx *actor.ReceiveContext) {
 		x.state = state
 
 		// here we are handling just an ask
-		ctx.Response(&samplepb.Account{
-			AccountId:      accountID,
+		ctx.Response(&messages.Account{
+			AccountID:      accountID,
 			AccountBalance: state.Balance(),
 		})
 
-	case *samplepb.CreditAccount:
+	case *messages.CreditAccount:
 		ctx.Logger().Info("crediting balance...")
 		state := x.state
 
 		// get the data
-		accountID := msg.GetAccountId()
-		balance := msg.GetBalance()
+		accountID := msg.AccountID
+		balance := msg.Balance
 
 		newBalance := state.Balance() + balance
 		state.SetBalance(newBalance)
 
 		// update the in-memory state
 		x.state = state
-		ctx.Response(&samplepb.Account{
-			AccountId:      accountID,
+		ctx.Response(&messages.Account{
+			AccountID:      accountID,
 			AccountBalance: state.Balance(),
 		})
 
-	case *samplepb.GetAccount:
+	case *messages.GetAccount:
 		ctx.Logger().Info("get account...")
 		state := x.state
-		// get the data
-		ctx.Response(&samplepb.Account{
-			AccountId:      msg.GetAccountId(),
+		ctx.Response(&messages.Account{
+			AccountID:      msg.AccountID,
 			AccountBalance: state.Balance(),
 		})
 	default:

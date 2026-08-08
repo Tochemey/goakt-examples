@@ -27,7 +27,7 @@ import (
 
 	"github.com/tochemey/goakt/v4/extension"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/domain"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/domain"
 )
 
 type Store interface {

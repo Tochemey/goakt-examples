@@ -1,11 +1,13 @@
 services:
   accounts1:
     image: "accounts:dev"
-    command: [ "run" ]
+    command: ["run"]
     depends_on:
       db:
         condition: service_healthy
       collector:
+        condition: service_started
+      coredns:
         condition: service_started
     hostname: accounts1
     container_name: accounts1
@@ -15,15 +17,14 @@ services:
     dns:
       - 172.28.0.10
 
-    # Expose only inside the compose network; we'll publish one stable port via LB
     expose:
       - "50051" # client
       - "50052" # remoting
       - "3322" # gossip
       - "3320" # peers
+      - "9092" # prometheus metrics
 
     environment:
-      # DNS-SD discovery uses the CoreDNS hostname below.
       DOMAIN_NAME: accounts.dnssd.local
       SYSTEM_NAME: AccountsSystem
 
@@ -39,15 +40,16 @@ services:
       DB_HOST: "db"
       DB_PORT: 5432
       DB_NAME: "postgres"
-      LOG_LEVEL: "debug"
 
   accounts2:
     image: "accounts:dev"
-    command: [ "run" ]
+    command: ["run"]
     depends_on:
       db:
         condition: service_healthy
       collector:
+        condition: service_started
+      coredns:
         condition: service_started
     hostname: accounts2
     container_name: accounts2
@@ -62,6 +64,7 @@ services:
       - "50052"
       - "3322"
       - "3320"
+      - "9092"
 
     environment:
       DOMAIN_NAME: accounts.dnssd.local
@@ -79,15 +82,16 @@ services:
       DB_HOST: "db"
       DB_PORT: 5432
       DB_NAME: "postgres"
-      LOG_LEVEL: "debug"
 
   accounts3:
     image: "accounts:dev"
-    command: [ "run" ]
+    command: ["run"]
     depends_on:
       db:
         condition: service_healthy
       collector:
+        condition: service_started
+      coredns:
         condition: service_started
     hostname: accounts3
     container_name: accounts3
@@ -102,6 +106,7 @@ services:
       - "50052"
       - "3322"
       - "3320"
+      - "9092"
 
     environment:
       DOMAIN_NAME: accounts.dnssd.local
@@ -119,10 +124,16 @@ services:
       DB_HOST: "db"
       DB_PORT: 5432
       DB_NAME: "postgres"
-      LOG_LEVEL: "debug"
 
-  # Single stable client endpoint on localhost:8000
-  # (because you cannot bind 50051 to the host from 3 containers)
+  coredns:
+    image: coredns/coredns:1.11.1
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - ./coredns.Corefile:/etc/coredns/Corefile:ro
+    networks:
+      cluster:
+        ipv4_address: 172.28.0.10
+
   lb:
     image: nginx:alpine
     depends_on:
@@ -137,15 +148,6 @@ services:
       - cluster
     dns:
       - 172.28.0.10
-
-  coredns:
-    image: coredns/coredns:1.11.1
-    command: [ "-conf", "/etc/coredns/Corefile" ]
-    volumes:
-      - ./coredns.Corefile:/etc/coredns/Corefile:ro
-    networks:
-      cluster:
-        ipv4_address: 172.28.0.10
 
   db:
     image: postgres:17
@@ -177,7 +179,7 @@ services:
       COLLECTOR_ZIPKIN_HTTP_PORT: 9411
       LOG_LEVEL: INFO
     ports:
-      - "16686:16686" # frontend
+      - "16686:16686"
       - "14268"
       - "5775"
     networks:
@@ -196,20 +198,20 @@ services:
 
   collector:
     image: otel/opentelemetry-collector-contrib:0.52.0
-    command: [ "--config=/etc/otel/config.yaml" ]
+    command: ["--config=/etc/otel/config.yaml"]
     depends_on:
       - tracer
       - prometheus
     ports:
-      - "4317:4317" # OTLP gRPC receiver
-      - "13133:13133" # health_check extension
+      - "4317:4317"
+      - "13133:13133"
       - "14250:14250"
       - "14268:14268"
-      - "55681:55681" # Legacy OTLP/HTTP Port
-      - "55680:55679" # zpages extension
-      - "8888:8888" # Prometheus metrics exposed by the collector
-      - "8889:8889" # Prometheus exporter metrics
-      - "9411" # Zipkin receiver
+      - "55681:55681"
+      - "55680:55679"
+      - "8888:8888"
+      - "8889:8889"
+      - "9411"
     volumes:
       - ./otel-collector.yaml:/etc/otel/config.yaml
     networks:

@@ -24,40 +24,37 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
-	"connectrpc.com/connect"
-	"connectrpc.com/otelconnect"
 	"github.com/pkg/errors"
-	actors "github.com/tochemey/goakt/v4/actor"
+	goakt "github.com/tochemey/goakt/v4/actor"
 	gerrors "github.com/tochemey/goakt/v4/errors"
 	"github.com/tochemey/goakt/v4/log"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
-	kactors "github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/actors"
-	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
-	"github.com/tochemey/goakt-examples/v2/internal/samplepb/samplepbconnect"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/actors"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/api"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/messages"
 )
 
 const askTimeout = 5 * time.Second
 
+// AccountService implements api.ServerInterface and backs it with the actor system.
 type AccountService struct {
-	actorSystem actors.ActorSystem
+	actorSystem goakt.ActorSystem
 	logger      log.Logger
 	port        int
 	server      *http.Server
 }
 
-var _ samplepbconnect.AccountServiceHandler = &AccountService{}
+var _ api.ServerInterface = (*AccountService)(nil)
 
 // NewAccountService creates an instance of AccountService
-func NewAccountService(system actors.ActorSystem, logger log.Logger, port int) *AccountService {
+func NewAccountService(system goakt.ActorSystem, port int, logger log.Logger) *AccountService {
 	return &AccountService{
 		actorSystem: system,
 		logger:      logger,
@@ -65,130 +62,136 @@ func NewAccountService(system actors.ActorSystem, logger log.Logger, port int) *
 	}
 }
 
-// CreateAccount helps create an account
-func (s *AccountService) CreateAccount(ctx context.Context, c *connect.Request[samplepb.CreateAccountRequest]) (*connect.Response[samplepb.CreateAccountResponse], error) {
-	// grab the actual request
-	req := c.Msg
-	// grab the account id
-	accountID := req.GetCreateAccount().GetAccountId()
-	// create the pid and send the command create account
-	accountEntity := kactors.NewAccountEntity()
-	// create the given pid
-	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity, actors.WithLongLived())
-	if err != nil {
-		return nil, err
+// CreateAccount implements api.ServerInterface.
+func (s *AccountService) CreateAccount(w http.ResponseWriter, r *http.Request) {
+	var req api.CreateAccountRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("invalid request: %v", err), http.StatusBadRequest)
+		return
 	}
-	// send the create command to the pid
-	reply, err := actors.Ask(ctx, pid, &samplepb.CreateAccount{
-		AccountId:      accountID,
-		AccountBalance: req.GetCreateAccount().GetAccountBalance(),
+
+	accountID := req.CreateAccount.AccountId
+	balance := req.CreateAccount.AccountBalance
+
+	ctx := r.Context()
+	accountEntity := actors.NewAccountEntity()
+	pid, err := s.actorSystem.Spawn(ctx, accountID, accountEntity, goakt.WithLongLived())
+	if err != nil {
+		s.logger.Errorf("error spawning actor: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	reply, err := goakt.Ask(ctx, pid, &messages.CreateAccount{
+		AccountID:      accountID,
+		AccountBalance: balance,
 	}, time.Second)
-
-	// handle the error
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		s.logger.Errorf("error creating account: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	// pattern match on the reply
-	switch x := reply.(type) {
-	case *samplepb.Account:
-		// return the appropriate response
-		return connect.NewResponse(&samplepb.CreateAccountResponse{Account: x}), nil
-	default:
-		// create the error message to send
-		err := fmt.Errorf("invalid reply=%T", reply)
-		return nil, connect.NewError(connect.CodeInternal, err)
+	acc, ok := reply.(*messages.Account)
+	if !ok {
+		http.Error(w, fmt.Sprintf("invalid reply type: %T", reply), http.StatusInternalServerError)
+		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(api.AccountResponse{Account: api.Account{
+		AccountId:      acc.AccountID,
+		AccountBalance: acc.AccountBalance,
+	}})
 }
 
-// CreditAccount helps credit a given account
-func (s *AccountService) CreditAccount(ctx context.Context, c *connect.Request[samplepb.CreditAccountRequest]) (*connect.Response[samplepb.CreditAccountResponse], error) {
-	req := c.Msg
-	accountID := req.GetCreditAccount().GetAccountId()
+// CreditAccount implements api.ServerInterface.
+func (s *AccountService) CreditAccount(w http.ResponseWriter, r *http.Request, accountId string) {
+	var req api.CreditAccountRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("invalid request: %v", err), http.StatusBadRequest)
+		return
+	}
 
-	pid, err := s.actorSystem.ActorOf(ctx, accountID)
+	ctx := r.Context()
+	pid, err := s.actorSystem.ActorOf(ctx, accountId)
 	if err != nil {
-		// check whether it is not found error
-		if !errors.Is(err, gerrors.ErrActorNotFound) {
-			return nil, connect.NewError(connect.CodeNotFound, err)
+		if errors.Is(err, gerrors.ErrActorNotFound) {
+			http.Error(w, "account not found", http.StatusNotFound)
+			return
 		}
-
-		// return not found
-		return nil, connect.NewError(connect.CodeNotFound, err)
+		s.logger.Errorf("error locating actor: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	var message any
-	command := &samplepb.CreditAccount{
-		AccountId: accountID,
-		Balance:   req.GetCreditAccount().GetBalance(),
+	if pid.IsLocal() {
+		s.logger.Info("actor is found locally")
+	}
+	if pid.IsRemote() {
+		s.logger.Infof("actor is found on remote node=%s", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
 	}
 
-	if pid != nil {
-		if pid.IsLocal() {
-			s.logger.Info("actor is found locally...")
-		}
-
-		if pid.IsRemote() {
-			s.logger.Infof("actor is found on remote node=%s...", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
-		}
-
-		message, err = actors.Ask(ctx, pid, command, time.Second)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
+	reply, err := goakt.Ask(ctx, pid, &messages.CreditAccount{
+		AccountID: accountId,
+		Balance:   req.Balance,
+	}, time.Second)
+	if err != nil {
+		s.logger.Errorf("error crediting account: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	switch x := message.(type) {
-	case *samplepb.Account:
-		return connect.NewResponse(&samplepb.CreditAccountResponse{Account: x}), nil
-	default:
-		err := fmt.Errorf("invalid reply=%T", message)
-		return nil, connect.NewError(connect.CodeInternal, err)
+	acc, ok := reply.(*messages.Account)
+	if !ok {
+		http.Error(w, fmt.Sprintf("invalid reply type: %T", reply), http.StatusInternalServerError)
+		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(api.AccountResponse{Account: api.Account{
+		AccountId:      acc.AccountID,
+		AccountBalance: acc.AccountBalance,
+	}})
 }
 
-// GetAccount helps get an account
-func (s *AccountService) GetAccount(ctx context.Context, c *connect.Request[samplepb.GetAccountRequest]) (*connect.Response[samplepb.GetAccountResponse], error) {
-	// grab the actual request
-	req := c.Msg
-	// grab the account id
-	accountID := req.GetAccountId()
-
-	// locate the given actor
-	pid, err := s.actorSystem.ActorOf(ctx, accountID)
-	// handle the error
+// GetAccount implements api.ServerInterface.
+func (s *AccountService) GetAccount(w http.ResponseWriter, r *http.Request, accountId string) {
+	ctx := r.Context()
+	pid, err := s.actorSystem.ActorOf(ctx, accountId)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	var message any
-	command := &samplepb.GetAccount{
-		AccountId: accountID,
+	if pid.IsLocal() {
+		s.logger.Info("actor is found locally")
+	}
+	if pid.IsRemote() {
+		s.logger.Infof("actor is found on remote node=%s", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
 	}
 
-	if pid != nil {
-		if pid.IsLocal() {
-			s.logger.Info("actor is found locally...")
-		}
-
-		if pid.IsRemote() {
-			s.logger.Infof("actor is found on remote node=%s...", net.JoinHostPort(pid.Path().Host(), strconv.Itoa(pid.Path().Port())))
-		}
-
-		message, err = actors.Ask(ctx, pid, command, askTimeout)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
+	reply, err := goakt.Ask(ctx, pid, &messages.GetAccount{AccountID: accountId}, askTimeout)
+	if err != nil {
+		s.logger.Errorf("error getting account: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	// pattern match on the reply
-	switch x := message.(type) {
-	case *samplepb.Account:
-		return connect.NewResponse(&samplepb.GetAccountResponse{Account: x}), nil
-	default:
-		err := fmt.Errorf("invalid reply=%T", message)
-		return nil, connect.NewError(connect.CodeInternal, err)
+	acc, ok := reply.(*messages.Account)
+	if !ok {
+		http.Error(w, fmt.Sprintf("invalid reply type: %T", reply), http.StatusInternalServerError)
+		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(api.AccountResponse{Account: api.Account{
+		AccountId:      acc.AccountID,
+		AccountBalance: acc.AccountBalance,
+	}})
 }
 
 // Start starts the service
@@ -203,42 +206,27 @@ func (s *AccountService) Stop(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
-// listenAndServe starts the http server
 func (s *AccountService) listenAndServe() {
-	// create a http service mux
 	mux := http.NewServeMux()
-	// create an interceptor
-	interceptor, err := otelconnect.NewInterceptor()
-	if err != nil {
-		s.logger.Error(err)
-		os.Exit(1)
-	}
-	// create the resource and handler
-	path, handler := samplepbconnect.NewAccountServiceHandler(s,
-		connect.WithInterceptors(interceptor))
-	mux.Handle(path, handler)
-	// create the address
+	mux.HandleFunc("GET /openapi.yaml", serveOpenAPI)
+	mux.HandleFunc("GET /docs", serveSwaggerUI)
+	mux.HandleFunc("GET /swagger", serveSwaggerUI)
+
+	handler := api.HandlerWithOptions(s, api.StdHTTPServerOptions{BaseRouter: mux})
 	serverAddr := fmt.Sprintf(":%d", s.port)
-	// create a http server instance
-	server := &http.Server{
+	s.server = &http.Server{
 		Addr:              serverAddr,
 		ReadTimeout:       3 * time.Second,
 		ReadHeaderTimeout: time.Second,
 		WriteTimeout:      time.Second,
 		IdleTimeout:       1200 * time.Second,
-		Handler: h2c.NewHandler(mux, &http2.Server{
-			IdleTimeout: 1200 * time.Second,
-		}),
+		Handler:           handler,
 	}
 
-	// set the server
-	s.server = server
-	// listen and service requests
+	s.logger.Infof("Account service listening on %s", serverAddr)
 	if err := s.server.ListenAndServe(); err != nil {
-		if errors.Is(err, http.ErrServerClosed) {
-			return
+		if !errors.Is(err, http.ErrServerClosed) {
+			s.logger.Errorf("failed to start actor-remoting service: %v", errors.Wrap(err, "listen error"))
 		}
-		s.logger.Error(errors.Wrap(err, "failed to start actor-remoting service"))
-		os.Exit(1)
 	}
 }

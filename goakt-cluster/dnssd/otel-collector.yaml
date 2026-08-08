@@ -1,6 +1,4 @@
 receivers:
-  # Make sure to add the otlp receiver.
-  # This will open up the receiver on port 4317
   otlp:
     protocols:
       grpc:

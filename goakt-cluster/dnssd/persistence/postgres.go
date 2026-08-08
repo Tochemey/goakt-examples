@@ -31,17 +31,17 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/domain"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/domain"
 )
 
 const PostgresStateStoreID = "PostgresStore"
 
 type PostgresConfig struct {
-	DBHost     string // DBHost represents the database host
-	DBPort     int    // DBPort is the database port
-	DBName     string // DBName is the database name
-	DBUser     string // DBUser is the database user used to connect
-	DBPassword string // DBPassword is the database password
+	DBHost     string
+	DBPort     int
+	DBName     string
+	DBUser     string
+	DBPassword string
 }
 
 type PostgresStore struct {
@@ -59,38 +59,29 @@ func NewPostgresStore(config *PostgresConfig) Store {
 	return postgres
 }
 
-// ID implements Store.
 func (x *PostgresStore) ID() string {
 	return PostgresStateStoreID
 }
 
-// Start starts the store and establishes the database connection pool
 func (x *PostgresStore) Start(ctx context.Context) error {
-	// create the connection config
 	config, err := pgxpool.ParseConfig(x.connStr)
 	if err != nil {
 		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
-	// connect to the pool
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return fmt.Errorf("failed to create the connection pool: %w", err)
 	}
 
-	// let us test the connection
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("failed to ping the database connection: %w", err)
 	}
 
-	// set the db handle
 	x.pool = pool
 	return nil
 }
 
-// Stop stops the store and releases any resources
-// This should be called when the application is shutting down
-// to ensure all connections are properly closed.
 func (x *PostgresStore) Stop() error {
 	if x.pool == nil {
 		return nil
@@ -99,46 +90,36 @@ func (x *PostgresStore) Stop() error {
 	return nil
 }
 
-// WriteState implements Store.
 func (x *PostgresStore) WriteState(ctx context.Context, actorID string, state *domain.Account) error {
 	insertQuery := `INSERT INTO accounts (actor_id, balance) VALUES ($1, $2)
 	ON CONFLICT (actor_id) DO UPDATE SET balance = EXCLUDED.balance;`
 	_, err := x.pool.Exec(ctx, insertQuery, actorID, state.Balance())
 	if err != nil {
-		return fmt.Errorf("failed to write state for actor %s: %v\n", actorID, err)
+		return fmt.Errorf("failed to write state for actor %s: %v", actorID, err)
 	}
 	return nil
 }
 
-// GetState implements Store.
 func (x *PostgresStore) GetState(ctx context.Context, actorID string) (*domain.Account, error) {
-	// prepare the select query
 	selectQuery := `SELECT balance, created_at FROM accounts WHERE actor_id = $1;`
 	var balance float64
 	var createdAt time.Time
 
-	// execute the query
 	err := x.pool.QueryRow(ctx, selectQuery, actorID).Scan(&balance, &createdAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// return a new account with zero balance if no rows found
 			return domain.NewAccount(actorID, 0, time.Time{}), nil
 		}
-
-		return nil, fmt.Errorf("failed to get state for actor %s: %v\n", actorID, err)
+		return nil, fmt.Errorf("failed to get state for actor %s: %v", actorID, err)
 	}
 
-	// return the retrieved state
 	return domain.NewAccount(actorID, balance, createdAt), nil
 }
 
 func createConnectionString(host string, port int, name, user string, password string) string {
 	info := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=disable", host, port, user, name)
-	// The Postgres driver gets confused in cases where the user has no password
-	// set but a password is passed, so only set password if its non-empty
 	if password != "" {
 		info += fmt.Sprintf(" password=%s", password)
 	}
-
 	return info
 }
