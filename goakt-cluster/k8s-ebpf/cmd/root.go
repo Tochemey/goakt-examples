@@ -31,7 +31,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "k8s-v2",
+	Use:   "k8s-ebpf",
 	Short: "GoAkt cluster example with Kubernetes discovery and persistence",
 }
 

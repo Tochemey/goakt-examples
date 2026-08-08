@@ -45,10 +45,10 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/actors"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/messages"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/persistence"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/service"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/actors"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/persistence"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/service"
 )
 
 func initTracer(ctx context.Context, res *resource.Resource, traceURL string) *sdktrace.TracerProvider {
@@ -69,6 +69,21 @@ func initTracer(ctx context.Context, res *resource.Resource, traceURL string) *s
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	return tp
+}
+
+func getLogLevel(level string) log.Level {
+	switch level {
+	case "debug":
+		return log.DebugLevel
+	case "info":
+		return log.InfoLevel
+	case "warn":
+		return log.WarningLevel
+	case "error":
+		return log.ErrorLevel
+	default:
+		return log.InfoLevel
+	}
 }
 
 func initMeter(res *resource.Resource, logger log.Logger) *metric.MeterProvider {
@@ -96,14 +111,13 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
 
-		// use the address default log. real-life implement the log interface`
-		logger := log.NewSlog(log.DebugLevel, os.Stdout)
-
 		config, err := service.GetConfig()
 		if err != nil {
-			logger.Fatal(err)
-			os.Exit(1)
+			log.NewSlog(log.ErrorLevel, os.Stdout).Fatal(err)
 		}
+
+		// use the address default log. real-life implement the log interface`
+		logger := log.NewSlog(getLogLevel(config.LogLevel), os.Stdout)
 
 		res, err := resource.New(ctx,
 			resource.WithHost(),

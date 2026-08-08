@@ -45,8 +45,7 @@ const swaggerUIHTML = `<!DOCTYPE html>
         url: "/openapi.yaml",
         dom_id: '#swagger-ui',
         presets: [
-          SwaggerUIBundle.presets.apis,
-          SwaggerUIStandalonePreset
+          SwaggerUIBundle.presets.apis
         ],
       });
     };

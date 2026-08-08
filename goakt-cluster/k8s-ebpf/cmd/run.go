@@ -43,10 +43,10 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/actors"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/messages"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/persistence"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/service"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/actors"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/persistence"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/service"
 )
 
 // otelErrorHandler surfaces OTEL SDK export errors in the application logs.

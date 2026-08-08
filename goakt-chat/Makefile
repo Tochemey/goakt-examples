@@ -2,7 +2,7 @@
 
 build:
 	@mkdir -p bin
-	go build -o bin/chatv2 .
+	go build -o bin/chat .
 
 clean:
 	rm -rf bin/

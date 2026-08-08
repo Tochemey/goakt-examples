@@ -27,7 +27,7 @@ RUN go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
 all:
 	BUILD +protogen
 	BUILD +opengen
-	BUILD +opengen-k8s-v2
+	BUILD +opengen-k8s
 	BUILD +opengen-multi-dc
 	BUILD +opengen-saga
 
@@ -68,18 +68,18 @@ protogen:
 opengen:
     WORKDIR /app
 
-    COPY goakt-actors-cluster/dnssd-v2/api/openapi.yaml goakt-actors-cluster/dnssd-v2/api/cfg.yaml goakt-actors-cluster/dnssd-v2/api/
-    RUN cd goakt-actors-cluster/dnssd-v2/api && oapi-codegen -config cfg.yaml openapi.yaml
+    COPY goakt-cluster/dnssd/api/openapi.yaml goakt-cluster/dnssd/api/cfg.yaml goakt-cluster/dnssd/api/
+    RUN cd goakt-cluster/dnssd/api && oapi-codegen -config cfg.yaml openapi.yaml
 
-    SAVE ARTIFACT goakt-actors-cluster/dnssd-v2/api/api.gen.go AS LOCAL goakt-actors-cluster/dnssd-v2/api/
+    SAVE ARTIFACT goakt-cluster/dnssd/api/api.gen.go AS LOCAL goakt-cluster/dnssd/api/
 
-opengen-k8s-v2:
+opengen-k8s:
     WORKDIR /app
 
-    COPY goakt-actors-cluster/k8s-v2/api/openapi.yaml goakt-actors-cluster/k8s-v2/api/cfg.yaml goakt-actors-cluster/k8s-v2/api/
-    RUN cd goakt-actors-cluster/k8s-v2/api && oapi-codegen -config cfg.yaml openapi.yaml
+    COPY goakt-cluster/k8s/api/openapi.yaml goakt-cluster/k8s/api/cfg.yaml goakt-cluster/k8s/api/
+    RUN cd goakt-cluster/k8s/api && oapi-codegen -config cfg.yaml openapi.yaml
 
-    SAVE ARTIFACT goakt-actors-cluster/k8s-v2/api/api.gen.go AS LOCAL goakt-actors-cluster/k8s-v2/api/
+    SAVE ARTIFACT goakt-cluster/k8s/api/api.gen.go AS LOCAL goakt-cluster/k8s/api/
 
 opengen-saga:
     WORKDIR /app
@@ -160,7 +160,7 @@ goakt-ai-image:
 compile-k8s:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/k8s
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-cluster/k8s
     SAVE ARTIFACT bin/accounts /accounts
 
 k8s-image:
@@ -178,28 +178,6 @@ k8s-image:
 
     ENTRYPOINT ["./accounts"]
     SAVE IMAGE accounts:dev-k8s
-
-compile-k8s-v2:
-    COPY +vendor/files ./
-
-    RUN go build -mod=vendor -o bin/accounts ./goakt-actors-cluster/k8s-v2
-    SAVE ARTIFACT bin/accounts /accounts
-
-k8s-v2-image:
-    FROM alpine:3.21
-
-    WORKDIR /app
-    COPY +compile-k8s-v2/accounts ./accounts
-    RUN chmod +x ./accounts
-
-    # expose the various ports in the container
-    EXPOSE 50051
-    EXPOSE 50052
-    EXPOSE 3322
-    EXPOSE 3320
-
-    ENTRYPOINT ["./accounts"]
-    SAVE IMAGE accounts:dev-k8s-v2
 
 compile-saga:
     COPY +vendor/files ./
@@ -246,7 +224,7 @@ two-pc-image:
 compile-k8s-ebpf:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor -o bin/accounts ./goakt-actors-cluster/k8s-ebpf
+    RUN go build -mod=vendor -o bin/accounts ./goakt-cluster/k8s-ebpf
     SAVE ARTIFACT bin/accounts /accounts
 
 k8s-ebpf-image:
@@ -267,7 +245,7 @@ k8s-ebpf-image:
 compile-dnssd:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/dnssd
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-cluster/dnssd
     SAVE ARTIFACT bin/accounts /accounts
 
 dnssd-image:
@@ -290,7 +268,7 @@ dnssd-image:
 compile-static:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/static
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-cluster/static
     SAVE ARTIFACT bin/accounts /accounts
 
 static-image:
@@ -334,33 +312,10 @@ dnssd-grains-image:
     SAVE IMAGE accounts-grains:dev
 
 
-compile-dnssd-v2:
-    COPY +vendor/files ./
-
-    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/dnssd-v2
-    SAVE ARTIFACT bin/accounts /accounts
-
-dnssd-v2-image:
-    FROM alpine:3.21
-
-    WORKDIR /app
-    COPY +compile-dnssd-v2/accounts ./accounts
-    RUN chmod +x ./accounts
-
-    # expose the various ports in the container
-    EXPOSE 50051
-    EXPOSE 50052
-    EXPOSE 3322
-    EXPOSE 3320
-    EXPOSE 9092
-
-    ENTRYPOINT ["./accounts"]
-    SAVE IMAGE accounts:dev
-
 compile-dynalloc:
     COPY +vendor/files ./
 
-    RUN go build -mod=vendor  -o bin/accounts ./goakt-actors-cluster/dynalloc
+    RUN go build -mod=vendor  -o bin/accounts ./goakt-cluster/dynalloc
     SAVE ARTIFACT bin/accounts /accounts
 
 dynalloc-image:

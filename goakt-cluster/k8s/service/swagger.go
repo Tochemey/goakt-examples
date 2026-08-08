@@ -25,7 +25,7 @@ package service
 import (
 	"net/http"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/api"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s/api"
 )
 
 const swaggerUIHTML = `<!DOCTYPE html>
@@ -45,8 +45,7 @@ const swaggerUIHTML = `<!DOCTYPE html>
         url: "/openapi.yaml",
         dom_id: '#swagger-ui',
         presets: [
-          SwaggerUIBundle.presets.apis,
-          SwaggerUIBundle.SwaggerUIStandalonePreset
+          SwaggerUIBundle.presets.apis
         ],
       });
     };

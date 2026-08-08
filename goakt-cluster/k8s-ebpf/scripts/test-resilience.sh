@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Resilience test for k8s-v2 account service
+# Resilience test for k8s-ebpf account service
 #
 # Flow:
 #   Phase 1 – Create NUM_ACCOUNTS accounts
@@ -57,7 +57,7 @@ get_balance() {
 }
 
 echo "=========================================="
-echo "k8s-v2 Account Service - Resilience Test"
+echo "k8s-ebpf Account Service - Resilience Test"
 echo "=========================================="
 echo "API:              $BASE_URL"
 echo "Run ID:           $RUN_ID"

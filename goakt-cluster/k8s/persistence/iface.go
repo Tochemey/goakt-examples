@@ -20,41 +20,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package cmd
+package persistence
 
 import (
-	"fmt"
-	"os"
+	"context"
 
-	"github.com/spf13/cobra"
+	"github.com/tochemey/goakt/v4/extension"
+
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s/domain"
 )
 
-const version = "1.0.0"
-
-var rootCmd = &cobra.Command{
-	Use:   "chatv2",
-	Short: "GoAkt chat application (server + client)",
-	Long: `A chat application built with GoAkt actors.
-
-Quick start:
-  1. Start the server:  chatv2 server
-  2. Connect clients:   chatv2 client
-
-Use 'chatv2 <command> --help' for more information on each command.`,
-	Example: `  chatv2 server
-  chatv2 server --port 5000
-  chatv2 client
-  chatv2 client --user alice --room general`,
-}
-
-// Execute runs the root command.
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-}
-
-func init() {
-	rootCmd.Version = version
+type Store interface {
+	extension.Extension
+	Start(ctx context.Context) error
+	WriteState(ctx context.Context, actorID string, state *domain.Account) error
+	GetState(ctx context.Context, actorID string) (*domain.Account, error)
+	Stop() error
 }

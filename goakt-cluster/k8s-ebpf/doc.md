@@ -1,6 +1,6 @@
 # k8s-ebpf: GoAkt Cluster with eBPF Tracing on Kubernetes
 
-This example demonstrates a GoAkt actor cluster running on **Kubernetes** with **goakt-ebpf** as a sidecar for zero-instrumentation eBPF tracing. It extends the k8s-v2 example with:
+This example demonstrates a GoAkt actor cluster running on **Kubernetes** with **goakt-ebpf** as a sidecar for zero-instrumentation eBPF tracing. It extends the k8s example with:
 
 - **goakt-ebpf sidecar** in each pod for automatic actor-level tracing
 - **Shared PID namespace** so the eBPF agent can attach to the accounts process
@@ -191,7 +191,7 @@ spec:
   shareProcessNamespace: true
   containers:
     - name: accounts
-      image: accounts:dev-k8s-v2
+      image: accounts:dev-k8s
     - name: goakt-ebpf
       image: goakt-ebpf:dev
       args: ["-exe", "/app/accounts"]
@@ -243,15 +243,15 @@ The goakt-ebpf sidecar has no readiness probe. If the accounts container isn't r
 kubectl logs accounts-0 -c accounts
 ```
 
-## Differences from k8s-v2
+## Differences from k8s
 
-| Feature        | k8s-v2              | k8s-ebpf                          |
+| Feature        | k8s                 | k8s-ebpf                          |
 |----------------|---------------------|------------------------------------|
 | Tracing        | App-level OTEL SDK  | App + eBPF actor-level tracing     |
 | Pod containers | 1 (accounts)        | 2 (accounts + goakt-ebpf sidecar)  |
 | PID namespace  | Default (isolated)  | Shared (`shareProcessNamespace`)   |
 | Images         | accounts only       | accounts + goakt-ebpf              |
-| Cluster name   | goakt-k8s-v2        | goakt-k8s-ebpf                     |
+| Cluster name   | goakt-k8s        | goakt-k8s-ebpf                     |
 
 ## License
 

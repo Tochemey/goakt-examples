@@ -39,11 +39,9 @@ earthly +all
 ### Clustering and Discovery
 
 - [goakt-cluster/static](goakt-cluster/static): a cluster whose nodes are configured with fixed peer addresses.
-- [goakt-cluster/dnssd](goakt-cluster/dnssd): nodes that discover each other through DNS-SD/mDNS, using protobuf messages.
-- [goakt-cluster/dnssd-v2](goakt-cluster/dnssd-v2): the same as dnssd but with plain Go structs instead of protobuf, plus PostgreSQL persistence.
-- [goakt-cluster/k8s](goakt-cluster/k8s): a cluster on Kubernetes that uses the Kubernetes API to discover pods, with a gRPC API and protobuf messages.
-- [goakt-cluster/k8s-v2](goakt-cluster/k8s-v2): a Kubernetes cluster with plain Go types, an HTTP/JSON API, PostgreSQL persistence, and OpenTelemetry tracing.
-- [goakt-cluster/k8s-ebpf](goakt-cluster/k8s-ebpf): k8s-v2 with actor-level tracing collected by a goakt-ebpf sidecar, without instrumenting the application code.
+- [goakt-cluster/dnssd](goakt-cluster/dnssd): nodes that discover each other through DNS-SD/mDNS. Exposes the same account actors over two client APIs on one port — a gRPC-compatible Connect RPC service and an OpenAPI-generated REST/JSON service with a Swagger UI — while the actors themselves use plain Go structs with CBOR serialization, backed by PostgreSQL persistence.
+- [goakt-cluster/k8s](goakt-cluster/k8s): a Kubernetes cluster with PostgreSQL persistence and OpenTelemetry tracing. An exclusive `--codec` / `CODEC` switch selects the full stack: `cbor` (HTTP/JSON OpenAPI + CBOR Go-struct remoting, default) or `proto` (Connect/gRPC + protobuf remoting).
+- [goakt-cluster/k8s-ebpf](goakt-cluster/k8s-ebpf): the k8s example with actor-level tracing collected by a goakt-ebpf sidecar, without instrumenting the application code.
 - [goakt-cluster/multi-dc](goakt-cluster/multi-dc): two datacenters (us-east-1 and eu-west-1) with a NATS JetStream control plane, NATS discovery, and cross-datacenter actor placement via `SpawnOn` and `WithDataCenter`.
 - [goakt-cluster/multi-dc-isolated](goakt-cluster/multi-dc-isolated): the same as multi-dc but with two separate Kind clusters on a shared Docker network, to simulate real network boundaries between datacenters.
 
@@ -63,8 +61,7 @@ earthly +all
 
 ### Applications
 
-- [goakt-chat](./goakt-chat): a multi-room chat application with remoting, room-based messaging, and message history, using protobuf messages.
-- [goakt-chat-v2](./goakt-chat-v2): the same chat application using plain Go structs instead of protobuf.
+- [goakt-chat](./goakt-chat): a multi-room chat application with remoting, room-based messaging, direct messages, and message history, shipped as a single CLI with `server` and `client` subcommands. The actors are written against one domain model and a `wire` package maps it onto either protobuf or CBOR-encoded Go structs, selected per client with `--codec`; a single server serves both formats at once.
 - [goakt-saga](./goakt-saga): a money transfer service that uses the saga pattern with compensating transactions. Runs on Kubernetes/Kind and uses plain Go types.
 - [goakt-2pc](./goakt-2pc): the same money transfer service implemented with two-phase commit instead of a saga. Runs on Kubernetes/Kind and uses plain Go types.
 - [goakt-ai](./goakt-ai): a distributed multi-agent system with Orchestrator, Research, Summarizer, and Tool agents. Supports OpenAI, Anthropic, Google, and Mistral models, and ships with a CLI and a load balancer. Runs on Kubernetes/Kind.

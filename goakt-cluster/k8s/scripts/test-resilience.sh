@@ -21,40 +21,43 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Resilience test for k8s account service (gRPC)
+# Resilience test for k8s account service
 #
 # Flow:
 #   Phase 1 – Create NUM_ACCOUNTS accounts
 #   Phase 2 – Credit each account
-#   Phase 3 – Verify a sample via GetAccount (baseline)
+#   Phase 3 – Verify a sample via GET (baseline)
 #   Phase 4 – Randomly pick one accounts pod and delete it gracefully
 #   Phase 5 – Wait WAIT_AFTER_KILL seconds, then wait for all pods to be Ready again
 #   Phase 6 – Re-verify the same sample to confirm data survived the node loss
 #
 # Run with:   ./scripts/test-resilience.sh
 # Requires:   make port-forward (in another terminal)
-#             grpcurl: go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
 set -e
 
-BASE_URL="${BASE_URL:-localhost:8080}"
-REPO_ROOT="${REPO_ROOT:-../..}"
-PROTO_PATH="$REPO_ROOT/protos"
-NUM_ACCOUNTS="${NUM_ACCOUNTS:-100}"
-VERIFY_SAMPLE="${VERIFY_SAMPLE:-10}"
+BASE_URL="${BASE_URL:-http://localhost:8080}"
+NUM_ACCOUNTS="${NUM_ACCOUNTS:-1000}"
+INITIAL_BALANCE="${INITIAL_BALANCE:-100}"
+CREDIT_AMOUNT="${CREDIT_AMOUNT:-50}"
+VERIFY_SAMPLE="${VERIFY_SAMPLE:-100}"
 WAIT_AFTER_KILL="${WAIT_AFTER_KILL:-30}"
 # Unique prefix per run so re-runs never collide with long-lived actors from
 # previous test runs.
 RUN_ID="${RUN_ID:-$(date +%s)}"
 
-EXPECTED_BALANCE=150  # 100 initial + 50 credit
-
-grpc_call() {
-  grpcurl -plaintext -import-path "$PROTO_PATH" -proto sample/service.proto "$@"
+get_balance() {
+  local json="$1"
+  [ -z "$json" ] && return 0
+  if command -v jq &>/dev/null; then
+    echo "$json" | jq -r '.account.account_balance // empty' 2>/dev/null || true
+  else
+    echo "$json" | grep -o '"account_balance":[0-9.]*' | cut -d':' -f2
+  fi
 }
 
 echo "=========================================="
-echo "k8s Account Service - gRPC Resilience Test"
+echo "k8s Account Service - Resilience Test"
 echo "=========================================="
 echo "API:              $BASE_URL"
 echo "Run ID:           $RUN_ID"
@@ -65,12 +68,10 @@ echo ""
 
 # Pre-flight: verify API is reachable
 echo "Checking API connectivity..."
-if ! grpc_call -d '{"create_account":{"account_id":"_ping","account_balance":0}}' \
-    "$BASE_URL" samplepb.AccountService/CreateAccount >/dev/null 2>&1; then
+if ! curl -sf --connect-timeout 5 -o /dev/null "$BASE_URL/openapi.yaml"; then
   echo ""
-  echo "ERROR: Cannot connect to gRPC API at $BASE_URL"
+  echo "ERROR: Cannot connect to API at $BASE_URL"
   echo "       Is 'make port-forward' running in another terminal?"
-  echo "       Is grpcurl installed? (go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest)"
   echo ""
   exit 1
 fi
@@ -78,20 +79,28 @@ echo "API reachable."
 echo ""
 
 START_TIME=$(date +%s)
+EXPECTED_BALANCE=$((INITIAL_BALANCE + CREDIT_AMOUNT))
 
 # ---------------------------------------------------------------------------
 # Phase 1: Create accounts
 # ---------------------------------------------------------------------------
-echo "Phase 1: Creating $NUM_ACCOUNTS accounts (initial balance: 100)..."
+echo "Phase 1: Creating $NUM_ACCOUNTS accounts (initial balance: $INITIAL_BALANCE)..."
 CREATE_FAIL=0
 for i in $(seq 1 "$NUM_ACCOUNTS"); do
   acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
-  if ! grpc_call -d "{\"create_account\":{\"account_id\":\"$acc_id\",\"account_balance\":100}}" \
-      "$BASE_URL" samplepb.AccountService/CreateAccount 2>/dev/null | grep -q account_balance; then
-    echo "  FAIL: $acc_id"
+  resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 -X POST "$BASE_URL/accounts" \
+    -H "Content-Type: application/json" \
+    -d "{\"create_account\":{\"account_id\":\"$acc_id\",\"account_balance\":$INITIAL_BALANCE}}")
+  http_code=$(echo "$resp" | tail -n1)
+  body=$(echo "$resp" | sed '$d')
+  balance=$(get_balance "$body")
+
+  if [ "$http_code" != "200" ] || [ -z "$balance" ]; then
+    echo "  FAIL: $acc_id (HTTP $http_code)"
     ((CREATE_FAIL++)) || true
   fi
-  if [ $((i % 20)) -eq 0 ]; then
+
+  if [ $((i % 100)) -eq 0 ]; then
     echo "  Progress: $i/$NUM_ACCOUNTS"
   fi
 done
@@ -106,16 +115,23 @@ echo ""
 # ---------------------------------------------------------------------------
 # Phase 2: Credit accounts
 # ---------------------------------------------------------------------------
-echo "Phase 2: Crediting $NUM_ACCOUNTS accounts (+50 each)..."
+echo "Phase 2: Crediting $NUM_ACCOUNTS accounts (+$CREDIT_AMOUNT each)..."
 CREDIT_FAIL=0
 for i in $(seq 1 "$NUM_ACCOUNTS"); do
   acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
-  if ! grpc_call -d "{\"credit_account\":{\"account_id\":\"$acc_id\",\"balance\":50}}" \
-      "$BASE_URL" samplepb.AccountService/CreditAccount 2>/dev/null | grep -q account_balance; then
-    echo "  FAIL: $acc_id"
+  resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 -X POST "$BASE_URL/accounts/$acc_id/credit" \
+    -H "Content-Type: application/json" \
+    -d "{\"balance\":$CREDIT_AMOUNT}")
+  http_code=$(echo "$resp" | tail -n1)
+  body=$(echo "$resp" | sed '$d')
+  balance=$(get_balance "$body")
+
+  if [ "$http_code" != "200" ] || [ -z "$balance" ]; then
+    echo "  FAIL: $acc_id (HTTP $http_code)"
     ((CREDIT_FAIL++)) || true
   fi
-  if [ $((i % 20)) -eq 0 ]; then
+
+  if [ $((i % 100)) -eq 0 ]; then
     echo "  Progress: $i/$NUM_ACCOUNTS"
   fi
 done
@@ -141,12 +157,25 @@ SAMPLED_IDS=()
 for i in $(seq 1 "$step" "$NUM_ACCOUNTS" | head -n "$VERIFY_SAMPLE"); do
   SAMPLED_IDS+=("$i")
   acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
-  resp=$(grpc_call -d "{\"account_id\":\"$acc_id\"}" "$BASE_URL" samplepb.AccountService/GetAccount 2>/dev/null || true)
-  if echo "$resp" | grep -q "\"account_balance\":$EXPECTED_BALANCE"; then
-    ((VERIFY_PASS++)) || true
-  else
-    echo "  FAIL: $acc_id - expected balance $EXPECTED_BALANCE (got: $resp)"
+  resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 "$BASE_URL/accounts/$acc_id")
+  http_code=$(echo "$resp" | tail -n1)
+  body=$(echo "$resp" | sed '$d')
+  balance=$(get_balance "$body")
+
+  if [ "$http_code" != "200" ]; then
+    echo "  FAIL: $acc_id - HTTP $http_code"
     ((VERIFY_FAIL++)) || true
+  elif [ -z "$balance" ]; then
+    echo "  FAIL: $acc_id - no balance in response"
+    ((VERIFY_FAIL++)) || true
+  else
+    balance_int=$(echo "$balance" | cut -d. -f1)
+    if [ "$balance_int" != "$EXPECTED_BALANCE" ]; then
+      echo "  FAIL: $acc_id - expected $EXPECTED_BALANCE, got $balance"
+      ((VERIFY_FAIL++)) || true
+    else
+      ((VERIFY_PASS++)) || true
+    fi
   fi
 done
 
@@ -195,12 +224,25 @@ REVERIFY_PASS=0
 
 for i in "${SAMPLED_IDS[@]}"; do
   acc_id=$(printf "%s-acc-%04d" "$RUN_ID" "$i")
-  resp=$(grpc_call -d "{\"account_id\":\"$acc_id\"}" "$BASE_URL" samplepb.AccountService/GetAccount 2>/dev/null || true)
-  if echo "$resp" | grep -q "\"account_balance\":$EXPECTED_BALANCE"; then
-    ((REVERIFY_PASS++)) || true
-  else
-    echo "  FAIL: $acc_id - expected balance $EXPECTED_BALANCE (got: $resp)"
+  resp=$(curl -s -w "\n%{http_code}" --connect-timeout 5 -m 10 "$BASE_URL/accounts/$acc_id")
+  http_code=$(echo "$resp" | tail -n1)
+  body=$(echo "$resp" | sed '$d')
+  balance=$(get_balance "$body")
+
+  if [ "$http_code" != "200" ]; then
+    echo "  FAIL: $acc_id - HTTP $http_code"
     ((REVERIFY_FAIL++)) || true
+  elif [ -z "$balance" ]; then
+    echo "  FAIL: $acc_id - no balance in response"
+    ((REVERIFY_FAIL++)) || true
+  else
+    balance_int=$(echo "$balance" | cut -d. -f1)
+    if [ "$balance_int" != "$EXPECTED_BALANCE" ]; then
+      echo "  FAIL: $acc_id - expected $EXPECTED_BALANCE, got $balance"
+      ((REVERIFY_FAIL++)) || true
+    else
+      ((REVERIFY_PASS++)) || true
+    fi
   fi
 done
 

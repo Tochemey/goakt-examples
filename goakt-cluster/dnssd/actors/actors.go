@@ -28,9 +28,9 @@ import (
 
 	"github.com/tochemey/goakt/v4/actor"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/domain"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/messages"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/persistence"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/domain"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/persistence"
 )
 
 var zeroTime = time.Time{}

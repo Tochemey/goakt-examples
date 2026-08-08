@@ -31,8 +31,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "selfmanaged",
-	Short: "GoAkt cluster example with selfmanaged discovery",
+	Use:   "dnssd",
+	Short: "GoAkt cluster example with DNS-SD discovery",
 }
 
 func Execute() {

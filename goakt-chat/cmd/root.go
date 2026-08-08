@@ -20,20 +20,46 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package persistence
+package cmd
 
 import (
-	"context"
+	"fmt"
+	"os"
 
-	"github.com/tochemey/goakt/v4/extension"
-
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/domain"
+	"github.com/spf13/cobra"
 )
 
-type Store interface {
-	extension.Extension
-	Start(ctx context.Context) error
-	WriteState(ctx context.Context, actorID string, state *domain.Account) error
-	GetState(ctx context.Context, actorID string) (*domain.Account, error)
-	Stop() error
+const version = "2.0.0"
+
+var rootCmd = &cobra.Command{
+	Use:   "chat",
+	Short: "GoAkt chat application (server + client)",
+	Long: `A multi-room chat application built with GoAkt actors and remoting.
+
+Quick start:
+  1. Start the server:  chat server
+  2. Connect clients:   chat client
+
+Clients choose their wire format with --codec (protobuf or CBOR-encoded Go
+structs). The server speaks both at once, so clients using different codecs can
+share the same room.
+
+Use 'chat <command> --help' for more information on each command.`,
+	Example: `  chat server
+  chat server --port 5000
+  chat client
+  chat client --user alice --room general
+  chat client --user bob --codec proto`,
+}
+
+// Execute runs the root command.
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func init() {
+	rootCmd.Version = version
 }

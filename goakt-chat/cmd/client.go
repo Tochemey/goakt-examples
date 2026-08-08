@@ -29,17 +29,17 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tochemey/goakt/v4/actor"
-	"github.com/tochemey/goakt/v4/log"
 	"github.com/tochemey/goakt/v4/remote"
 	"github.com/tochemey/goakt/v4/supervisor"
 	"github.com/travisjeffery/go-dynaport"
 
+	"github.com/tochemey/goakt-examples/v2/goakt-chat/actors"
+	"github.com/tochemey/goakt-examples/v2/goakt-chat/wire"
 	"github.com/tochemey/goakt-examples/v2/internal/chat"
 )
 
@@ -53,8 +53,10 @@ const clientHelpText = `Commands:
 var (
 	clientServerHost string
 	clientServerPort int
+	clientBindHost   string
 	clientUser       string
 	clientRoom       string
+	clientCodec      string
 )
 
 var clientCmd = &cobra.Command{
@@ -65,10 +67,20 @@ var clientCmd = &cobra.Command{
 Interactive mode (default): omit --user and --room to be prompted for username and room.
 Non-interactive mode: use --user and --room for scripting or automation.
 
+--codec selects the wire format this client speaks: "cbor" sends the plain Go
+structs from internal/chat, "proto" sends the generated protobuf messages from
+internal/chatpb. The server accepts both, so clients using different codecs can
+talk to each other in the same room.
+
+The client binds its own remoting listener so the server can push messages back to
+it. When connecting to a server on another machine, set --bind to an address that
+server can reach.
+
 After connecting, use slash commands: /help, /users, /join <room>, /dm <user> <msg>, /quit`,
-	Example: `  chatv2 client
-  chatv2 client --user alice --room general
-  chatv2 client --host 192.168.1.10 --port 4000`,
+	Example: `  chat client
+  chat client --user alice --room general
+  chat client --user bob --codec proto
+  chat client --host 192.168.1.10 --port 4000 --bind 192.168.1.20`,
 	RunE: runClient,
 }
 
@@ -76,13 +88,21 @@ func init() {
 	rootCmd.AddCommand(clientCmd)
 	clientCmd.Flags().StringVar(&clientServerHost, "host", "127.0.0.1", "Server host to connect to")
 	clientCmd.Flags().IntVar(&clientServerPort, "port", 4000, "Server port to connect to")
+	clientCmd.Flags().StringVar(&clientBindHost, "bind", "127.0.0.1", "Host this client binds its own listener to")
 	clientCmd.Flags().StringVar(&clientUser, "user", "", "Username (optional; prompts if not set)")
 	clientCmd.Flags().StringVar(&clientRoom, "room", "", "Room name (optional; defaults to 'general')")
+	clientCmd.Flags().StringVar(&clientCodec, "codec", wire.CBOR,
+		fmt.Sprintf("Wire format to send with: %q or %q", wire.CBOR, wire.Proto))
 }
 
-func runClient(c *cobra.Command, args []string) error {
+func runClient(*cobra.Command, []string) error {
 	ctx := context.Background()
 	reader := bufio.NewReader(os.Stdin)
+
+	codec, err := wire.ParseCodec(clientCodec)
+	if err != nil {
+		return err
+	}
 
 	userName := clientUser
 	roomName := clientRoom
@@ -101,28 +121,18 @@ func runClient(c *cobra.Command, args []string) error {
 		line, _ := reader.ReadString('\n')
 		roomName = strings.TrimSpace(line)
 		if roomName == "" {
-			roomName = "general"
+			roomName = actors.DefaultRoom
 		}
 	}
 
 	ports := dynaport.Get(1)
 	port := ports[0]
 
-	cbor := remote.NewCBORSerializer()
+	// Same registrations as the server — see wire.RemoteOptions.
 	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
-		actor.WithRemote(remote.NewConfig("127.0.0.1", port,
-			remote.WithSerializers((*chat.ChatMessage)(nil), cbor),
-			remote.WithSerializers((*chat.Connect)(nil), cbor),
-			remote.WithSerializers((*chat.Disconnect)(nil), cbor),
-			remote.WithSerializers((*chat.Message)(nil), cbor),
-			remote.WithSerializers((*chat.DirectMessage)(nil), cbor),
-			remote.WithSerializers((*chat.ListUsersRequest)(nil), cbor),
-			remote.WithSerializers((*chat.ListUsersResponse)(nil), cbor),
-			remote.WithSerializers((*chat.Broadcast)(nil), cbor),
-			remote.WithSerializers((*chat.SystemEvent)(nil), cbor),
-		)),
-		actor.WithLogger(log.DiscardLogger))
+		actor.WithRemote(remote.NewConfig(clientBindHost, port, wire.RemoteOptions()...)),
+		actor.WithLoggingDisabled())
 
 	if err != nil {
 		return fmt.Errorf("failed to create actor system: %w", err)
@@ -137,7 +147,7 @@ func runClient(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to lookup ChatServer: %w", err)
 	}
 
-	clientActor := newChatClient(userName, roomName, server)
+	clientActor := actors.NewClient(userName, roomName, server, codec)
 
 	client, err := actorSystem.Spawn(
 		ctx,
@@ -152,11 +162,13 @@ func runClient(c *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to spawn ChatClient: %w", err)
 	}
 
+	fmt.Printf("Connected to %s:%d using the %s codec\n", clientServerHost, clientServerPort, codec.Name())
 	fmt.Println(clientHelpText)
-	printClientPrompt(userName, roomName)
+	actors.PrintPrompt(userName, roomName)
 
 	done := make(chan struct{})
 
+	// input loop
 	go func() {
 		defer close(done)
 		for {
@@ -167,25 +179,26 @@ func runClient(c *cobra.Command, args []string) error {
 
 			input = strings.TrimSpace(input)
 			if input == "" {
-				printClientPrompt(userName, clientActor.currentRoom())
+				actors.PrintPrompt(userName, clientActor.CurrentRoom())
 				continue
 			}
 
+			// slash-command dispatch
 			if strings.HasPrefix(input, "/") {
 				parts := strings.SplitN(input, " ", 3)
-				cmd := strings.ToLower(parts[0])
+				command := strings.ToLower(parts[0])
 
-				switch cmd {
+				switch command {
 				case "/quit":
-					_ = client.Tell(ctx, server, &chat.Disconnect{})
+					_ = clientActor.Send(ctx, client, &chat.Disconnect{})
 					return
 
 				case "/help":
 					fmt.Print("\r" + clientHelpText + "\n")
 
 				case "/users":
-					_ = client.Tell(ctx, server, &chat.ListUsersRequest{
-						Room: clientActor.currentRoom(),
+					_ = clientActor.Send(ctx, client, &chat.ListUsersRequest{
+						Room: clientActor.CurrentRoom(),
 					})
 
 				case "/join":
@@ -194,12 +207,12 @@ func runClient(c *cobra.Command, args []string) error {
 						break
 					}
 					newRoom := parts[1]
-					_ = client.Tell(ctx, server, &chat.Disconnect{})
+					_ = clientActor.Send(ctx, client, &chat.Disconnect{})
 
 					time.Sleep(200 * time.Millisecond)
 
-					clientActor.setRoom(newRoom)
-					_ = client.Tell(ctx, server, &chat.Connect{
+					clientActor.SetRoom(newRoom)
+					_ = clientActor.Send(ctx, client, &chat.Connect{
 						UserName: userName,
 						Room:     newRoom,
 					})
@@ -212,118 +225,42 @@ func runClient(c *cobra.Command, args []string) error {
 						fmt.Print("\rUsage: /dm <user> <message>\n")
 						break
 					}
-					toUser := parts[1]
-					content := parts[2]
-					_ = client.Tell(ctx, server, &chat.DirectMessage{
+					_ = clientActor.Send(ctx, client, &chat.DirectMessage{
 						FromUser: userName,
-						ToUser:   toUser,
-						Content:  content,
+						ToUser:   parts[1],
+						Content:  parts[2],
 						SentAt:   time.Now(),
 					})
 
 				default:
-					fmt.Printf("\rUnknown command: %s  (type /help)\n", cmd)
+					fmt.Printf("\rUnknown command: %s  (type /help)\n", command)
 				}
 
-				printClientPrompt(userName, clientActor.currentRoom())
+				actors.PrintPrompt(userName, clientActor.CurrentRoom())
 				continue
 			}
 
-			_ = client.Tell(ctx, server, &chat.Message{
+			// plain message → broadcast to room
+			_ = clientActor.Send(ctx, client, &chat.Message{
 				UserName: userName,
 				Content:  input,
-				Room:     clientActor.currentRoom(),
+				Room:     clientActor.CurrentRoom(),
 				SentAt:   time.Now(),
 			})
 
-			printClientPrompt(userName, clientActor.currentRoom())
+			actors.PrintPrompt(userName, clientActor.CurrentRoom())
 		}
 	}()
 
+	// wait for Ctrl-C or the input loop to finish
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case <-sig:
-		_ = client.Tell(ctx, server, &chat.Disconnect{})
+		_ = clientActor.Send(ctx, client, &chat.Disconnect{})
 	case <-done:
 	}
 
 	_ = actorSystem.Stop(ctx)
 	return nil
-}
-
-func printClientPrompt(user, room string) {
-	fmt.Printf("[%s @ %s] > ", user, room)
-}
-
-type chatClient struct {
-	userName string
-	server   *actor.PID
-	room     atomic.Value
-}
-
-var _ actor.Actor = (*chatClient)(nil)
-
-func newChatClient(userName, room string, server *actor.PID) *chatClient {
-	c := &chatClient{
-		userName: userName,
-		server:   server,
-	}
-	c.room.Store(room)
-	return c
-}
-
-func (c *chatClient) currentRoom() string {
-	return c.room.Load().(string)
-}
-
-func (c *chatClient) setRoom(room string) {
-	c.room.Store(room)
-}
-
-func (c *chatClient) PreStart(*actor.Context) error {
-	return nil
-}
-
-func (c *chatClient) Receive(ctx *actor.ReceiveContext) {
-	switch msg := ctx.Message().(type) {
-	case *actor.PostStart:
-		ctx.Tell(c.server, &chat.Connect{
-			UserName: c.userName,
-			Room:     c.currentRoom(),
-		})
-
-	case *chat.Broadcast:
-		ts := formatTime(msg.SentAt)
-		fmt.Printf("\r[%s] [%s] %s: %s\n", ts, msg.Room, msg.FromUser, msg.Content)
-		printClientPrompt(c.userName, c.currentRoom())
-
-	case *chat.DirectMessage:
-		ts := formatTime(msg.SentAt)
-		fmt.Printf("\r[%s] [DM from %s]: %s\n", ts, msg.FromUser, msg.Content)
-		printClientPrompt(c.userName, c.currentRoom())
-
-	case *chat.SystemEvent:
-		ts := formatTime(msg.At)
-		fmt.Printf("\r[%s] *** %s ***\n", ts, msg.Text)
-		printClientPrompt(c.userName, c.currentRoom())
-
-	case *chat.ListUsersResponse:
-		fmt.Printf("\rOnline in %s: %s\n", c.currentRoom(), strings.Join(msg.UserNames, ", "))
-		printClientPrompt(c.userName, c.currentRoom())
-
-	default:
-		ctx.Unhandled()
-	}
-}
-
-func (c *chatClient) PostStop(*actor.Context) error {
-	return nil
-}
-
-func formatTime(t time.Time) string {
-	if t.IsZero() {
-		return "?"
-	}
-	return t.Local().Format("15:04:05")
 }

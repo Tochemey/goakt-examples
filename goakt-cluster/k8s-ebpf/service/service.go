@@ -39,9 +39,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/actors"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/api"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/actors"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/api"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/messages"
 )
 
 const askTimeout = 5 * time.Second

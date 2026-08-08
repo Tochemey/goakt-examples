@@ -1,49 +1,69 @@
-# Makefile for k8s example using Kind (Kubernetes in Docker)
+# Makefile for the k8s example using Kind (Kubernetes in Docker)
 #
 # Prerequisites:
 #   - Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 #   - kubectl: https://kubernetes.io/docs/tasks/tools/
-#   - Earthly: https://earthly.dev/get-earthly
-#   - grpcurl: go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest (for make test)
+#   - Earthly: https://earthly.dev/get-earthly (for building the image)
+#   - grpcurl (proto mode only): go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 #
-# Quick start:
-#   make cluster-create    # Create Kind cluster (one-time)
-#   make deploy            # Build and deploy
-#   make port-forward      # Expose API (in another terminal)
-#   make test              # Run gRPC tests
+# Quick start (CBOR / HTTP — default):
+#   make cluster-create
+#   make deploy
+#   make test
 #
-# Run from: goakt-actors-cluster/k8s/
+# Full protobuf stack:
+#   make deploy CODEC=proto
+#   make test CODEC=proto
+#
+# Run from: goakt-cluster/k8s/
 
 .DEFAULT_GOAL := help
 
 CLUSTER_NAME ?= goakt-k8s
 IMAGE_NAME ?= accounts:dev-k8s
+# Exclusive stack: cbor (HTTP/JSON + CBOR remoting) or proto (Connect/gRPC + protobuf remoting).
+# All pods must use the same value.
+CODEC ?= cbor
 K8S_DIR := ./deploy
 REPO_ROOT := ../..
+
+ifeq ($(CODEC),proto)
+NGINX_CONFIG := nginx-config-proto.yaml
+TEST_SCRIPT := scripts/test-api-proto.sh
+TEST_RESILIENCE_SCRIPT := scripts/test-resilience-proto.sh
+else
+NGINX_CONFIG := nginx-config.yaml
+TEST_SCRIPT := scripts/test-api.sh
+TEST_RESILIENCE_SCRIPT := scripts/test-resilience.sh
+endif
 
 .PHONY: help
 help:
 	@echo "k8s GoAkt Example - Kind (Kubernetes in Docker)"
 	@echo ""
+	@echo "CODEC=$(CODEC)  (cbor | proto) — exclusive process-wide stack"
+	@echo ""
 	@echo "Targets:"
-	@echo "  deploy            Build image, load into Kind, and deploy"
-	@echo "  cluster-create    Create a new Kind cluster"
-	@echo "  cluster-delete    Delete the Kind cluster"
-	@echo "  image             Build Docker image and load into Kind"
-	@echo "  cluster-up        Deploy accounts and nginx"
-	@echo "  cluster-down      Remove all deployments"
-	@echo "  status            Show cluster and pod status"
-	@echo "  port-forward      Forward nginx to localhost:8080 (gRPC)"
-	@echo "  dashboard         Access Kubernetes dashboard"
+	@echo "  deploy           Build image, load into Kind, and deploy (recommended)"
+	@echo "  cluster-create   Create a new Kind cluster"
+	@echo "  cluster-recreate Delete and recreate the cluster (needed after kind-config changes)"
+	@echo "  cluster-delete   Delete the Kind cluster"
+	@echo "  image            Build the Docker image and load into Kind"
+	@echo "  cluster-up       Deploy PostgreSQL, accounts, nginx (respects CODEC)"
+	@echo "  cluster-down     Remove all deployments"
+	@echo "  status           Show cluster and pod status"
+	@echo "  test             Run API integration tests for the selected CODEC"
+	@echo "  test-resilience  Create accounts, verify, kill a random node, re-verify"
+	@echo "  logs             Tail logs from accounts pods"
+	@echo "  port-forward     Forward nginx service to localhost:8080"
+	@echo "  port-forward-jaeger  Forward Jaeger UI to localhost:16686 (traces)"
+	@echo "  dashboard        Access Kubernetes dashboard (workloads, pods)"
 	@echo "  dashboard-install Install Kubernetes dashboard (one-time)"
-	@echo "  logs              Tail logs from accounts pods"
-	@echo "  test              Run gRPC integration tests"
-	@echo "  test-resilience   Create accounts, verify, kill a random node, re-verify"
 
 .PHONY: cluster-create
 cluster-create:
 	@echo "Creating Kind cluster '$(CLUSTER_NAME)'..."
-	kind create cluster --name $(CLUSTER_NAME) --wait 2m
+	kind create cluster --name $(CLUSTER_NAME) --config $(K8S_DIR)/kind-config.yaml --wait 2m
 	@echo "Kind cluster created. Use 'make deploy' to deploy."
 
 .PHONY: cluster-delete
@@ -51,6 +71,10 @@ cluster-delete:
 	@echo "Deleting Kind cluster '$(CLUSTER_NAME)'..."
 	kind delete cluster --name $(CLUSTER_NAME)
 	@echo "Kind cluster deleted."
+
+.PHONY: cluster-recreate
+cluster-recreate: cluster-delete cluster-create
+	@echo "Cluster recreated."
 
 .PHONY: image
 image:
@@ -65,15 +89,43 @@ deploy: image cluster-up
 
 .PHONY: cluster-up
 cluster-up:
+	@echo "Deploying with CODEC=$(CODEC)..."
+	@echo "Deploying PostgreSQL..."
+	kubectl apply -f $(K8S_DIR)/postgres-secret.yaml
+	kubectl apply -f $(K8S_DIR)/postgres-configmap.yaml
+	kubectl apply -f $(K8S_DIR)/postgres-deployment.yaml
+	@echo "Waiting for PostgreSQL to be ready..."
+	kubectl wait --for=condition=available --timeout=120s deployment/postgres
+	@echo "Deploying tracing stack (Jaeger + OTEL Collector)..."
+	kubectl apply -f $(K8S_DIR)/jaeger-deployment.yaml
+	kubectl create configmap otel-collector-config --from-file=config.yaml=$(K8S_DIR)/otel-collector-config.yaml --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f $(K8S_DIR)/otel-collector-deployment.yaml
+	@echo "Waiting for OTEL Collector to be ready..."
+	kubectl wait --for=condition=available --timeout=60s deployment/otel-collector
 	@echo "Deploying accounts service..."
 	kubectl apply -f $(K8S_DIR)/k8s.yaml
-	@echo "Waiting for accounts StatefulSet to be ready..."
-	kubectl wait --for=condition=ready --timeout=120s pod -l app.kubernetes.io/name=accounts
-	@echo "Deploying nginx..."
-	kubectl apply -f $(K8S_DIR)/nginx-config.yaml
+	kubectl set env statefulset/accounts CODEC=$(CODEC)
+	@echo "Waiting for accounts pods to be ready..."
+	@for i in 0 1 2; do \
+		echo "  Waiting for accounts-$$i..."; \
+		elapsed=0; \
+		until [ "$$(kubectl get pod accounts-$$i -o jsonpath='{.status.containerStatuses[?(@.name=="accounts")].ready}' 2>/dev/null)" = "true" ]; do \
+			sleep 5; elapsed=$$((elapsed+5)); \
+			if [ $$elapsed -ge 300 ]; then \
+				echo "  Timeout waiting for accounts-$$i. Pod status:"; \
+				kubectl get pod accounts-$$i -o wide 2>/dev/null; \
+				kubectl describe pod accounts-$$i 2>/dev/null | tail -20; \
+				exit 1; \
+			fi; \
+		done; \
+		echo "  accounts-$$i is ready"; \
+	done
+	@echo "Deploying nginx ingress ($(NGINX_CONFIG))..."
+	kubectl apply -f $(K8S_DIR)/$(NGINX_CONFIG)
 	kubectl apply -f $(K8S_DIR)/nginx-deployment.yaml
 	kubectl apply -f $(K8S_DIR)/nginx-service.yaml
-	@echo "Deployed. Run 'make port-forward' to access the gRPC API."
+	@echo "All components deployed (CODEC=$(CODEC)). Run 'make port-forward' to access the API."
+	@echo "Run 'make port-forward-jaeger' to view traces in Jaeger UI."
 
 .PHONY: cluster-down
 cluster-down:
@@ -81,7 +133,14 @@ cluster-down:
 	kubectl delete -f $(K8S_DIR)/nginx-service.yaml --ignore-not-found
 	kubectl delete -f $(K8S_DIR)/nginx-deployment.yaml --ignore-not-found
 	kubectl delete -f $(K8S_DIR)/nginx-config.yaml --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/nginx-config-proto.yaml --ignore-not-found
 	kubectl delete -f $(K8S_DIR)/k8s.yaml --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/otel-collector-deployment.yaml --ignore-not-found
+	kubectl delete configmap otel-collector-config --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/jaeger-deployment.yaml --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/postgres-deployment.yaml --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/postgres-configmap.yaml --ignore-not-found
+	kubectl delete -f $(K8S_DIR)/postgres-secret.yaml --ignore-not-found
 	@echo "Deployments removed."
 
 .PHONY: status
@@ -94,6 +153,9 @@ status:
 	@echo ""
 	@echo "=== Services ==="
 	kubectl get svc
+	@echo ""
+	@echo "=== CODEC on accounts StatefulSet ==="
+	@kubectl get statefulset accounts -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="CODEC")].value}' 2>/dev/null; echo
 
 .PHONY: logs
 logs:
@@ -101,21 +163,30 @@ logs:
 
 .PHONY: port-forward
 port-forward:
+	@echo "Waiting for nginx to be ready..."
+	kubectl wait --for=condition=available --timeout=60s deployment/nginx
 	@echo "Forwarding nginx (port 80) to localhost:8080..."
-	@echo "gRPC API available at localhost:8080"
-	@echo "Use grpcurl: grpcurl -plaintext -import-path ../../protos -proto sample/service.proto localhost:8080 list"
+	@echo "API available at http://localhost:8080"
+	@if [ "$(CODEC)" = "cbor" ]; then echo "Swagger UI at http://localhost:8080/docs"; fi
 	kubectl port-forward service/nginx 8080:80
+
+.PHONY: port-forward-jaeger
+port-forward-jaeger:
+	@echo "Forwarding Jaeger UI to localhost:16686..."
+	@echo "Jaeger UI at http://localhost:16686"
+	kubectl port-forward service/jaeger-collector 16686:16686
 
 .PHONY: test
 test:
-	@echo "Running gRPC API tests..."
-	@REPO_ROOT="$(REPO_ROOT)" sh ./scripts/test-api.sh || true
+	@echo "Running API tests (CODEC=$(CODEC))..."
+	@chmod +x $(TEST_SCRIPT) 2>/dev/null || true
+	@sh ./$(TEST_SCRIPT) || true
 
 .PHONY: test-resilience
 test-resilience:
-	@echo "Running resilience test (create → verify → kill node → re-verify)..."
-	@chmod +x scripts/test-resilience.sh 2>/dev/null || true
-	@REPO_ROOT="$(REPO_ROOT)" bash ./scripts/test-resilience.sh || true
+	@echo "Running resilience test (CODEC=$(CODEC))..."
+	@chmod +x $(TEST_RESILIENCE_SCRIPT) 2>/dev/null || true
+	@bash ./$(TEST_RESILIENCE_SCRIPT) || true
 
 .PHONY: dashboard-install
 dashboard-install:

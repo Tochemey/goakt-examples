@@ -28,9 +28,9 @@ import (
 
 	"github.com/tochemey/goakt/v4/actor"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/domain"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/messages"
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/persistence"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/domain"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/messages"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-ebpf/persistence"
 )
 
 var zeroTime = time.Time{}

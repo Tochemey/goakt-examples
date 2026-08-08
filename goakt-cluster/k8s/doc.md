@@ -1,166 +1,162 @@
-# k8s: GoAkt Cluster with Kubernetes Discovery (gRPC/Connect)
+# k8s: GoAkt Cluster with Kubernetes Discovery
 
-This example demonstrates a GoAkt actor cluster running on **Kubernetes** with:
+This example demonstrates a GoAkt actor cluster on **Kubernetes** with PostgreSQL
+persistence and OpenTelemetry tracing. A process-wide `--codec` / `CODEC` switch
+selects an **exclusive** stack — never both at once:
 
-- **Protocol buffers** for actor messages
-- **gRPC/Connect** API for client communication
-- **Kind** (Kubernetes in Docker) for local development
+| Mode                | Flag / env                      | Client API                  | Actor remoting                          |
+|---------------------|---------------------------------|-----------------------------|-----------------------------------------|
+| Full CBOR (default) | `--codec cbor` / `CODEC=cbor`   | HTTP/JSON OpenAPI + Swagger | CBOR-encoded Go structs in `messages/`  |
+| Full protobuf       | `--codec proto` / `CODEC=proto` | Connect/gRPC only           | `internal/samplepb` via ProtoSerializer |
+
+Actors always speak the domain model in `messages/`. The [`wire`](./wire) package
+maps that model to protobuf when the process runs in proto mode. All pods in the
+StatefulSet must use the **same** codec.
+
+## Architecture
+
+```
+                    ┌──────────────────┐
+                    │ Nginx (NodePort) │
+                    │  HTTP or gRPC    │
+                    └────────┬─────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         │                   │                   │
+         ▼                   ▼                   ▼
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│ accounts-0     │  │ accounts-1     │  │ accounts-2     │
+│ (StatefulSet)  │  │ (StatefulSet)  │  │ (StatefulSet)  │
+│ Actor + API    │  │ Actor + API    │  │ Actor + API    │
+└───────┬────────┘  └───────┬────────┘  └───────┬────────┘
+        │                   │                   │
+        │ OTLP traces       │ OTLP traces       │ OTLP traces
+        └───────────────────┼───────────────────┘
+                            │
+               ┌────────────┴────────────┐
+               ▼                         ▼
+┌──────────────────┐  ┌──────────────────┐
+│  OTEL Collector  │  │    PostgreSQL    │
+│ (OTLP → Jaeger)  │  │  (Persistence)   │
+└────────┬─────────┘  └──────────────────┘
+         │
+         ▼
+┌──────────────────┐
+│      Jaeger      │
+│    (Trace UI)    │
+└──────────────────┘
+```
 
 ## Prerequisites
 
-| Tool        | Purpose                  | Installation                                                                     |
-|-------------|--------------------------|----------------------------------------------------------------------------------|
-| **Kind**    | Local Kubernetes cluster | [kind.sigs.k8s.io](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) |
-| **kubectl** | Kubernetes CLI           | [kubectl install](https://kubernetes.io/docs/tasks/tools/)                       |
-| **Earthly** | Reproducible builds      | [earthly.dev](https://earthly.dev/get-earthly)                                   |
-| **grpcurl** | gRPC testing (optional)  | `go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest`                  |
+| Tool        | Purpose                              | Installation                                                                     |
+|-------------|--------------------------------------|----------------------------------------------------------------------------------|
+| **Kind**    | Local Kubernetes cluster             | [kind.sigs.k8s.io](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) |
+| **kubectl** | Kubernetes CLI                       | [kubectl install](https://kubernetes.io/docs/tasks/tools/)                       |
+| **Earthly** | Reproducible builds                  | [earthly.dev](https://earthly.dev/get-earthly)                                   |
+| **Docker**  | Container runtime (required by Kind) | [docker.com](https://docs.docker.com/get-docker/)                                |
+| **grpcurl** | Proto-mode API tests only            | `go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest`                  |
 
-## Quick Start
-
-### 1. Create the Kind Cluster
+## Quick Start (CBOR / HTTP)
 
 ```bash
-cd goakt-actors-cluster/k8s
+cd goakt-cluster/k8s
 make cluster-create
-```
-
-### 2. Build and Deploy
-
-```bash
-make deploy
-```
-
-### 3. Expose the API
-
-In another terminal:
-
-```bash
-make port-forward
-```
-
-gRPC API is available at `localhost:8080`.
-
-## Testing the Service
-
-### Step 1: Expose the API
-
-```bash
-make port-forward
-```
-
-Leave running. Use additional terminals for the following steps.
-
-### Step 2: Verify Deployment
-
-```bash
-make status
-```
-
-Optional: open the Kubernetes dashboard:
-
-```bash
-make dashboard
-```
-
-### Step 3: Smoke Test (Manual)
-
-Using grpcurl (from repo root or with correct proto path):
-
-```bash
-# Create account
-grpcurl -plaintext -import-path ../../protos -proto sample/service.proto \
-  -d '{"create_account":{"account_id":"acc-001","account_balance":100}}' \
-  localhost:8080 samplepb.AccountService/CreateAccount
-
-# Get account
-grpcurl -plaintext -import-path ../../protos -proto sample/service.proto \
-  -d '{"account_id":"acc-001"}' \
-  localhost:8080 samplepb.AccountService/GetAccount
-
-# Credit account
-grpcurl -plaintext -import-path ../../protos -proto sample/service.proto \
-  -d '{"credit_account":{"account_id":"acc-001","balance":50}}' \
-  localhost:8080 samplepb.AccountService/CreditAccount
-```
-
-### Step 4: Load Test (Automated)
-
-```bash
+make deploy                 # CODEC=cbor by default
+make port-forward           # in another terminal
 make test
 ```
 
-Creates 100 accounts, credits each, and verifies a sample. Customize:
+API base URL: `http://localhost:8080`  
+Swagger UI: [http://localhost:8080/docs](http://localhost:8080/docs)
+
+### Smoke test (cbor)
 
 ```bash
-NUM_ACCOUNTS=50 VERIFY_SAMPLE=10 make test
+curl -s -X POST http://localhost:8080/accounts \
+  -H 'Content-Type: application/json' \
+  -d '{"createAccount":{"accountId":"acc-1","accountBalance":100}}'
+
+curl -s -X POST http://localhost:8080/accounts/acc-1/credit \
+  -H 'Content-Type: application/json' \
+  -d '{"balance":50}'
+
+curl -s http://localhost:8080/accounts/acc-1
 ```
 
-### Step 5: Inspect Logs
+## Full protobuf mode
+
+Redeploy every pod with the proto stack and the gRPC nginx config:
 
 ```bash
-make logs
+make cluster-down
+make deploy CODEC=proto
+make port-forward
+make test CODEC=proto
 ```
 
-## Makefile Reference
-
-| Target                   | Description                         |
-|--------------------------|-------------------------------------|
-| `make deploy`            | Build image, load into Kind, deploy |
-| `make cluster-create`    | Create Kind cluster                 |
-| `make cluster-delete`    | Delete Kind cluster                 |
-| `make image`             | Build and load Docker image         |
-| `make cluster-up`        | Deploy accounts and nginx           |
-| `make cluster-down`      | Remove deployments                  |
-| `make status`            | Show cluster and pod status         |
-| `make port-forward`      | Forward nginx to localhost:8080     |
-| `make dashboard`         | Access Kubernetes dashboard         |
-| `make dashboard-install` | Install dashboard (one-time)        |
-| `make logs`              | Tail logs from accounts pods        |
-| `make test`              | Run gRPC integration tests          |
-
-## Workflow
-
-### First-Time Setup
+### Smoke test (proto)
 
 ```bash
-make cluster-create
-make deploy
+grpcurl -plaintext -proto ../../protos/sample/service.proto \
+  -d '{"createAccount":{"accountId":"acc-1","accountBalance":100}}' \
+  localhost:8080 samplepb.AccountService/CreateAccount
+
+grpcurl -plaintext -proto ../../protos/sample/service.proto \
+  -d '{"creditAccount":{"accountId":"acc-1","balance":50}}' \
+  localhost:8080 samplepb.AccountService/CreditAccount
+
+grpcurl -plaintext -proto ../../protos/sample/service.proto \
+  -d '{"accountId":"acc-1"}' \
+  localhost:8080 samplepb.AccountService/GetAccount
 ```
 
-Then follow [Testing the Service](#testing-the-service).
+## Wire formats
 
-### Cleanup
+| Codec   | Client edge                      | Remoting types                        | Serializer              |
+|---------|----------------------------------|---------------------------------------|-------------------------|
+| `cbor`  | OpenAPI HTTP/JSON                | `messages.*` Go structs               | `remote.CBORSerializer` |
+| `proto` | Connect/gRPC (`samplepbconnect`) | `internal/samplepb` protobuf messages | default ProtoSerializer |
 
-```bash
-make cluster-down              # Remove deployments
-make cluster-down cluster-delete   # Remove everything
-```
+The CLI flag is `--codec`; in Kubernetes the StatefulSet sets `CODEC`. Mixing
+codecs across pods is unsupported.
 
-## Project Structure
+## Makefile targets
+
+| Target                                | Description                                            |
+|---------------------------------------|--------------------------------------------------------|
+| `make deploy`                         | Build image, load into Kind, deploy (respects `CODEC`) |
+| `make deploy CODEC=proto`             | Full protobuf stack                                    |
+| `make test` / `make test CODEC=proto` | Mode-appropriate API tests                             |
+| `make test-resilience`                | Kill a node and re-verify                              |
+| `make port-forward`                   | nginx → localhost:8080                                 |
+| `make port-forward-jaeger`            | Jaeger UI → localhost:16686                            |
+| `make cluster-down`                   | Tear down deployments                                  |
+
+## Project layout
 
 ```
 k8s/
-├── actors/           # Account actor (protobuf messages)
-├── cmd/              # CLI entry point
-├── k8s/              # Kubernetes manifests
-│   ├── k8s.yaml            # StatefulSet, Service, RBAC
-│   └── nginx-*.yaml        # Load balancer (gRPC)
-├── scripts/          # Test scripts
-│   └── test-api.sh        # grpcurl-based tests
-├── service/          # gRPC/Connect API service
-├── doc.md
-└── Makefile
+├── actors/          # AccountEntity (domain messages + persistence)
+├── api/             # OpenAPI spec + generated HTTP types (cbor mode)
+├── cmd/             # cobra CLI; --codec on run
+├── db/migrations/   # Postgres schema
+├── deploy/          # Kind manifests; nginx-config.yaml vs nginx-config-proto.yaml
+├── domain/          # Encapsulated account state
+├── messages/        # Actor command/reply Go structs
+├── persistence/     # Postgres store extension
+├── scripts/         # test-api.sh (cbor) / test-api-proto.sh (proto)
+├── service/         # Exclusive HTTP or Connect façade
+└── wire/            # Codec Encode/Decode + remoting registration
 ```
 
-## Differences from k8s-v2
+## Environment variables
 
-| Feature        | k8s (this)       | k8s-v2              |
-|----------------|------------------|---------------------|
-| Actor messages | Protocol buffers | Standard Go structs |
-| API            | gRPC/Connect     | HTTP/JSON REST      |
-| Persistence    | None             | PostgreSQL          |
-| Nginx          | gRPC proxy       | HTTP proxy          |
-
-## License
-
-MIT License - see repository root for details.
+| Variable                                          | Default                      | Description                             |
+|---------------------------------------------------|------------------------------|-----------------------------------------|
+| `CODEC`                                           | `cbor`                       | Exclusive wire mode (`cbor` or `proto`) |
+| `PORT`                                            | `50051`                      | Client API listen port                  |
+| `DISCOVERY_PORT` / `PEERS_PORT` / `REMOTING_PORT` | (required)                   | Cluster ports                           |
+| `DB_*`                                            | (required)                   | Postgres connection                     |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`                     | `http://otel-collector:4318` | Trace export                            |
+| `OTEL_SERVICE_NAME`                               | `accounts`                   | Trace service name                      |

@@ -22,7 +22,7 @@
 
 package main
 
-import "github.com/tochemey/goakt-examples/v2/goakt-cluster/k8s-v2/cmd"
+import "github.com/tochemey/goakt-examples/v2/goakt-chat/cmd"
 
 func main() {
 	cmd.Execute()

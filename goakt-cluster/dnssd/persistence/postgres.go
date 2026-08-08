@@ -31,7 +31,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd-v2/domain"
+	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/domain"
 )
 
 const PostgresStateStoreID = "PostgresStore"

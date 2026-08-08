@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# API integration tests for k8s-v2 account service
+# API integration tests for k8s-ebpf account service
 # Creates 1000 accounts, credits each, and verifies balances across the cluster
 # Run with: ./scripts/test-api.sh
 # Ensure port-forward is running: make port-forward (in another terminal)
@@ -49,7 +49,7 @@ get_balance() {
 }
 
 echo "=========================================="
-echo "k8s-v2 Account Service - Load Test"
+echo "k8s-ebpf Account Service - Load Test"
 echo "=========================================="
 echo "API: $BASE_URL"
 echo "Run ID: $RUN_ID"

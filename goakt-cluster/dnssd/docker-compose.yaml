@@ -40,6 +40,7 @@ services:
       DB_HOST: "db"
       DB_PORT: 5432
       DB_NAME: "postgres"
+      LOG_LEVEL: "debug"
 
   accounts2:
     image: "accounts:dev"
@@ -82,6 +83,7 @@ services:
       DB_HOST: "db"
       DB_PORT: 5432
       DB_NAME: "postgres"
+      LOG_LEVEL: "debug"
 
   accounts3:
     image: "accounts:dev"
@@ -124,6 +126,7 @@ services:
       DB_HOST: "db"
       DB_PORT: 5432
       DB_NAME: "postgres"
+      LOG_LEVEL: "debug"
 
   coredns:
     image: coredns/coredns:1.11.1
