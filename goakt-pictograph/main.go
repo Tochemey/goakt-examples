@@ -42,6 +42,8 @@ import (
 	gerrors "github.com/tochemey/goakt/v4/errors"
 	"github.com/tochemey/goakt/v4/log"
 	"github.com/tochemey/goakt/v4/remote"
+
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 const (
@@ -200,7 +202,7 @@ func buildActorSystem(logger log.Logger, store *profileStore, leaderboard *Leade
 	// Room↔Session (PlayerHello/GoodbyePlayer/PlayerInput) and every
 	// outbound event type (which travels via pub/sub when the topic
 	// fans out across nodes) — register all of them.
-	remoteCfg := remote.NewConfig(*bindHost, *remotingPort,
+	remoteCfg := remoting.NewConfig(*bindHost, *remotingPort,
 		remote.WithSerializers((*JoinOrCreate)(nil), cbor),
 		remote.WithSerializers((*JoinOrCreateResult)(nil), cbor),
 		remote.WithSerializers((*PlayerHello)(nil), cbor),

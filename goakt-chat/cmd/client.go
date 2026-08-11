@@ -34,13 +34,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tochemey/goakt/v4/actor"
-	"github.com/tochemey/goakt/v4/remote"
 	"github.com/tochemey/goakt/v4/supervisor"
 	"github.com/travisjeffery/go-dynaport"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-chat/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-chat/wire"
 	"github.com/tochemey/goakt-examples/v2/internal/chat"
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 const clientHelpText = `Commands:
@@ -131,7 +131,7 @@ func runClient(*cobra.Command, []string) error {
 	// Same registrations as the server — see wire.RemoteOptions.
 	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
-		actor.WithRemote(remote.NewConfig(clientBindHost, port, wire.RemoteOptions()...)),
+		actor.WithRemote(remoting.NewConfig(clientBindHost, port, wire.RemoteOptions()...)),
 		actor.WithLoggingDisabled())
 
 	if err != nil {

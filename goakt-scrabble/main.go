@@ -45,6 +45,7 @@ import (
 	"github.com/tochemey/goakt/v4/remote"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-scrabble/scrabble"
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 const (
@@ -236,7 +237,7 @@ func buildProfileStore(ctx context.Context, logger log.Logger) (profileStore, fu
 func buildActorSystem(logger log.Logger, registry *Registry, store profileStore, leaderboard *Leaderboard) (actor.ActorSystem, error) {
 	cbor := remote.NewCBORSerializer()
 
-	remoteCfg := remote.NewConfig(*bindHost, *remotingPort,
+	remoteCfg := remoting.NewConfig(*bindHost, *remotingPort,
 		remote.WithSerializers((*JoinOrCreate)(nil), cbor),
 		remote.WithSerializers((*JoinOrCreateResult)(nil), cbor),
 		remote.WithSerializers((*PlayerHello)(nil), cbor),
@@ -277,9 +278,9 @@ func buildActorSystem(logger log.Logger, registry *Registry, store profileStore,
 		WithDiscoveryPort(*discoveryPort).
 		WithPeersPort(*peersPort).
 		WithPartitionCount(20).
-		WithBootstrapTimeout(10 * time.Second).
-		WithReadTimeout(3 * time.Second).
-		WithWriteTimeout(3 * time.Second).
+		WithBootstrapTimeout(10*time.Second).
+		WithReadTimeout(3*time.Second).
+		WithWriteTimeout(3*time.Second).
 		WithKinds(new(RoomActor), new(LobbyActor)).
 		WithCRDT()
 
@@ -301,4 +302,3 @@ func noStore(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r)
 	})
 }
-

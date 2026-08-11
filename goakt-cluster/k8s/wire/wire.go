@@ -83,7 +83,7 @@ func ParseCodec(name string) (Codec, error) {
 // RemoteOptions returns the remoting options for the selected codec.
 //
 // CBOR mode registers the domain structs with the CBOR serializer. Proto mode
-// registers nothing — remote.NewConfig already handles every proto.Message —
+// registers nothing — remoting.NewConfig already handles every proto.Message —
 // so the process never advertises CBOR types.
 func RemoteOptions(codec Codec) []remote.Option {
 	if codec == nil || codec.Name() == Proto {

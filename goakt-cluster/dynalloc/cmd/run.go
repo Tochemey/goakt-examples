@@ -31,10 +31,10 @@ import (
 	goakt "github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/discovery/static"
 	"github.com/tochemey/goakt/v4/log"
-	"github.com/tochemey/goakt/v4/remote"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dynalloc/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dynalloc/service"
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 func getLogLevel(level string) log.Level {
@@ -100,7 +100,7 @@ var runCmd = &cobra.Command{
 			config.ActorSystemName,
 			goakt.WithLogger(logger),
 			goakt.WithActorInitMaxRetries(3),
-			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort)),
+			goakt.WithRemote(remoting.NewConfig(host, config.RemotingPort)),
 			goakt.WithCluster(clusterConfig))
 
 		// handle the error

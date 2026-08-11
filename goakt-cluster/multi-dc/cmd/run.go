@@ -52,6 +52,7 @@ import (
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/multi-dc/messages"
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/multi-dc/persistence"
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/multi-dc/service"
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 // otelErrorHandler surfaces OTEL SDK export errors in the application logs.
@@ -223,7 +224,7 @@ var runCmd = &cobra.Command{
 			goakt.WithLogger(logger),
 			goakt.WithExtensions(persistenceStore),
 			goakt.WithActorInitMaxRetries(3),
-			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort,
+			goakt.WithRemote(remoting.NewWANConfig(host, config.RemotingPort,
 				remote.WithContextPropagator(otelRemoteContextPropagator{
 					propagator: propagation.NewCompositeTextMapPropagator(
 						propagation.TraceContext{},

@@ -93,7 +93,7 @@ func ParseCodec(name string) (Codec, error) {
 // only a concrete registration adds the type to GoAkt's global type registry, and
 // the CBOR frame carries a type name that the receiver resolves through it.
 //
-// The protobuf messages need no entry here: remote.NewConfig already registers the
+// The protobuf messages need no entry here: remoting.NewConfig already registers the
 // proto serializer for every proto.Message. Because the chat structs implement only
 // chat.ChatMessage and the generated types implement only proto.Message, the two
 // registrations never overlap — one node speaks both formats at once.

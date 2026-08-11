@@ -36,7 +36,6 @@ import (
 	goakt "github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/discovery/dnssd"
 	"github.com/tochemey/goakt/v4/log"
-	"github.com/tochemey/goakt/v4/remote"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/prometheus"
@@ -49,6 +48,7 @@ import (
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/grains"
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/persistence"
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/service"
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 func getLogLevel(level string) log.Level {
@@ -177,7 +177,7 @@ var runCmd = &cobra.Command{
 			goakt.WithLogger(logger),
 			goakt.WithExtensions(persistenceStore),
 			goakt.WithActorInitMaxRetries(3),
-			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort)),
+			goakt.WithRemote(remoting.NewConfig(host, config.RemotingPort)),
 			goakt.WithCluster(clusterConfig))
 
 		// handle the error

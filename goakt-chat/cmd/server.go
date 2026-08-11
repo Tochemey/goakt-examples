@@ -31,11 +31,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tochemey/goakt/v4/actor"
-	"github.com/tochemey/goakt/v4/remote"
 	"github.com/tochemey/goakt/v4/supervisor"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-chat/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-chat/wire"
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 var (
@@ -71,7 +71,7 @@ func runServer(*cobra.Command, []string) error {
 	// connection always register the same set of types.
 	actorSystem, err := actor.NewActorSystem(
 		"ChatSystem",
-		actor.WithRemote(remote.NewConfig(serverHost, serverPort, wire.RemoteOptions()...)),
+		actor.WithRemote(remoting.NewConfig(serverHost, serverPort, wire.RemoteOptions()...)),
 		actor.WithLoggingDisabled())
 
 	if err != nil {

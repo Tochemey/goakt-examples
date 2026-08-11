@@ -31,9 +31,9 @@ import (
 
 	"github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/log"
-	"github.com/tochemey/goakt/v4/remote"
 	"github.com/tochemey/goakt/v4/supervisor"
 
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
 )
 
@@ -47,7 +47,7 @@ func main() {
 	actorSystem, err := actor.NewActorSystem("Remoting",
 		actor.WithLogger(logger),
 		actor.WithActorInitMaxRetries(3),
-		actor.WithRemote(remote.NewConfig("127.0.0.1", 9010)))
+		actor.WithRemote(remoting.NewConfig("127.0.0.1", 9010)))
 
 	if err != nil {
 		logger.Fatalf("failed to create actor system: %v", err)

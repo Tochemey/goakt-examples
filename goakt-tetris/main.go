@@ -41,6 +41,8 @@ import (
 	gerrors "github.com/tochemey/goakt/v4/errors"
 	"github.com/tochemey/goakt/v4/log"
 	"github.com/tochemey/goakt/v4/remote"
+
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 const (
@@ -136,7 +138,7 @@ func main() {
 // and the cluster config that registers our actor kinds.
 func buildActorSystem(logger log.Logger) (actor.ActorSystem, error) {
 	cbor := remote.NewCBORSerializer()
-	remoteCfg := remote.NewConfig(*bindHost, *remotingPort,
+	remoteCfg := remoting.NewConfig(*bindHost, *remotingPort,
 		// Messages that cross the wire when a match lands on a remote
 		// node. Register the pointer-typed nil sentinel — that's the form
 		// GoAkt's serializer registry expects.
@@ -156,9 +158,9 @@ func buildActorSystem(logger log.Logger) (actor.ActorSystem, error) {
 		WithDiscoveryPort(*discoveryPort).
 		WithPeersPort(*peersPort).
 		WithPartitionCount(20).
-		WithBootstrapTimeout(10 * time.Second).
-		WithReadTimeout(3 * time.Second).
-		WithWriteTimeout(3 * time.Second).
+		WithBootstrapTimeout(10*time.Second).
+		WithReadTimeout(3*time.Second).
+		WithWriteTimeout(3*time.Second).
 		// Only kinds that may be spawned via SpawnOn / SpawnSingleton go
 		// here. PlayerSessionActor stays node-local and is *not* listed.
 		WithKinds(new(MatchActor), new(MatchFactory))

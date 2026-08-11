@@ -47,6 +47,7 @@ import (
 	"github.com/tochemey/goakt-examples/v2/goakt-ai/llm"
 	"github.com/tochemey/goakt-examples/v2/goakt-ai/messages"
 	"github.com/tochemey/goakt-examples/v2/goakt-ai/service"
+	"github.com/tochemey/goakt-examples/v2/internal/remoting"
 )
 
 type otelErrorHandler struct{ logger log.Logger }
@@ -180,7 +181,7 @@ var runCmd = &cobra.Command{
 			goakt.WithLogger(logger),
 			goakt.WithExtensions(llmExt),
 			goakt.WithActorInitMaxRetries(3),
-			goakt.WithRemote(remote.NewConfig(host, config.RemotingPort,
+			goakt.WithRemote(remoting.NewConfig(host, config.RemotingPort,
 				remote.WithContextPropagator(otelRemoteContextPropagator{
 					propagator: otel.GetTextMapPropagator(),
 				}),
