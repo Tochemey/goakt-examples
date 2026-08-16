@@ -1,0 +1,165 @@
+# RBAC for Kubernetes discovery
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: blockchain
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "pods" ]
+    verbs: [ "get", "watch", "list" ]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: blockchain
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: blockchain
+  apiGroup: rbac.authorization.k8s.io
+---
+# StatefulSet for the blockchain node pods
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: blockchain
+  labels:
+    app.kubernetes.io/name: blockchain
+    app.kubernetes.io/component: BlockChain
+    app.kubernetes.io/part-of: BlockChain
+spec:
+  serviceName: blockchain
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: blockchain
+      app.kubernetes.io/component: BlockChain
+      app.kubernetes.io/part-of: BlockChain
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: blockchain
+        app.kubernetes.io/component: BlockChain
+        app.kubernetes.io/part-of: BlockChain
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: blockchain
+          image: "blockchain:dev"
+          imagePullPolicy: IfNotPresent
+          command: [ "./blockchain", "run" ]
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+            - containerPort: 50052
+              name: remoting-port
+              protocol: TCP
+            - containerPort: 3322
+              name: discovery-port
+              protocol: TCP
+            - containerPort: 3320
+              name: peers-port
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SYSTEM_NAME
+              value: "BlockChain"
+            - name: DISCOVERY_PORT
+              value: "3322"
+            - name: PEERS_PORT
+              value: "3320"
+            - name: REMOTING_PORT
+              value: "50052"
+            - name: CHAIN_DATA_DIR
+              value: "/data/chain"
+            - name: REPLICAS
+              value: "3"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  # each pod keeps its copy of the chain on its own volume
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+---
+# ClusterIP service for the REST API (nginx upstream)
+apiVersion: v1
+kind: Service
+metadata:
+  name: blockchain-http
+  labels:
+    app.kubernetes.io/name: blockchain
+    app.kubernetes.io/component: BlockChain
+    app.kubernetes.io/part-of: BlockChain
+spec:
+  selector:
+    app.kubernetes.io/name: blockchain
+    app.kubernetes.io/component: BlockChain
+    app.kubernetes.io/part-of: BlockChain
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: http
+      name: http
+---
+# Headless service backing the StatefulSet pod DNS names used for remoting
+apiVersion: v1
+kind: Service
+metadata:
+  name: blockchain
+  labels:
+    app.kubernetes.io/name: blockchain
+    app.kubernetes.io/component: BlockChain
+    app.kubernetes.io/part-of: BlockChain
+spec:
+  selector:
+    app.kubernetes.io/name: blockchain
+    app.kubernetes.io/component: BlockChain
+    app.kubernetes.io/part-of: BlockChain
+  clusterIP: None
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: http
+      name: http
+    - protocol: TCP
+      port: 50052
+      targetPort: remoting-port
+      name: remoting-port
+    - protocol: TCP
+      port: 3322
+      targetPort: discovery-port
+      name: discovery-port
+    - protocol: TCP
+      port: 3320
+      targetPort: peers-port
+      name: peers-port

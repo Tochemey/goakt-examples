@@ -53,7 +53,6 @@ StatefulSet must use the **same** codec.
 |-------------|--------------------------------------|----------------------------------------------------------------------------------|
 | **Kind**    | Local Kubernetes cluster             | [kind.sigs.k8s.io](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) |
 | **kubectl** | Kubernetes CLI                       | [kubectl install](https://kubernetes.io/docs/tasks/tools/)                       |
-| **Earthly** | Reproducible builds                  | [earthly.dev](https://earthly.dev/get-earthly)                                   |
 | **Docker**  | Container runtime (required by Kind) | [docker.com](https://docs.docker.com/get-docker/)                                |
 | **grpcurl** | Proto-mode API tests only            | `go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest`                  |
 

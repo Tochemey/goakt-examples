@@ -3,7 +3,7 @@
 # Prerequisites:
 #   - Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 #   - kubectl: https://kubernetes.io/docs/tasks/tools/
-#   - Earthly: https://earthly.dev/get-earthly (for building the image)
+#   - Docker: https://docs.docker.com/get-docker/ (for building the image)
 #
 # Quick start:
 #   make cluster-create    # Create Kind cluster (one-time)
@@ -58,7 +58,7 @@ cluster-recreate: cluster-delete cluster-create
 .PHONY: image
 image:
 	@echo "Building Docker image..."
-	cd $(REPO_ROOT) && earthly +saga-image
+	$(MAKE) -C $(REPO_ROOT) saga-image
 	@echo "Loading image into Kind cluster..."
 	kind load docker-image $(IMAGE_NAME) --name $(CLUSTER_NAME)
 	@echo "Image loaded successfully."

@@ -3,7 +3,7 @@
 # Prerequisites:
 #   - Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 #   - kubectl: https://kubernetes.io/docs/tasks/tools/
-#   - Earthly: https://earthly.dev/get-earthly (for building the image)
+#   - Docker: https://docs.docker.com/get-docker/ (for building the image)
 #   - grpcurl (proto mode only): go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 #
 # Quick start (CBOR / HTTP — default):
@@ -79,7 +79,7 @@ cluster-recreate: cluster-delete cluster-create
 .PHONY: image
 image:
 	@echo "Building Docker image..."
-	cd $(REPO_ROOT) && earthly +k8s-image
+	$(MAKE) -C $(REPO_ROOT) k8s-image
 	@echo "Loading image into Kind cluster..."
 	kind load docker-image $(IMAGE_NAME) --name $(CLUSTER_NAME)
 	@echo "Image loaded successfully."

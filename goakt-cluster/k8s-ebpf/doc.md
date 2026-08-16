@@ -64,7 +64,6 @@ The agent uses eBPF uprobes to capture actor spans (`doReceive`, `process`, remo
 |-------------|--------------------------------------|----------------------------------------------------------------------------------|
 | **Kind**    | Local Kubernetes cluster             | [kind.sigs.k8s.io](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) |
 | **kubectl** | Kubernetes CLI                       | [kubectl install](https://kubernetes.io/docs/tasks/tools/)                       |
-| **Earthly** | Reproducible builds                  | [earthly.dev](https://earthly.dev/get-earthly)                                   |
 | **Docker**  | Container runtime (required by Kind) | [docker.com](https://docs.docker.com/get-docker/)                                |
 
 ### Required Repositories

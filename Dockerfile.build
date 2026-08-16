@@ -1,0 +1,12 @@
+# Builder image used by the Makefile to run code generation (protobuf,
+# Connect, and OpenAPI) inside Docker, so no local toolchain is required.
+FROM golang:1.26.0-alpine
+
+RUN apk --no-cache add git ca-certificates
+
+RUN GOBIN=/usr/local/bin go install github.com/bufbuild/buf/cmd/buf@v1.59.0 \
+    && GOBIN=/usr/local/bin go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
+    && GOBIN=/usr/local/bin go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest \
+    && GOBIN=/usr/local/bin go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
+
+WORKDIR /app

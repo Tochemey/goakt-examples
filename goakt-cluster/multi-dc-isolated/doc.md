@@ -100,7 +100,6 @@ Client → docker exec dc2-control-plane curl :8080/accounts/acc-001
 | **Docker**  | Container runtime (required by Kind) | [docker.com](https://docs.docker.com/get-docker/)                                |
 | **Kind**    | Local Kubernetes clusters            | [kind.sigs.k8s.io](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) |
 | **kubectl** | Kubernetes CLI                       | [kubectl install](https://kubernetes.io/docs/tasks/tools/)                       |
-| **Earthly** | Reproducible builds                  | [earthly.dev](https://earthly.dev/get-earthly)                                   |
 
 ## Quick Start
 

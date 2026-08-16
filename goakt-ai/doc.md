@@ -193,7 +193,7 @@ Users choose a provider via `--provider` or config; the selected provider's API 
 
 - [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [Earthly](https://earthly.dev/get-earthly) (for building the Docker image)
+- [Docker](https://docs.docker.com/get-docker/) (for building the Docker image)
 
 ### Quick Start
 

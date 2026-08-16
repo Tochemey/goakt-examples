@@ -11,10 +11,18 @@ git clone https://github.com/Tochemey/goakt-examples
 cd goakt-examples
 ```
 
-To build all examples, install [Earthly](https://earthly.dev/get-earthly) and run:
+To build all examples:
 
 ```bash
-earthly +all
+make build
+```
+
+Code generation (protobuf, Connect, OpenAPI) and the Docker images for the cluster examples are driven by the root [Makefile](./Makefile) and only need [Docker](https://docs.docker.com/get-docker/):
+
+```bash
+make all      # regenerate the protobuf and OpenAPI code
+make images   # build every example Docker image
+make help     # list all targets
 ```
 
 ## Examples
@@ -62,6 +70,7 @@ earthly +all
 ### Applications
 
 - [goakt-chat](./goakt-chat): a multi-room chat application with remoting, room-based messaging, direct messages, and message history, shipped as a single CLI with `server` and `client` subcommands. The actors are written against one domain model and a `wire` package maps it onto either protobuf or CBOR-encoded Go structs, selected per client with `--codec`; a single server serves both formats at once.
+- [goakt-blockchain](./goakt-blockchain): a GoAkt port of scalachain, the actor-based blockchain from the freeCodeCamp article [How to build a simple actor-based blockchain](https://www.freecodecamp.org/news/how-to-build-a-simple-actor-based-blockchain-aac1e996c177/), running as a GoAkt cluster on Kubernetes/Kind with the Kubernetes discovery provider. The `Node` actor is a cluster singleton supervising a transaction `Broker` and a proof-of-work `Miner` (a `Become`/`UnBecome` state machine that pipes the mined proof back with `PipeTo`); like a real blockchain network, every pod keeps a full replica of the ledger in an embedded Pebble store, mined blocks fan out over pub/sub, replicas catch up from their peers on start, and the chain survives singleton failover.
 - [goakt-saga](./goakt-saga): a money transfer service that uses the saga pattern with compensating transactions. Runs on Kubernetes/Kind and uses plain Go types.
 - [goakt-2pc](./goakt-2pc): the same money transfer service implemented with two-phase commit instead of a saga. Runs on Kubernetes/Kind and uses plain Go types.
 - [goakt-ai](./goakt-ai): a distributed multi-agent system with Orchestrator, Research, Summarizer, and Tool agents. Supports OpenAI, Anthropic, Google, and Mistral models, and ships with a CLI and a load balancer. Runs on Kubernetes/Kind.

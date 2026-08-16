@@ -49,7 +49,7 @@ make cluster-down    # Tear down
 
 - [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [Earthly](https://earthly.dev/get-earthly) (for building the Docker image)
+- [Docker](https://docs.docker.com/get-docker/) (for building the Docker image)
 
 ## Message Types (Go structs)
 

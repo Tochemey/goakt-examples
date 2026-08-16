@@ -68,9 +68,9 @@ Variables without a default are required.
 
 ## How to run it
 
-1. install [Earthly](https://earthly.dev/get-earthly)
+1. install [Docker](https://docs.docker.com/get-docker/)
 2. clone the repository
-3. run at the root of the cloned repository `earthly +dnssd-image`
+3. run at the root of the cloned repository `make dnssd-image`
 4. `cd goakt-cluster/dnssd`
 5. run `docker compose up -d tracer prometheus collector db`
 6. run `docker compose up -d coredns lb accounts1 accounts2 accounts3` to start the cluster
@@ -125,12 +125,11 @@ resolves to rather than a hardcoded node list. Adding a node means adding a DNS 
 `api/api.gen.go` is generated from `api/openapi.yaml`:
 
 ```bash
-earthly +opengen
+make opengen
 ```
 
 ## Build
 
 ```bash
-earthly +compile-dnssd
-earthly +dnssd-image
+make dnssd-image
 ```

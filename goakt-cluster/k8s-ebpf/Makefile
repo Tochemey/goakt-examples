@@ -3,7 +3,7 @@
 # Prerequisites:
 #   - Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 #   - kubectl: https://kubernetes.io/docs/tasks/tools/
-#   - Earthly: https://earthly.dev/get-earthly (for building the image)
+#   - Docker: https://docs.docker.com/get-docker/ (for building the image)
 #   - Docker: container runtime (required by Kind)
 #
 # Quick start:
@@ -75,7 +75,7 @@ cluster-recreate: cluster-delete cluster-create
 .PHONY: image-accounts
 image-accounts:
 	@echo "Building accounts Docker image..."
-	cd $(REPO_ROOT) && earthly +k8s-ebpf-image
+	$(MAKE) -C $(REPO_ROOT) k8s-ebpf-image
 	@echo "Loading accounts image into Kind cluster..."
 	kind load docker-image $(IMAGE_NAME) --name $(CLUSTER_NAME)
 	@echo "Accounts image loaded."

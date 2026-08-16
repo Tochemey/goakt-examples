@@ -5,7 +5,7 @@
 #   - Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 #   - kubectl: https://kubernetes.io/docs/tasks/tools/
 #   - Docker: https://docs.docker.com/get-docker/
-#   - Earthly: https://earthly.dev/get-earthly (for building the image)
+#   - Docker: https://docs.docker.com/get-docker/ (for building the image)
 #
 # Quick start:
 #   make setup      # Create Docker network, NATS, and 2 Kind clusters
@@ -44,7 +44,7 @@ setup:
 .PHONY: image
 image:
 	@echo "Building Docker image..."
-	cd $(REPO_ROOT) && earthly +multi-dc-isolated-image
+	$(MAKE) -C $(REPO_ROOT) multi-dc-isolated-image
 	@echo "Image built: $(IMAGE_NAME)"
 
 .PHONY: deploy
