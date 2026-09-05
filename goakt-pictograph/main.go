@@ -234,7 +234,8 @@ func buildActorSystem(logger log.Logger, store *profileStore, leaderboard *Leade
 		WithDiscovery(disco).
 		WithDiscoveryPort(*discoveryPort).
 		WithPeersPort(*peersPort).
-		WithPartitionCount(20).
+		WithPartitionCount(19).
+		WithNetworkProfile(actor.NetworkProfileLAN).
 		WithBootstrapTimeout(10*time.Second).
 		WithReadTimeout(3*time.Second).
 		WithWriteTimeout(3*time.Second).

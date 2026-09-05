@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tochemey/goakt/v4/actor"
 	goakt "github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/discovery/kubernetes"
 	gerrors "github.com/tochemey/goakt/v4/errors"
@@ -98,7 +99,8 @@ var runCmd = &cobra.Command{
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(discovery).
-			WithPartitionCount(20).
+			WithPartitionCount(19).
+			WithNetworkProfile(actor.NetworkProfileLAN).
 			WithMinimumPeersQuorum(1).
 			WithReplicaCount(1).
 			WithDiscoveryPort(config.DiscoveryPort).

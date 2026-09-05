@@ -103,8 +103,10 @@ cluster-up:
 	@echo "Waiting for OTEL Collector to be ready..."
 	kubectl wait --for=condition=available --timeout=60s deployment/otel-collector
 	@echo "Deploying accounts service..."
-	kubectl apply -f $(K8S_DIR)/k8s.yaml
-	kubectl set env statefulset/accounts CODEC=$(CODEC)
+	@# Render CODEC into the manifest before the first apply so the StatefulSet is
+	@# created at its final revision. apply-then-set-env creates a second revision
+	@# and rolls accounts-0 right after the cluster forms.
+	sed '/- name: CODEC$$/{n;s/value: "cbor"/value: "$(CODEC)"/;}' $(K8S_DIR)/k8s.yaml | kubectl apply -f -
 	@echo "Waiting for accounts pods to be ready..."
 	@for i in 0 1 2; do \
 		echo "  Waiting for accounts-$$i..."; \

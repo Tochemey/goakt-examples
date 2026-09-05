@@ -60,10 +60,11 @@ StatefulSet must use the **same** codec.
 
 ```bash
 cd goakt-cluster/k8s
-make cluster-create
-make deploy                 # CODEC=cbor by default
-make port-forward           # in another terminal
-make test
+make cluster-create         # one-time: create the Kind cluster
+make deploy                 # build image, load into Kind, deploy (CODEC=cbor by default)
+make port-forward           # blocks — run in another terminal
+make test                   # needs port-forward running
+make test-resilience        # kill a random accounts pod and re-verify
 ```
 
 API base URL: `http://localhost:8080`  
@@ -85,14 +86,21 @@ curl -s http://localhost:8080/accounts/acc-1
 
 ## Full protobuf mode
 
-Redeploy every pod with the proto stack and the gRPC nginx config:
+Tear down first, then redeploy every pod with the proto stack and the gRPC
+nginx config. Running `make deploy CODEC=proto` over a live cbor cluster would
+roll the pods one at a time, and pods on different codecs cannot talk to each
+other mid-roll:
 
 ```bash
 make cluster-down
 make deploy CODEC=proto
-make port-forward
+make port-forward                # blocks — run in another terminal
 make test CODEC=proto
+make test-resilience CODEC=proto
 ```
+
+`CODEC` selects the nginx config and the test scripts, so pass it to every
+target that touches them (`deploy`, `test`, `test-resilience`).
 
 ### Smoke test (proto)
 
@@ -122,15 +130,28 @@ codecs across pods is unsupported.
 
 ## Makefile targets
 
-| Target                                | Description                                            |
-|---------------------------------------|--------------------------------------------------------|
-| `make deploy`                         | Build image, load into Kind, deploy (respects `CODEC`) |
-| `make deploy CODEC=proto`             | Full protobuf stack                                    |
-| `make test` / `make test CODEC=proto` | Mode-appropriate API tests                             |
-| `make test-resilience`                | Kill a node and re-verify                              |
-| `make port-forward`                   | nginx → localhost:8080                                 |
-| `make port-forward-jaeger`            | Jaeger UI → localhost:16686                            |
-| `make cluster-down`                   | Tear down deployments                                  |
+Run `make` (or `make help`) in `goakt-cluster/k8s/` to list them.
+
+| Target                     | Description                                                       |
+|----------------------------|-------------------------------------------------------------------|
+| `make deploy`              | Build image, load into Kind, deploy — `image` + `cluster-up`      |
+| `make cluster-create`      | Create the Kind cluster `goakt-k8s`                               |
+| `make cluster-recreate`    | Delete and recreate the cluster (needed after kind-config changes) |
+| `make cluster-delete`      | Delete the Kind cluster                                           |
+| `make image`               | Build `accounts:dev-k8s` and load it into Kind                    |
+| `make cluster-up`          | Deploy PostgreSQL, Jaeger, OTEL Collector, accounts, nginx        |
+| `make cluster-down`        | Remove all deployments (keeps the Kind cluster)                   |
+| `make status`              | Cluster info, pods, services, and the active `CODEC`              |
+| `make test`                | API tests for the selected `CODEC`                                |
+| `make test-resilience`     | Create accounts, verify, kill a random pod, re-verify             |
+| `make logs`                | Tail logs from the accounts pods                                  |
+| `make port-forward`        | nginx → localhost:8080 (blocking)                                 |
+| `make port-forward-jaeger` | Jaeger UI → localhost:16686 (blocking)                            |
+| `make dashboard`           | Install if needed, print a login token, run `kubectl proxy`       |
+| `make dashboard-install`   | Install the Kubernetes dashboard (one-time)                       |
+
+Overridable variables: `CODEC` (`cbor`), `CLUSTER_NAME` (`goakt-k8s`),
+`IMAGE_NAME` (`accounts:dev-k8s`).
 
 ## Project layout
 
@@ -144,7 +165,7 @@ k8s/
 ├── domain/          # Encapsulated account state
 ├── messages/        # Actor command/reply Go structs
 ├── persistence/     # Postgres store extension
-├── scripts/         # test-api.sh (cbor) / test-api-proto.sh (proto)
+├── scripts/         # test-api*.sh and test-resilience*.sh, one pair per codec
 ├── service/         # Exclusive HTTP or Connect façade
 └── wire/            # Codec Encode/Decode + remoting registration
 ```

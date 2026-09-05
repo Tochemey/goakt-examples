@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tochemey/goakt/v4/actor"
 	goakt "github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/discovery/static"
 	"github.com/tochemey/goakt/v4/log"
@@ -66,7 +67,8 @@ var runCmd = &cobra.Command{
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(disco).
-			WithPartitionCount(20).
+			WithPartitionCount(19).
+			WithNetworkProfile(actor.NetworkProfileLAN).
 			WithBootstrapTimeout(10 * time.Second).
 			WithReadTimeout(3 * time.Second).
 			WithWriteTimeout(3 * time.Second).

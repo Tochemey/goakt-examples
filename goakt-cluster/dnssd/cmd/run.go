@@ -32,6 +32,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"github.com/tochemey/goakt/v4/actor"
 	goakt "github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/discovery/dnssd"
 	"github.com/tochemey/goakt/v4/log"
@@ -43,7 +44,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/messages"
@@ -160,10 +161,11 @@ var runCmd = &cobra.Command{
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(disco).
-			WithPartitionCount(20).
+			WithPartitionCount(19).
 			WithBootstrapTimeout(10 * time.Second).
 			WithReadTimeout(3 * time.Second).
 			WithWriteTimeout(3 * time.Second).
+			WithNetworkProfile(actor.NetworkProfileLAN).
 			WithDiscoveryPort(config.DiscoveryPort).
 			WithPeersPort(config.PeersPort).
 			WithClusterBalancerInterval(time.Second).

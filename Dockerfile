@@ -4,7 +4,7 @@
 # BINARY is the name of the binary inside the runtime image. Deployment
 # manifests invoke the binary by name (e.g. `command: ["./accounts", "run"]`),
 # so BINARY must match what the manifests of the example expect.
-FROM golang:1.26.0-alpine AS build
+FROM golang:1.27.0-alpine AS build
 
 ARG EXAMPLE
 WORKDIR /app

@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tochemey/goakt/v4/actor"
 	goakt "github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/discovery/kubernetes"
 	"github.com/tochemey/goakt/v4/log"
@@ -41,7 +42,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-ai/actors"
 	"github.com/tochemey/goakt-examples/v2/goakt-ai/llm"
@@ -79,12 +80,19 @@ const (
 func initTracer(ctx context.Context, logger log.Logger) *sdktrace.TracerProvider {
 	otel.SetErrorHandler(otelErrorHandler{logger: logger})
 
-	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if endpoint == "" {
-		endpoint = "http://otel-collector:4318"
+	// The exporter reads OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+	// itself and appends /v1/traces to the former. Only point it at the in-cluster
+	// collector when neither is set; WithEndpointURL must not be used here because
+	// it takes the URL path verbatim, so a bare host:port would post to "/".
+	var exporterOpts []otlptracehttp.Option
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" && os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") == "" {
+		exporterOpts = append(exporterOpts,
+			otlptracehttp.WithEndpoint("otel-collector:4318"),
+			otlptracehttp.WithInsecure(),
+		)
 	}
 
-	exporter, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(endpoint))
+	exporter, err := otlptracehttp.New(ctx, exporterOpts...)
 	if err != nil {
 		logger.Warnf("failed to create OTLP trace exporter: %v (tracing disabled)", err)
 		return nil
@@ -164,7 +172,8 @@ var runCmd = &cobra.Command{
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(discovery).
-			WithPartitionCount(20).
+			WithPartitionCount(19).
+			WithNetworkProfile(actor.NetworkProfileLAN).
 			WithMinimumPeersQuorum(1).
 			WithReplicaCount(1).
 			WithDiscoveryPort(config.DiscoveryPort).

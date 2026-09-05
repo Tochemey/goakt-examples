@@ -33,6 +33,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"github.com/tochemey/goakt/v4/actor"
 	goakt "github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/discovery/dnssd"
 	"github.com/tochemey/goakt/v4/log"
@@ -43,7 +44,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/grains"
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/persistence"
@@ -164,7 +165,8 @@ var runCmd = &cobra.Command{
 		clusterConfig := goakt.
 			NewClusterConfig().
 			WithDiscovery(disco).
-			WithPartitionCount(20).
+			WithPartitionCount(19).
+			WithNetworkProfile(actor.NetworkProfileLAN).
 			WithMinimumPeersQuorum(2).
 			WithReplicaCount(2).
 			WithDiscoveryPort(config.GossipPort).
