@@ -1,6 +1,7 @@
 # GoAkt Examples
 
-[![GitHub go.mod Go version](https://badges.chse.dev/github/go-mod/go-version/Tochemey/goakt-examples)](https://go.dev/doc/install)
+<a href="https://go.dev/doc/install"><img src="https://img.shields.io/github/go-mod/go-version/Tochemey/goakt-examples" alt="GitHub go.mod Go version" /></a>
+<a href="https://github.com/Tochemey/goakt"><img src="https://img.shields.io/badge/powered%20by-GoAkt-7d3fbf" alt="Powered by GoAkt" /></a>
 
 Examples for [GoAkt](https://github.com/Tochemey/goakt) v4. For the v3.14 examples, see the [v3 branch](https://github.com/Tochemey/goakt-examples/tree/release/v3.14).
 
