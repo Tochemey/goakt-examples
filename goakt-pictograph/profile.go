@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 
@@ -94,7 +95,7 @@ func (s *profileStore) save(id string, snap profileSnapshot) {
 }
 
 // PlayerProfileGrain is one virtual actor per player id. It activates
-// on the first GrainIdentity lookup, restores its snapshot from the
+// on the first GrainOf lookup, restores its snapshot from the
 // in-memory store, and persists the snapshot back on deactivation.
 // This is the same shape as goakt-iot-twin's DeviceTwin, just applied
 // to a game player rather than an IoT device.
@@ -118,6 +119,10 @@ func (g *PlayerProfileGrain) OnActivate(_ context.Context, props *actor.GrainPro
 	// Grain names are namespaced (GrainPrefix + playerID). Strip the
 	// prefix so the in-memory store key matches what the caller sees.
 	g.id = strings.TrimPrefix(props.Identity().Name(), GrainPrefix)
+	g.store = profileStoreFromExtension(props.ActorSystem())
+	if g.store == nil {
+		return errors.New("profile store extension is not registered")
+	}
 	if snap, ok := g.store.load(g.id); ok {
 		g.state = snap
 		props.ActorSystem().Logger().Debugf("[profile %s] reactivated (games=%d wins=%d)",

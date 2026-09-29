@@ -34,8 +34,6 @@ import (
 	"github.com/tochemey/goakt/v4/actor"
 	"github.com/tochemey/goakt/v4/log"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/grains"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
@@ -176,6 +174,11 @@ func (s *AccountService) listenAndServe() {
 	path, handler := samplepbconnect.NewAccountServiceHandler(s,
 		connect.WithInterceptors(interceptor))
 	mux.Handle(path, handler)
+	// serve HTTP/1.1 and unencrypted HTTP/2 (h2c) on the same port
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+
 	serverAddr := fmt.Sprintf(":%d", s.port)
 	server := &http.Server{
 		Addr:              serverAddr,
@@ -183,9 +186,8 @@ func (s *AccountService) listenAndServe() {
 		ReadHeaderTimeout: time.Second,
 		WriteTimeout:      time.Second,
 		IdleTimeout:       1200 * time.Second,
-		Handler: h2c.NewHandler(mux, &http2.Server{
-			IdleTimeout: 1200 * time.Second,
-		}),
+		Protocols:         protocols,
+		Handler:           mux,
 	}
 
 	// set the server

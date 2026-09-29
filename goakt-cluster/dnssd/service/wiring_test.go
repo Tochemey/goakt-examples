@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"golang.org/x/net/http2"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/dnssd/api"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
@@ -108,12 +106,9 @@ func TestRESTAndRPCShareOnePort(t *testing.T) {
 	docs.Body.Close()
 
 	// 3. Connect RPC over unencrypted HTTP/2 (what a gRPC client needs)
-	h2 := &http.Client{Transport: &http2.Transport{
-		AllowHTTP: true,
-		DialTLSContext: func(ctx context.Context, network, a string, _ *tls.Config) (net.Conn, error) {
-			return net.Dial(network, a)
-		},
-	}}
+	protocols := new(http.Protocols)
+	protocols.SetUnencryptedHTTP2(true)
+	h2 := &http.Client{Transport: &http.Transport{Protocols: protocols}}
 	client := samplepbconnect.NewAccountServiceClient(h2, "http://"+addr, connect.WithGRPC())
 	rpcResp, err := client.GetAccount(context.Background(),
 		connect.NewRequest(&samplepb.GetAccountRequest{AccountId: "acc-2"}))

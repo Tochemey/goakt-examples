@@ -37,8 +37,6 @@ import (
 	goakt "github.com/tochemey/goakt/v4/actor"
 	gerrors "github.com/tochemey/goakt/v4/errors"
 	"github.com/tochemey/goakt/v4/log"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-cluster/static/actors"
 	"github.com/tochemey/goakt-examples/v2/internal/samplepb"
@@ -215,6 +213,11 @@ func (s *AccountService) listenAndServe() {
 	path, handler := samplepbconnect.NewAccountServiceHandler(s,
 		connect.WithInterceptors(interceptor))
 	mux.Handle(path, handler)
+	// serve HTTP/1.1 and unencrypted HTTP/2 (h2c) on the same port
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+
 	// create the address
 	serverAddr := fmt.Sprintf(":%d", s.port)
 	// create a http server instance
@@ -224,9 +227,8 @@ func (s *AccountService) listenAndServe() {
 		ReadHeaderTimeout: time.Second,
 		WriteTimeout:      time.Second,
 		IdleTimeout:       1200 * time.Second,
-		Handler: h2c.NewHandler(mux, &http2.Server{
-			IdleTimeout: 1200 * time.Second,
-		}),
+		Protocols:         protocols,
+		Handler:           mux,
 	}
 
 	// set the server

@@ -276,7 +276,7 @@ var runCmd = &cobra.Command{
 		if _, err = actorSystem.SpawnSingleton(ctx, "dc-gateway", new(actors.DataCenterGateway),
 			goakt.WithSingletonSpawnTimeout(30*time.Second),
 			goakt.WithSingletonSpawnRetries(10),
-		); err != nil && !errors.Is(err, gerrors.ErrSingletonAlreadyExists) {
+		); err != nil && !errors.Is(err, gerrors.ErrActorAlreadyExists) {
 			logger.Fatal("failed to spawn dc-gateway singleton: ", err)
 		}
 

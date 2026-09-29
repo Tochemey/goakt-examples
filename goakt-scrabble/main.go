@@ -110,7 +110,7 @@ func main() {
 	isLeader, leaderErr := system.IsLeader(ctx)
 	if leaderErr != nil || isLeader {
 		if _, err := system.SpawnSingleton(ctx, LobbyActorName, new(LobbyActor)); err != nil {
-			if !errors.Is(err, gerrors.ErrSingletonAlreadyExists) {
+			if !errors.Is(err, gerrors.ErrActorAlreadyExists) {
 				logger.Fatal(err)
 			}
 			logger.Info("lobby singleton already running elsewhere in the cluster")

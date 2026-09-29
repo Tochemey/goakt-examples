@@ -878,7 +878,6 @@ func (r *RoomActor) maybeShutdown(ctx *actor.ReceiveContext) {
 
 func (r *RoomActor) recordResults(ctx *actor.ReceiveContext, winnerID string) {
 	system := ctx.ActorSystem()
-	store := profileStoreFromExtension(system)
 	leaderboard := r.leaderboard
 	language := r.language
 
@@ -892,11 +891,7 @@ func (r *RoomActor) recordResults(ctx *actor.ReceiveContext, winnerID string) {
 		ctx.PipeTo(ctx.Self(), func() (any, error) {
 			bg := context.Background()
 
-			ident, err := system.GrainIdentity(bg,
-				GrainPrefix+pid,
-				func(_ context.Context) (actor.Grain, error) {
-					return &PlayerProfileGrain{store: store}, nil
-				})
+			ident, err := actor.GrainOf[*PlayerProfileGrain](bg, system, GrainPrefix+pid)
 			if err != nil {
 				return nil, err
 			}

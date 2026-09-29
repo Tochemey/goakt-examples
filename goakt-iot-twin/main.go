@@ -24,11 +24,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/extension"
 	"github.com/tochemey/goakt/v4/log"
 )
 
@@ -59,12 +61,27 @@ type snapshot struct {
 	LastSeenAt   time.Time
 }
 
+const storeExtensionID = "iot_twin_store"
+
 type store struct {
 	mu   sync.Mutex
 	data map[string]snapshot
 }
 
+var _ extension.Extension = (*store)(nil)
+
 func newStore() *store { return &store{data: make(map[string]snapshot)} }
+
+// ID satisfies extension.Extension so grains can look the store up from the
+// actor system when they activate.
+func (s *store) ID() string { return storeExtensionID }
+
+func storeFromExtension(system actor.ActorSystem) *store {
+	if s, ok := system.Extension(storeExtensionID).(*store); ok {
+		return s
+	}
+	return nil
+}
 
 func (s *store) load(id string) (snapshot, bool) {
 	s.mu.Lock()
@@ -94,6 +111,10 @@ var _ actor.Grain = (*DeviceTwin)(nil)
 func (x *DeviceTwin) OnActivate(_ context.Context, props *actor.GrainProps) error {
 	x.id = props.Identity().Name()
 	x.activated = time.Now()
+	x.store = storeFromExtension(props.ActorSystem())
+	if x.store == nil {
+		return errors.New("store extension is not registered")
+	}
 	if snap, ok := x.store.load(x.id); ok {
 		x.state = snap
 		props.ActorSystem().Logger().Infof("[%s] activated, restored %d readings", x.id, snap.ReadingsSeen)
@@ -134,7 +155,10 @@ func main() {
 	ctx := context.Background()
 	logger := log.DefaultLogger
 
-	system, err := actor.NewActorSystem("IoTTwin", actor.WithLogger(logger))
+	system, err := actor.NewActorSystem("IoTTwin",
+		actor.WithLogger(logger),
+		actor.WithExtensions(newStore()),
+	)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -145,15 +169,10 @@ func main() {
 
 	defer func() { _ = system.Stop(ctx) }()
 
-	st := newStore()
-
 	// Short deactivation window so the demo can show passivation in action.
 	const idleWindow = 2 * time.Second
 	identity := func(deviceID string) *actor.GrainIdentity {
-		id, err := system.GrainIdentity(ctx, deviceID,
-			func(_ context.Context) (actor.Grain, error) {
-				return &DeviceTwin{store: st}, nil
-			},
+		id, err := actor.GrainOf[*DeviceTwin](ctx, system, deviceID,
 			actor.WithGrainDeactivateAfter(idleWindow),
 		)
 		if err != nil {
@@ -167,6 +186,7 @@ func main() {
 	for _, dev := range []string{"sensor-A", "sensor-B", "sensor-C"} {
 		_ = system.TellGrain(ctx, identity(dev),
 			&Telemetry{Temp: 21.4, Humidity: 55})
+
 		_ = system.TellGrain(ctx, identity(dev),
 			&Telemetry{Temp: 21.6, Humidity: 56})
 	}

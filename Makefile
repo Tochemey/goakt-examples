@@ -43,12 +43,9 @@ help:
 	@echo "  two-pc-image            Build two-pc-transfer:dev"
 	@echo "  blockchain-image        Build blockchain:dev"
 
-# goakt-grains-cluster/grains-dnssd is excluded: the vendored
-# github.com/tochemey/gopack v0.2.1 postgres testkit does not compile against
-# the vendored moby/moby API v1.55.0. Put it back once a gopack release fixes it.
 .PHONY: build
 build:
-	go build -mod=vendor $$(go list ./... | grep -v goakt-grains-cluster/grains-dnssd)
+	go build -mod=vendor ./...
 
 .PHONY: vendor
 vendor:

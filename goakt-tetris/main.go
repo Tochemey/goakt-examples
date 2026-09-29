@@ -90,10 +90,10 @@ func main() {
 	// Singleton matchmaker. One per cluster — even when scaling to N
 	// pods, exactly one MatchFactory runs across them. Every node calls
 	// SpawnSingleton on boot; only the first wins, the rest get
-	// ErrSingletonAlreadyExists, which is fine — they share the existing
+	// ErrActorAlreadyExists, which is fine — they share the existing
 	// singleton via ActorOf.
 	if _, err := system.SpawnSingleton(ctx, MatchmakerActorName, &MatchFactory{}); err != nil {
-		if !errors.Is(err, gerrors.ErrSingletonAlreadyExists) {
+		if !errors.Is(err, gerrors.ErrActorAlreadyExists) {
 			logger.Fatal(err)
 		}
 		logger.Infof("matchmaker singleton already running elsewhere in the cluster")

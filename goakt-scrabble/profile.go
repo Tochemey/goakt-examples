@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 
@@ -109,6 +110,10 @@ var _ actor.Grain = (*PlayerProfileGrain)(nil)
 
 func (g *PlayerProfileGrain) OnActivate(ctx context.Context, props *actor.GrainProps) error {
 	g.id = strings.TrimPrefix(props.Identity().Name(), GrainPrefix)
+	g.store = profileStoreFromExtension(props.ActorSystem())
+	if g.store == nil {
+		return errors.New("profile store extension is not registered")
+	}
 
 	snap, ok, err := g.store.Load(ctx, g.id)
 	switch {

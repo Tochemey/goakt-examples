@@ -23,10 +23,11 @@
 package persistence
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/tochemey/gopack/postgres"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Config struct {
@@ -41,8 +42,7 @@ type Config struct {
 	ConnectionMaxLifetime time.Duration `env:"CONNECTION_MAX_LIFETIME" envDefault:"5m0s"` // ConnectionMaxLifetime represents the connection max life time
 }
 
-// LoadConfig read the Postgres config from environment variables
-func LoadConfig() *postgres.Config {
+func LoadConfig() *pgxpool.Config {
 	config := &Config{}
 	opts := env.Options{RequiredIfNoDef: true}
 	if err := env.ParseWithOptions(config, opts); err != nil {
@@ -50,17 +50,27 @@ func LoadConfig() *postgres.Config {
 		panic(err)
 	}
 
-	return &postgres.Config{
-		DBHost:                config.DBHost,
-		DBPort:                config.DBPort,
-		DBName:                config.DBName,
-		DBUser:                config.DBUser,
-		DBPassword:            config.DBPassword,
-		DBSchema:              config.DBSchema,
-		MaxConnections:        config.MaxOpenConnections,
-		MinConnections:        0,
-		MaxConnectionLifetime: config.ConnectionMaxLifetime,
-		MaxConnIdleTime:       30 * time.Minute,
-		HealthCheckPeriod:     time.Minute,
+	poolConfig, err := pgxpool.ParseConfig(createConnectionString(config))
+	if err != nil {
+		// TODO: don't panic in production code
+		panic(err)
 	}
+
+	poolConfig.MaxConns = int32(config.MaxOpenConnections)
+	poolConfig.MinConns = 0
+	poolConfig.MaxConnLifetime = config.ConnectionMaxLifetime
+	poolConfig.MaxConnIdleTime = 30 * time.Minute
+	poolConfig.HealthCheckPeriod = time.Minute
+	return poolConfig
+}
+
+func createConnectionString(config *Config) string {
+	info := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=disable", config.DBHost, config.DBPort, config.DBUser, config.DBName)
+	if config.DBPassword != "" {
+		info += fmt.Sprintf(" password=%s", config.DBPassword)
+	}
+	if config.DBSchema != "" {
+		info += fmt.Sprintf(" search_path=%s", config.DBSchema)
+	}
+	return info
 }

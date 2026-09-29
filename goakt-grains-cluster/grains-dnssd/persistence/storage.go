@@ -25,10 +25,13 @@ package persistence
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tochemey/goakt/v4/extension"
-	"github.com/tochemey/gopack/postgres"
 
 	"github.com/tochemey/goakt-examples/v2/goakt-grains-cluster/grains-dnssd/domain"
 )
@@ -44,8 +47,9 @@ type Store interface {
 }
 
 type PostgresStore struct {
-	db postgres.Postgres
-	sb sq.StatementBuilderType
+	config *pgxpool.Config
+	pool   *pgxpool.Pool
+	sb     sq.StatementBuilderType
 }
 
 var _ Store = (*PostgresStore)(nil)
@@ -53,12 +57,10 @@ var _ Store = (*PostgresStore)(nil)
 func NewPostgresStore() Store {
 	// load the database configuration from environment variables
 	config := LoadConfig()
-	// create the database connection
-	db := postgres.New(config)
 	// create the instance and return it
 	return &PostgresStore{
-		db: db,
-		sb: sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
+		config: config,
+		sb:     sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
 	}
 }
 
@@ -67,7 +69,18 @@ func (x *PostgresStore) ID() string {
 }
 
 func (x *PostgresStore) Start(ctx context.Context) error {
-	return x.db.Connect(ctx)
+	pool, err := pgxpool.NewWithConfig(ctx, x.config)
+	if err != nil {
+		return fmt.Errorf("failed to create the connection pool: %w", err)
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return fmt.Errorf("failed to ping the database connection: %w", err)
+	}
+
+	x.pool = pool
+	return nil
 }
 
 func (x *PostgresStore) WriteState(ctx context.Context, account *domain.Account) error {
@@ -75,26 +88,26 @@ func (x *PostgresStore) WriteState(ctx context.Context, account *domain.Account)
 		return errors.New("nil account")
 	}
 
-	txRunner, err := postgres.NewTxRunner(ctx, x.db)
-	if err != nil {
-		return err
-	}
+	return pgx.BeginFunc(ctx, x.pool, func(tx pgx.Tx) error {
+		for _, stmt := range []sq.Sqlizer{deleteStmt{account}, insertionStateStmt{account}} {
+			query, args, err := stmt.ToSql()
+			if err != nil {
+				return err
+			}
 
-	runner := txRunner.
-		AddSQLBuilder(&deleteStmt{account}).
-		AddSQLBuilder(&insertionStateStmt{account})
-
-	if err = runner.Run(); err != nil {
-		return err
-	}
-	return nil
+			if _, err := tx.Exec(ctx, query, args...); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (x *PostgresStore) GetState(ctx context.Context, accountID string) (*domain.Account, error) {
 	statement := x.sb.
 		Select(
-			"account_id",
-			"account_balance").
+			"account_balance",
+			"created_at").
 		From("accounts").
 		Where(sq.Eq{"account_id": accountID})
 
@@ -105,23 +118,30 @@ func (x *PostgresStore) GetState(ctx context.Context, accountID string) (*domain
 		return nil, err
 	}
 
-	account := new(domain.Account)
-	if err := x.db.Select(ctx, &account, query, args...); err != nil {
+	var balance float64
+	var createdAt time.Time
+	if err := x.pool.QueryRow(ctx, query, args...).Scan(&balance, &createdAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.NewAccount(accountID, 0, time.Time{}), nil
+		}
 		return nil, err
 	}
 
-	return account, nil
+	return domain.NewAccount(accountID, balance, createdAt), nil
 }
 
-func (x *PostgresStore) Stop(ctx context.Context) error {
-	return x.db.Disconnect(ctx)
+func (x *PostgresStore) Stop(context.Context) error {
+	if x.pool != nil {
+		x.pool.Close()
+	}
+	return nil
 }
 
 type deleteStmt struct {
 	account *domain.Account
 }
 
-func (s deleteStmt) ToSQL() (sqlStatement string, args []any, err error) {
+func (s deleteStmt) ToSql() (sqlStatement string, args []any, err error) {
 	sqlStatement, args, err = sq.
 		StatementBuilder.
 		PlaceholderFormat(sq.Dollar).
@@ -135,7 +155,7 @@ type insertionStateStmt struct {
 	account *domain.Account
 }
 
-func (s insertionStateStmt) ToSQL() (sqlStatement string, args []any, err error) {
+func (s insertionStateStmt) ToSql() (sqlStatement string, args []any, err error) {
 	sqlStatement, args, err = sq.
 		StatementBuilder.
 		PlaceholderFormat(sq.Dollar).
