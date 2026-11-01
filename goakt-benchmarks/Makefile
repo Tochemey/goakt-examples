@@ -7,6 +7,8 @@
 .DEFAULT_GOAL := help
 
 FRAMEWORKS := goakt ergo protoactor hollywood
+# Only these frameworks have grains (virtual actors).
+GRAIN_FRAMEWORKS := goakt protoactor
 
 BENCH     ?= .
 COUNT     ?= 10
@@ -24,7 +26,8 @@ help:
 	@echo "  bench              Benchmark every framework and compare the results"
 	@echo "  bench-<framework>  Benchmark one framework ($(FRAMEWORKS))"
 	@echo "  compare            Compare the saved results with benchstat"
-	@echo "  table              Print the saved results as Markdown comparison tables"
+	@echo "  table              Print the saved actor results as Markdown comparison tables"
+	@echo "  table-grains       Print the saved grain results as Markdown comparison tables"
 	@echo "  smoke              Run every benchmark once, to check they work"
 	@echo "  vendor             go mod tidy && go mod vendor"
 	@echo "  clean              Remove the saved results"
@@ -47,7 +50,11 @@ compare:
 
 .PHONY: table
 table:
-	@go run ./cmd/table $(foreach f,$(FRAMEWORKS),$(if $(wildcard $(RESULTS)/$(f).txt),$(f)=$(RESULTS)/$(f).txt))
+	@go run ./cmd/table -skip '^Grain' $(foreach f,$(FRAMEWORKS),$(if $(wildcard $(RESULTS)/$(f).txt),$(f)=$(RESULTS)/$(f).txt))
+
+.PHONY: table-grains
+table-grains:
+	@go run ./cmd/table -match '^Grain' $(foreach f,$(GRAIN_FRAMEWORKS),$(if $(wildcard $(RESULTS)/$(f).txt),$(f)=$(RESULTS)/$(f).txt))
 
 .PHONY: smoke
 smoke:

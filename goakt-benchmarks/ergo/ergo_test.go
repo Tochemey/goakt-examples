@@ -67,6 +67,26 @@ func (x *sink) HandleMessage(_ gen.PID, message any) error {
 	return nil
 }
 
+// teller sends n Pings to a target from inside its handler once it receives Start.
+type teller struct {
+	act.Actor
+	target gen.PID
+	n      int
+}
+
+func (x *teller) HandleMessage(_ gen.PID, message any) error {
+	switch message.(type) {
+	case *bench.Start:
+		msg := new(bench.Ping)
+		for range x.n {
+			if err := x.Send(x.target, msg); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // responder answers every Ping with a Pong.
 type responder struct {
 	act.Actor
@@ -363,6 +383,20 @@ func BenchmarkTellParallel(b *testing.B) {
 			}
 		}
 	})
+	latch.Wait(b)
+	bench.ReportRate(b, b.N, bench.MsgsPerSec)
+}
+
+func BenchmarkTellFromActor(b *testing.B) {
+	latch := bench.NewLatch(b.N)
+	pid := spawn(b, func() gen.ProcessBehavior { return &sink{latch: latch} })
+	sender := spawn(b, func() gen.ProcessBehavior { return &teller{target: pid, n: b.N} })
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	if err := node.Send(sender, new(bench.Start)); err != nil {
+		b.Fatal(err)
+	}
 	latch.Wait(b)
 	bench.ReportRate(b, b.N, bench.MsgsPerSec)
 }

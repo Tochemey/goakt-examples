@@ -24,17 +24,31 @@ package goakt
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"os"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/tochemey/goakt/v4/actor"
+	"github.com/tochemey/goakt/v4/discovery/static"
 	"github.com/tochemey/goakt/v4/log"
+	"github.com/tochemey/goakt/v4/remote"
 
 	"github.com/tochemey/goakt-examples/goakt-benchmarks/internal/bench"
 )
 
 var system actor.ActorSystem
+
+// grains is the single-node cluster the grain benchmarks share. It is only
+// started when one of them runs, so its remoting and gossip stay out of the
+// actor benchmarks.
+var (
+	grains     actor.ActorSystem
+	grainsOnce sync.Once
+)
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
@@ -51,6 +65,9 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 	_ = system.Stop(ctx)
+	if grains != nil {
+		_ = grains.Stop(ctx)
+	}
 	os.Exit(code)
 }
 
@@ -71,6 +88,28 @@ func (x *sink) Receive(ctx *actor.ReceiveContext) {
 }
 
 func (x *sink) PostStop(*actor.Context) error { return nil }
+
+// teller sends n Pings to a target from inside its handler once it receives Start.
+type teller struct {
+	target *actor.PID
+	n      int
+}
+
+var _ actor.Actor = (*teller)(nil)
+
+func (x *teller) PreStart(*actor.Context) error { return nil }
+
+func (x *teller) Receive(ctx *actor.ReceiveContext) {
+	switch ctx.Message().(type) {
+	case *bench.Start:
+		msg := new(bench.Ping)
+		for range x.n {
+			ctx.Tell(x.target, msg)
+		}
+	}
+}
+
+func (x *teller) PostStop(*actor.Context) error { return nil }
 
 // responder answers every Ping with a Pong.
 type responder struct{}
@@ -354,6 +393,24 @@ func (x *stopper) PostStop(*actor.Context) error {
 	return nil
 }
 
+// grain answers every Ping with a Pong.
+type grain struct{}
+
+var _ actor.Grain = (*grain)(nil)
+
+func (x *grain) OnActivate(context.Context, *actor.GrainProps) error { return nil }
+
+func (x *grain) OnReceive(ctx *actor.GrainContext) {
+	switch ctx.Message().(type) {
+	case *bench.Ping:
+		ctx.Response(new(bench.Pong))
+	default:
+		ctx.Unhandled()
+	}
+}
+
+func (x *grain) OnDeactivate(context.Context, *actor.GrainProps) error { return nil }
+
 func spawn(b *testing.B, a actor.Actor) *actor.PID {
 	b.Helper()
 	ctx := context.Background()
@@ -398,6 +455,21 @@ func BenchmarkTellParallel(b *testing.B) {
 			}
 		}
 	})
+	latch.Wait(b)
+	bench.ReportRate(b, b.N, bench.MsgsPerSec)
+}
+
+func BenchmarkTellFromActor(b *testing.B) {
+	ctx := context.Background()
+	latch := bench.NewLatch(b.N)
+	pid := spawn(b, &sink{latch: latch})
+	sender := spawn(b, &teller{target: pid, n: b.N})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	if err := actor.Tell(ctx, sender, new(bench.Start)); err != nil {
+		b.Fatal(err)
+	}
 	latch.Wait(b)
 	bench.ReportRate(b, b.N, bench.MsgsPerSec)
 }
@@ -629,4 +701,168 @@ func BenchmarkSpawnStop(b *testing.B) {
 		stopped.Wait(b)
 	}
 	bench.ReportRate(b, b.N, bench.ActorsPerSec)
+}
+
+// startCluster starts a single-node cluster on an actor system of its own, so
+// grains are registered in the cluster as they would be in production. Static
+// discovery lists only this node; discovery, peers and remoting listen on
+// localhost, but every grain is local, so no message crosses them.
+func startCluster() (actor.ActorSystem, error) {
+	ports, err := freePorts(3)
+	if err != nil {
+		return nil, err
+	}
+	discoveryPort, peersPort, remotingPort := ports[0], ports[1], ports[2]
+
+	config := actor.NewClusterConfig().
+		WithDiscovery(static.NewDiscovery(&static.Config{Hosts: []string{fmt.Sprintf("127.0.0.1:%d", discoveryPort)}})).
+		WithDiscoveryPort(discoveryPort).
+		WithPeersPort(peersPort).
+		WithReplicaCount(1).
+		WithGrains(new(grain))
+
+	sys, err := actor.NewActorSystem(bench.Name("grains"),
+		actor.WithLogger(log.DiscardLogger),
+		actor.WithRemote(remote.NewConfig("127.0.0.1", remotingPort)),
+		actor.WithCluster(config))
+	if err != nil {
+		return nil, err
+	}
+	if err := sys.Start(context.Background()); err != nil {
+		return nil, err
+	}
+	return sys, nil
+}
+
+// freePorts returns n distinct TCP ports that were free on localhost.
+func freePorts(n int) ([]int, error) {
+	ports := make([]int, n)
+	listeners := make([]net.Listener, n)
+	for i := range n {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		listeners[i] = l
+		ports[i] = l.Addr().(*net.TCPAddr).Port
+	}
+	for _, l := range listeners {
+		_ = l.Close()
+	}
+	return ports, nil
+}
+
+func sharedCluster(b *testing.B) actor.ActorSystem {
+	b.Helper()
+	var err error
+	grainsOnce.Do(func() { grains, err = startCluster() })
+	if err != nil {
+		b.Fatal(err)
+	}
+	if grains == nil {
+		b.Fatal("the shared grain cluster failed to start")
+	}
+	return grains
+}
+
+// grainCluster starts a cluster of its own for a benchmark that activates a new
+// grain per iteration, so those grains are deactivated with it instead of
+// accumulating in the shared cluster.
+func grainCluster(b *testing.B) actor.ActorSystem {
+	b.Helper()
+	sys, err := startCluster()
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() { _ = sys.Stop(context.Background()) })
+	return sys
+}
+
+func activate(b *testing.B, sys actor.ActorSystem) *actor.GrainIdentity {
+	b.Helper()
+	identity, err := actor.GrainOf[*grain](context.Background(), sys, bench.Name("grain"), actor.WithLongLivedGrain())
+	if err != nil {
+		b.Fatal(err)
+	}
+	return identity
+}
+
+// warmUp activates bench.WarmupGrains grains that the benchmark does not
+// measure.
+func warmUp(b *testing.B, sys actor.ActorSystem) {
+	b.Helper()
+	for range bench.WarmupGrains {
+		activate(b, sys)
+	}
+}
+
+func BenchmarkGrainAsk(b *testing.B) {
+	ctx := context.Background()
+	sys := sharedCluster(b)
+	identity := activate(b, sys)
+	msg := new(bench.Ping)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if _, err := sys.AskGrain(ctx, identity, msg, bench.Timeout); err != nil {
+			b.Fatal(err)
+		}
+	}
+	bench.ReportRate(b, b.N, bench.MsgsPerSec)
+}
+
+func BenchmarkGrainAskParallel(b *testing.B) {
+	ctx := context.Background()
+	sys := sharedCluster(b)
+	identities := make([]*actor.GrainIdentity, runtime.GOMAXPROCS(0))
+	for i := range identities {
+		identities[i] = activate(b, sys)
+	}
+	var next atomic.Int64
+	msg := new(bench.Ping)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		identity := identities[int(next.Add(1)-1)%len(identities)]
+		for pb.Next() {
+			if _, err := sys.AskGrain(ctx, identity, msg, bench.Timeout); err != nil {
+				b.Error(err)
+				return
+			}
+		}
+	})
+	bench.ReportRate(b, b.N, bench.MsgsPerSec)
+}
+
+func BenchmarkGrainActivate(b *testing.B) {
+	ctx := context.Background()
+	sys := grainCluster(b)
+	msg := new(bench.Ping)
+
+	warmUp(b, sys)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if _, err := sys.AskGrain(ctx, activate(b, sys), msg, bench.Timeout); err != nil {
+			b.Fatal(err)
+		}
+	}
+	bench.ReportRate(b, b.N, bench.GrainsPerSec)
+}
+
+func BenchmarkGrainMemoryPerGrain(b *testing.B) {
+	sys := grainCluster(b)
+	warmUp(b, sys)
+
+	for range b.N {
+		before := bench.MeasureHeap()
+		for range bench.MemoryGrains {
+			activate(b, sys)
+		}
+		after := bench.MeasureHeap()
+		bench.ReportHeapPerGrain(b, before, after, bench.MemoryGrains)
+	}
 }

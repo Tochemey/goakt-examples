@@ -44,8 +44,11 @@ const waitTimeout = time.Minute
 const (
 	MsgsPerSec   = "msgs/s"
 	ActorsPerSec = "actors/s"
+	GrainsPerSec = "grains/s"
 	// BytesPerActor is the live heap one idle actor keeps.
 	BytesPerActor = "B/actor"
+	// BytesPerGrain is the live heap one idle grain keeps.
+	BytesPerGrain = "B/grain"
 )
 
 // Sizes of the scenarios that run a fixed population of actors. The Savina
@@ -74,6 +77,13 @@ const (
 	SkynetSum = SkynetLeaves * (SkynetLeaves - 1) / 2
 	// MemoryActors is the number of idle actors MemoryPerActor spawns.
 	MemoryActors = 50_000
+	// MemoryGrains is the number of idle grains MemoryPerGrain activates.
+	MemoryGrains = 50_000
+	// WarmupGrains is the number of grains GrainActivate and MemoryPerGrain
+	// activate before they measure, so one-off allocations of a fresh
+	// cluster, such as its storage tables, are not charged to the grains
+	// measured.
+	WarmupGrains = 10_000
 	// PipelineDepth is the number of messages a PingPongPipelined pinger
 	// keeps in flight to its ponger.
 	PipelineDepth = 100
@@ -193,10 +203,20 @@ func MeasureHeap() uint64 {
 // ReportHeapPerActor reports how much live heap each of n actors kept: the
 // growth from before to after, divided by n.
 func ReportHeapPerActor(b *testing.B, before, after uint64, n int) {
+	reportHeapPer(b, before, after, n, BytesPerActor)
+}
+
+// ReportHeapPerGrain reports how much live heap each of n grains kept: the
+// growth from before to after, divided by n.
+func ReportHeapPerGrain(b *testing.B, before, after uint64, n int) {
+	reportHeapPer(b, before, after, n, BytesPerGrain)
+}
+
+func reportHeapPer(b *testing.B, before, after uint64, n int, unit string) {
 	if after < before {
 		after = before
 	}
-	b.ReportMetric(float64(after-before)/float64(n), BytesPerActor)
+	b.ReportMetric(float64(after-before)/float64(n), unit)
 }
 
 // Latch is closed once an actor has handled the expected number of messages.

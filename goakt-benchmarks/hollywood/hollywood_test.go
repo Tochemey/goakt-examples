@@ -61,6 +61,22 @@ func (x *sink) Receive(ctx *actor.Context) {
 	}
 }
 
+// teller sends n Pings to a target from inside its handler once it receives Start.
+type teller struct {
+	target *actor.PID
+	n      int
+}
+
+func (x *teller) Receive(ctx *actor.Context) {
+	switch ctx.Message().(type) {
+	case *bench.Start:
+		msg := new(bench.Ping)
+		for range x.n {
+			ctx.Send(x.target, msg)
+		}
+	}
+}
+
 // responder answers every Ping with a Pong.
 type responder struct{}
 
@@ -321,6 +337,18 @@ func BenchmarkTellParallel(b *testing.B) {
 			engine.Send(pid, msg)
 		}
 	})
+	latch.Wait(b)
+	bench.ReportRate(b, b.N, bench.MsgsPerSec)
+}
+
+func BenchmarkTellFromActor(b *testing.B) {
+	latch := bench.NewLatch(b.N)
+	pid := spawn(b, func() actor.Receiver { return &sink{latch: latch} })
+	sender := spawn(b, func() actor.Receiver { return &teller{target: pid, n: b.N} })
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	engine.Send(sender, new(bench.Start))
 	latch.Wait(b)
 	bench.ReportRate(b, b.N, bench.MsgsPerSec)
 }

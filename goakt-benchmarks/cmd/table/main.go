@@ -24,14 +24,17 @@
 //
 // Each argument is label=path, where path is the output of go test -bench for
 // one framework. The first label is the baseline the other columns are compared
-// with:
+// with. -match and -skip keep or drop benchmarks whose name matches a regular
+// expression:
 //
-//	go run ./cmd/table goakt=results/goakt.txt ergo=results/ergo.txt
+//	go run ./cmd/table -skip '^Grain' goakt=results/goakt.txt ergo=results/ergo.txt
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -51,11 +54,12 @@ type metric struct {
 }
 
 var metrics = []metric{
-	{units: []string{"msgs/s", "actors/s"}, title: "Throughput", higherBetter: true, format: formatRate},
+	{units: []string{"msgs/s", "actors/s", "grains/s"}, title: "Throughput", higherBetter: true, format: formatRate},
 	{units: []string{"ns/op"}, title: "Time per operation", format: formatDuration},
 	{units: []string{"B/op"}, title: "Bytes allocated per operation", format: func(v float64, _ string) string { return fmt.Sprintf("%.0f B", v) }},
 	{units: []string{"allocs/op"}, title: "Allocations per operation", format: func(v float64, _ string) string { return fmt.Sprintf("%.0f", v) }},
 	{units: []string{"B/actor"}, title: "Live heap per idle actor", exclusive: true, format: func(v float64, _ string) string { return fmt.Sprintf("%.0f B", v) }},
+	{units: []string{"B/grain"}, title: "Live heap per idle grain", exclusive: true, format: func(v float64, _ string) string { return fmt.Sprintf("%.0f B", v) }},
 }
 
 // samples holds every value recorded for a benchmark, keyed by framework label
@@ -63,8 +67,16 @@ var metrics = []metric{
 type samples map[string]map[string][]float64
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: table label=path [label=path...]")
+	match := flag.String("match", "", "only render benchmarks whose name matches this regular expression")
+	skip := flag.String("skip", "", "leave out benchmarks whose name matches this regular expression")
+	flag.Parse()
+	if flag.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "usage: table [-match regexp] [-skip regexp] label=path [label=path...]")
+		os.Exit(2)
+	}
+	keep, err := filter(*match, *skip)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 
@@ -75,7 +87,7 @@ func main() {
 		cpu        string
 	)
 
-	for _, arg := range os.Args[1:] {
+	for _, arg := range flag.Args() {
 		label, path, ok := strings.Cut(arg, "=")
 		if !ok {
 			fmt.Fprintf(os.Stderr, "invalid argument %q: want label=path\n", arg)
@@ -101,6 +113,9 @@ func main() {
 			}
 
 			name := result.Name.String()
+			if !keep(name) {
+				continue
+			}
 			if _, ok := results[name]; !ok {
 				results[name] = make(samples)
 				benchmarks = append(benchmarks, name)
@@ -129,17 +144,13 @@ func main() {
 	}
 
 	for _, m := range metrics {
-		fmt.Printf("### %s\n\n", m.title)
-		if m.higherBetter {
-			fmt.Print("Higher is better.\n\n")
-		} else {
-			fmt.Print("Lower is better.\n\n")
-		}
-		fmt.Printf("| Benchmark | %s |\n", strings.Join(labels, " | "))
-		fmt.Printf("|---|%s\n", strings.Repeat("---:|", len(labels)))
-
+		var rows []string
 		for _, name := range benchmarks {
-			if m.exclusive != hasExclusiveUnit(results[name]) {
+			if m.exclusive {
+				if !slices.ContainsFunc(m.units, func(unit string) bool { return hasUnit(results[name], unit) }) {
+					continue
+				}
+			} else if hasExclusiveUnit(results[name]) {
 				continue
 			}
 
@@ -184,10 +195,43 @@ func main() {
 				}
 				cells[i] = cell
 			}
-			fmt.Printf("| %s | %s |\n", name, strings.Join(cells, " | "))
+			rows = append(rows, fmt.Sprintf("| %s | %s |\n", name, strings.Join(cells, " | ")))
 		}
+		if len(rows) == 0 {
+			continue
+		}
+
+		fmt.Printf("### %s\n\n", m.title)
+		if m.higherBetter {
+			fmt.Print("Higher is better.\n\n")
+		} else {
+			fmt.Print("Lower is better.\n\n")
+		}
+		fmt.Printf("| Benchmark | %s |\n", strings.Join(labels, " | "))
+		fmt.Printf("|---|%s\n", strings.Repeat("---:|", len(labels)))
+		fmt.Print(strings.Join(rows, ""))
 		fmt.Println()
 	}
+}
+
+// filter returns a function reporting whether a benchmark is rendered: its name
+// matches match, when set, and does not match skip, when set.
+func filter(match, skip string) (func(name string) bool, error) {
+	var matchRe, skipRe *regexp.Regexp
+	var err error
+	if match != "" {
+		if matchRe, err = regexp.Compile(match); err != nil {
+			return nil, fmt.Errorf("invalid -match: %w", err)
+		}
+	}
+	if skip != "" {
+		if skipRe, err = regexp.Compile(skip); err != nil {
+			return nil, fmt.Errorf("invalid -skip: %w", err)
+		}
+	}
+	return func(name string) bool {
+		return (matchRe == nil || matchRe.MatchString(name)) && (skipRe == nil || !skipRe.MatchString(name))
+	}, nil
 }
 
 // hasExclusiveUnit reports whether a benchmark recorded the unit of an
