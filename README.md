@@ -70,7 +70,7 @@ make help     # list all targets
 
 ### Benchmarks
 
-- [goakt-benchmarks](./goakt-benchmarks): a separate Go module that benchmarks GoAkt against Ergo, Proto.Actor and Hollywood. All four run the same thirteen scenarios under the same benchmark names: tell, ask, sequential and parallel; actor-to-actor ping-pong, single pair, one pair per processor, and pipelined; spawn/stop; the Savina ThreadRing, Fork Join and Big benchmarks; Skynet; and live heap per idle actor. `make bench` compares the results with benchstat.
+- [goakt-benchmarks](https://github.com/Tochemey/goakt-benchmarks): benchmarks GoAkt against Ergo, Proto.Actor and Hollywood. All four run the same thirteen scenarios under the same benchmark names: tell, ask, sequential and parallel; actor-to-actor ping-pong, single pair, one pair per processor, and pipelined; spawn/stop; the Savina ThreadRing, Fork Join and Big benchmarks; Skynet; and live heap per idle actor. `make bench` compares the results with benchstat.
 
 ### Applications
 
